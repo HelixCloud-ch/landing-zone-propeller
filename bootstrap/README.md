@@ -113,7 +113,6 @@ aws cloudformation deploy \
   --region "$TARGET_REGION" \
   --template-file "$TEMPLATE" \
   --stack-name bootstrap \
-  --parameter-overrides SourceType=NO_SOURCE SourceLocation="" SourceVersion="" \
   --capabilities CAPABILITY_NAMED_IAM
 ```
 
