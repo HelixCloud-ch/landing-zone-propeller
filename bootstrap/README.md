@@ -1,0 +1,94 @@
+# Bootstrap — Landing Zone Setup
+
+Step-by-step guide to bootstrap a landing zone from a brand-new, empty AWS
+account. All operations run from the AWS Management Console and CloudShell.
+Bootstrap scripts run inside CodeBuild; the source code is downloaded as a zip
+from a GitHub release — no git clone required.
+
+> Prerequisites: sign in to the AWS Management Console with the root or admin
+> user of the account that will become the management account.
+
+## Open CloudShell
+
+CloudShell is not available in every Region. If your target Region does not
+support CloudShell (e.g. `eu-central-2`), open it in a nearby default Region
+such as `eu-central-1`:
+
+1. In the navigation bar, select a Region where CloudShell is available
+   (e.g. **eu-central-2**).
+2. Choose the **CloudShell** icon (terminal icon) in the navigation bar, or
+   search for *CloudShell* in the service search bar.
+3. Wait for the environment to initialize.
+
+All CLI commands in this guide include an explicit `--region` flag so they
+work regardless of which Region CloudShell is running in.
+
+---
+
+## 1. Enable opt-in Region (if applicable)
+
+Skip this section if you are deploying in a default Region (e.g. `eu-central-1`).
+Opt-in Regions like `eu-central-2` (Zurich) are disabled by default and must be
+enabled before any resource can be created there.
+
+> IAM Identity Center can only be enabled in a single Region per organization.
+> Changing it later requires deleting and re-creating the instance, so pick
+> carefully.
+
+### Console
+
+1. Choose your account name in the top-right corner, then choose **Account**.
+2. Scroll down to the **AWS Regions** section.
+3. Find the target Region (e.g. **Europe (Zurich) eu-central-2**) and choose
+   **Enable**.
+4. Review the confirmation text and choose **Enable region**.
+5. Wait for the status to change from *Enabling* to *Enabled* (a few minutes
+   while IAM data propagates).
+
+Required permissions: `account:EnableRegion`, `account:GetRegionOptStatus`.
+
+---
+
+## 2. Create an AWS Organization
+
+From CloudShell, create the organization with all features enabled (SCPs, tag
+policies, etc.). The current account becomes the management account.
+
+```bash
+TARGET_REGION=eu-central-2
+
+aws organizations create-organization \
+  --feature-set ALL \
+  --region "$TARGET_REGION"
+```
+
+Verify the management account email when the verification message arrives
+(required before you can invite existing accounts).
+
+Required permissions: `organizations:CreateOrganization`,
+`iam:CreateServiceLinkedRole`.
+
+---
+
+## 3. Enable IAM Identity Center (organization instance)
+
+This step must be done from the console. The `sso-admin` `CreateInstance` API
+exists but is explicitly rejected when called from the management account — it
+only works for standalone or member accounts. See the [AWS API reference](https://docs.aws.amazon.com/boto3/latest/reference/services/sso-admin/client/create_instance.html):
+> *"The CreateInstance request is rejected if the instance is created within
+> the organization management account."*
+
+1. In the navigation bar, select the target Region (e.g. **eu-central-2**).
+2. Open the [IAM Identity Center console](https://console.aws.amazon.com/singlesignon).
+3. Under **Enable IAM Identity Center**, choose **Enable**.
+4. On the **Enable IAM Identity Center with AWS Organizations** page, review
+   the information and choose **Enable**.
+
+This creates an **organization-level** instance that supports multi-account
+permissions, delegated administration, and customer-managed KMS keys.
+
+> AWS Organizations can have IAM Identity Center enabled in only a single
+> Region. Changing it later requires deleting and re-creating the instance.
+
+---
+
