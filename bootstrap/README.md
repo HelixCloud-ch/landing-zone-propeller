@@ -164,13 +164,13 @@ environment variable defined in the target script.
 ## 5. Deploy the Service Catalog portfolio and product
 
 ```bash
-$RUN deploy-service-catalog.sh
+$RUN deploy-portfolio.sh
 ```
 
 To override defaults:
 
 ```bash
-$RUN deploy-service-catalog.sh \
+$RUN deploy-portfolio.sh \
   PRODUCT_NAME=my-custom-runner \
   PRODUCT_TEMPLATE_PATH=path/to/template.yaml
 ```
@@ -189,13 +189,13 @@ Available overrides:
 ## 6. Share the Service Catalog portfolio with the organization
 
 ```bash
-$RUN share-service-catalog.sh
+$RUN share-portfolio.sh
 ```
 
 To target a different portfolio:
 
 ```bash
-$RUN share-service-catalog.sh PORTFOLIO_DISPLAY_NAME=my-portfolio
+$RUN share-portfolio.sh PORTFOLIO_DISPLAY_NAME=my-portfolio
 ```
 
 ---
