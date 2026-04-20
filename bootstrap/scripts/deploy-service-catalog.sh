@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
+set -x
+
+echo "PWD: $(pwd)"
+echo "PATH: $PATH"
+echo "AWS CLI: $(which aws 2>/dev/null || echo 'not found')"
 
 : "${PORTFOLIO_DISPLAY_NAME:=landing-zone-propeller}"
 : "${PORTFOLIO_PROVIDER_NAME:=landing-zone-propeller}"
 : "${PRODUCT_NAME:=deploy-runner}"
 : "${PRODUCT_TEMPLATE_PATH:=bootstrap/cloudformation/deploy-runner.yaml}"
+
+# CodeBuild exposes AWS_DEFAULT_REGION; normalise to AWS_REGION for consistency
+: "${AWS_REGION:=${AWS_DEFAULT_REGION:?AWS_REGION or AWS_DEFAULT_REGION is required}}"
 
 cleanup() {
   if [ -n "${TEMP_BUCKET:-}" ]; then
