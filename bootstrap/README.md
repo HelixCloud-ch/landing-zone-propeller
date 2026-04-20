@@ -92,3 +92,29 @@ permissions, delegated administration, and customer-managed KMS keys.
 
 ---
 
+
+## 4. Deploy the Bootstrap CodeBuild stack
+
+The CodeBuild project uses `NO_SOURCE` — the source code is downloaded at
+runtime from a GitHub release zip. Deploy the stack from CloudShell after
+downloading just the bootstrap template:
+
+```bash
+TARGET_REGION=eu-central-2
+LZP_VERSION=v0.0.1
+LZP_ZIP_URL="https://github.com/HelixCloud-ch/landing-zone-propeller/archive/refs/tags/${LZP_VERSION}.zip"
+
+# Download and extract only the bootstrap template
+curl -sL "$LZP_ZIP_URL" -o /tmp/lzp.zip
+unzip -qo /tmp/lzp.zip "landing-zone-propeller-*/bootstrap/cloudformation/bootstrap.yaml" -d /tmp
+TEMPLATE=$(find /tmp/landing-zone-propeller-* -name bootstrap.yaml -path '*/bootstrap/cloudformation/*')
+
+aws cloudformation deploy \
+  --region "$TARGET_REGION" \
+  --template-file "$TEMPLATE" \
+  --stack-name bootstrap \
+  --parameter-overrides SourceType=NO_SOURCE SourceLocation="" SourceVersion="" \
+  --capabilities CAPABILITY_NAMED_IAM
+```
+
+---
