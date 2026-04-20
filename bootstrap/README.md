@@ -200,3 +200,26 @@ $RUN share-service-catalog.sh PORTFOLIO_DISPLAY_NAME=my-portfolio
 
 ---
 
+## 7. Create the Operations account
+
+```bash
+$RUN create-operation-account.sh OPERATION_EMAIL=ops@example.com
+```
+
+To override defaults:
+
+```bash
+$RUN create-operation-account.sh \
+  OPERATION_EMAIL=ops@example.com \
+  OPERATION_ACCOUNT_NAME=operations 
+```
+
+Available overrides:
+
+| Variable | Default |
+|---|---|
+| `OPERATION_EMAIL` | required |
+| `OPERATION_ACCOUNT_NAME` | `operations` |
+| `INFRASTRUCTURE_OU_NAME` | `Infrastructure` |
+| `OPERATION_ROLE_NAME` | `AWSControlTowerExecution` |
+
