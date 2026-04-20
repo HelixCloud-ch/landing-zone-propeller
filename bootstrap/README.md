@@ -185,3 +185,18 @@ Available overrides:
 | `PRODUCT_TEMPLATE_PATH` | `bootstrap/cloudformation/deploy-runner.yaml` |
 
 ---
+
+## 6. Share the Service Catalog portfolio with the organization
+
+```bash
+$RUN share-service-catalog.sh
+```
+
+To target a different portfolio:
+
+```bash
+$RUN share-service-catalog.sh PORTFOLIO_DISPLAY_NAME=my-portfolio
+```
+
+---
+
