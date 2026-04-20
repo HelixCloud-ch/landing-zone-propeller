@@ -117,3 +117,44 @@ aws cloudformation deploy \
 ```
 
 ---
+
+## Common variables
+
+Set these variables once in your CloudShell session. All subsequent steps use
+`run.sh` which reads them automatically.
+
+```bash
+export TARGET_REGION=eu-central-2
+export LZP_VERSION=v0.0.1
+export LZP_ZIP_URL="https://github.com/HelixCloud-ch/landing-zone-propeller/archive/refs/tags/${LZP_VERSION}.zip"
+
+export CB_PROJECT=$(aws cloudformation describe-stacks \
+  --region "$TARGET_REGION" \
+  --stack-name bootstrap \
+  --query 'Stacks[0].Outputs[?OutputKey==`CodeBuildProjectName`].OutputValue' \
+  --output text)
+
+echo "CodeBuild project : $CB_PROJECT"
+echo "Source zip        : $LZP_ZIP_URL"
+```
+
+Then download `run.sh` from the same release zip so it is available in
+CloudShell:
+
+```bash
+unzip -qo /tmp/lzp.zip "landing-zone-propeller-*/bootstrap/scripts/run.sh" -d /tmp
+RUN=$(find /tmp/landing-zone-propeller-* -name run.sh)
+chmod +x "$RUN"
+```
+
+Every subsequent step is a single call:
+
+```bash
+$RUN <script-name> [KEY=VALUE ...]
+```
+
+`run.sh` downloads the release zip inside CodeBuild, runs the named script, and
+polls until the build completes. Pass `KEY=VALUE` pairs to override any default
+environment variable defined in the target script.
+
+---
