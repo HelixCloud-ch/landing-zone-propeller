@@ -142,6 +142,7 @@ Then download `run.sh` from the same release zip so it is available in
 CloudShell:
 
 ```bash
+curl -sL "$LZP_ZIP_URL" -o /tmp/lzp.zip
 unzip -qo /tmp/lzp.zip "landing-zone-propeller-*/bootstrap/scripts/run.sh" -d /tmp
 RUN=$(find /tmp/landing-zone-propeller-* -name run.sh)
 chmod +x "$RUN"
@@ -156,5 +157,31 @@ $RUN <script-name> [KEY=VALUE ...]
 `run.sh` downloads the release zip inside CodeBuild, runs the named script, and
 polls until the build completes. Pass `KEY=VALUE` pairs to override any default
 environment variable defined in the target script.
+
+
+---
+
+## 5. Deploy the Service Catalog portfolio and product
+
+```bash
+$RUN deploy-service-catalog.sh
+```
+
+To override defaults:
+
+```bash
+$RUN deploy-service-catalog.sh \
+  PRODUCT_NAME=my-custom-runner \
+  PRODUCT_TEMPLATE_PATH=path/to/template.yaml
+```
+
+Available overrides:
+
+| Variable | Default |
+|---|---|
+| `PORTFOLIO_DISPLAY_NAME` | `landing-zone-propeller` |
+| `PORTFOLIO_PROVIDER_NAME` | `landing-zone-propeller` |
+| `PRODUCT_NAME` | `deploy-runner` |
+| `PRODUCT_TEMPLATE_PATH` | `bootstrap/cloudformation/deploy-runner.yaml` |
 
 ---
