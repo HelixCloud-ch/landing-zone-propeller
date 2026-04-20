@@ -55,7 +55,7 @@ else
   PORTFOLIO_ID=$(aws servicecatalog create-portfolio \
     --display-name "$PORTFOLIO_DISPLAY_NAME" \
     --provider-name "$PORTFOLIO_PROVIDER_NAME" \
-    --idempotency-token "bootstrap-portfolio" \
+    --idempotency-token "bootstrap-portfolio-$(date +%s)" \
     --query 'PortfolioDetail.Id' \
     --output text)
   echo "Portfolio created: ${PORTFOLIO_ID}"
