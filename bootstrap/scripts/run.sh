@@ -51,9 +51,10 @@ phases:
     commands:
       - curl -sL \"\$LZP_ZIP_URL\" -o /tmp/lzp.zip
       - unzip -qo /tmp/lzp.zip -d /tmp/lzp
-      - cd /tmp/lzp/landing-zone-propeller-*
-      - chmod +x bootstrap/scripts/${SCRIPT_NAME}
-      - ./bootstrap/scripts/${SCRIPT_NAME}"
+      - |
+        cd /tmp/lzp/landing-zone-propeller-*
+        chmod +x bootstrap/scripts/${SCRIPT_NAME}
+        ./bootstrap/scripts/${SCRIPT_NAME}"
 
 # ── Start build ───────────────────────────────────────────────────────────────
 echo "Starting build: ${SCRIPT_NAME}"
