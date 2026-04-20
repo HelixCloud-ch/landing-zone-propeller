@@ -164,13 +164,13 @@ environment variable defined in the target script.
 ## 5. Deploy the Service Catalog portfolio and product
 
 ```bash
-$RUN deploy-portfolio.sh
+$RUN create-portfolio.sh
 ```
 
 To override defaults:
 
 ```bash
-$RUN deploy-portfolio.sh \
+$RUN create-portfolio.sh \
   PRODUCT_NAME=my-custom-runner \
   PRODUCT_TEMPLATE_PATH=path/to/template.yaml
 ```
