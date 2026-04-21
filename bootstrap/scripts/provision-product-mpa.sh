@@ -128,7 +128,6 @@ else
       "Key=ProjectName,Value=${CB_PROJECT_NAME}" \
       "Key=CreateBucket,Value=true" \
       "Key=CBS3SourceBucket,Value=${OPERATION_SOURCE_BUCKET}" \
-      "Key=S3ReadBuckets,Value=${OPERATION_SOURCE_BUCKET}" \
     --query 'RecordDetail.ProvisionedProductId' \
     --output text)
   echo "Provisioning started: ${MPA_PP_ID}"
