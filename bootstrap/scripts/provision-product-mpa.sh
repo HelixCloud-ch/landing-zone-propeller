@@ -61,6 +61,26 @@ echo "  Provisioned name  : ${PROVISIONED_PRODUCT_NAME}"
 echo "  CB project name   : ${CB_PROJECT_NAME}"
 echo "  Source bucket      : ${OPERATION_SOURCE_BUCKET}"
 
+# ── Ensure caller has access to the portfolio ────────────────────────────────
+echo "--- Ensure portfolio access for caller ---"
+PORTFOLIO_ID=$(aws servicecatalog list-portfolios \
+  --query "PortfolioDetails[?DisplayName=='${PORTFOLIO_DISPLAY_NAME}'].Id | [0]" \
+  --output text)
+if [ "$PORTFOLIO_ID" = "None" ] || [ -z "$PORTFOLIO_ID" ]; then
+  echo "Portfolio '${PORTFOLIO_DISPLAY_NAME}' not found." >&2
+  exit 1
+fi
+
+CALLER_ARN=$(aws sts get-caller-identity --query Arn --output text)
+echo "  Portfolio ID : ${PORTFOLIO_ID}"
+echo "  Caller ARN   : ${CALLER_ARN}"
+
+aws servicecatalog associate-principal-with-portfolio \
+  --portfolio-id "$PORTFOLIO_ID" \
+  --principal-arn "$CALLER_ARN" \
+  --principal-type IAM
+echo "Portfolio access granted to: ${CALLER_ARN}"
+
 # ── Check existing provisioned product ───────────────────────────────────────
 MPA_PP_STATUS=$(aws servicecatalog search-provisioned-products \
   --query "ProvisionedProducts[?Name=='${PROVISIONED_PRODUCT_NAME}'].Status | [0]" \
