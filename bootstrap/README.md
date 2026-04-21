@@ -206,12 +206,16 @@ $RUN share-portfolio.sh PORTFOLIO_DISPLAY_NAME=my-portfolio
 $RUN create-operation-account.sh OPERATION_EMAIL=ops@example.com
 ```
 
+The script creates the account, then assumes `AWSControlTowerExecution` in the
+new account and, evntually, enable the opt-in region (`eu-central-2` by default). This
+ensures the account is ready for resource deployment.
+
 To override defaults:
 
 ```bash
 $RUN create-operation-account.sh \
   OPERATION_EMAIL=ops@example.com \
-  OPERATION_ACCOUNT_NAME=operations 
+  OPERATION_ACCOUNT_NAME=operations
 ```
 
 Available overrides:
@@ -220,6 +224,74 @@ Available overrides:
 |---|---|
 | `OPERATION_EMAIL` | required |
 | `OPERATION_ACCOUNT_NAME` | `operations` |
-| `INFRASTRUCTURE_OU_NAME` | `Infrastructure` |
 | `OPERATION_ROLE_NAME` | `AWSControlTowerExecution` |
 
+---
+
+## 8. Provision the deploy-runner product in the management account
+
+```bash
+$RUN provision-product-mpa.sh
+```
+
+The script auto-resolves the product ID, artifact ID, and operation account ID
+from their default names. The source bucket defaults to
+`source-{operation_account_id}-{region}`.
+
+To override defaults:
+
+```bash
+$RUN provision-product-mpa.sh \
+  PRODUCT_NAME=my-runner \
+  CB_PROJECT_NAME=my-runner
+```
+
+Available overrides:
+
+| Variable | Default |
+|---|---|
+| `PRODUCT_NAME` | `deploy-runner` |
+| `PROVISIONED_PRODUCT_NAME` | `deploy-runner` |
+| `CB_PROJECT_NAME` | `deploy-runner` |
+| `OPERATION_ACCOUNT_NAME` | `operations` |
+| `OPERATION_SOURCE_BUCKET` | `source-{account_id}-{region}` |
+| `PRODUCT_ID` | auto-resolved |
+| `ARTIFACT_ID` | auto-resolved |
+| `OPERATION_ACCOUNT_ID` | auto-resolved |
+
+---
+
+## 9. Provision the deploy-runner product in the Operations account
+
+```bash
+$RUN deploy-product-operation.sh
+```
+
+This step assumes `AWSControlTowerExecution` in the operations account, accepts
+the org-shared portfolio, grants the caller access, and provisions the product.
+
+To override defaults:
+
+```bash
+$RUN deploy-product-operation.sh \
+  OPERATION_ACCOUNT_ID=123456789012 \
+  CB_PROJECT_NAME=my-runner
+```
+
+Available overrides:
+
+| Variable | Default |
+|---|---|
+| `OPERATION_ACCOUNT_NAME` | `operations` |
+| `OPERATION_ROLE_NAME` | `AWSControlTowerExecution` |
+| `PORTFOLIO_DISPLAY_NAME` | `landing-zone-propeller` |
+| `PRODUCT_NAME` | `deploy-runner` |
+| `PROVISIONED_PRODUCT_NAME` | `deploy-runner` |
+| `CB_PROJECT_NAME` | `deploy-runner` |
+| `OPERATION_SOURCE_BUCKET` | `source-{account_id}-{region}` |
+| `OPERATION_ACCOUNT_ID` | auto-resolved |
+| `STS_REGION` | `us-east-1` |
+
+---
+
+<!-- Subsequent sections will be added as bootstrap tasks are implemented. -->
