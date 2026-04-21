@@ -76,7 +76,7 @@ else
     --owner "$PORTFOLIO_PROVIDER_NAME" \
     --product-type CLOUD_FORMATION_TEMPLATE \
     --provisioning-artifact-parameters \
-      "Name=v1.0,Info={LoadTemplateFromURL=${TEMPLATE_URL}},Type=CLOUD_FORMATION_TEMPLATE" \
+      "Name=v1.0.1,Info={LoadTemplateFromURL=${TEMPLATE_URL}},Type=CLOUD_FORMATION_TEMPLATE" \
     --idempotency-token "$IDEMPOTENCY_TOKEN" \
     --query 'ProductViewDetail.ProductViewSummary.ProductId' \
     --output text)
