@@ -197,7 +197,16 @@ Resources:
           - HasS3Source
           - !Sub "${CBS3SourceBucket}/"
           - !Ref AWS::NoValue
-
+        BuildSpec:
+          Fn::If:
+          - HasS3Source
+          - !Ref AWS::NoValue
+          - |
+            version: 0.2
+            phases:
+              build:
+                commands:
+                  - echo "No buildspec override provided"
   CodeBuildRunRole:
     Type: AWS::IAM::Role
     Condition: CreateCBCallerPolicy
