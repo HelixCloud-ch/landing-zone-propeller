@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+set -x
 
 : "${OPERATION_ACCOUNT_NAME:=operations}"
 : "${OPERATION_EMAIL:?OPERATION_EMAIL is required}"
