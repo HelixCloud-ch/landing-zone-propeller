@@ -72,6 +72,13 @@ if [ "$PORTFOLIO_ID" = "None" ] || [ -z "$PORTFOLIO_ID" ]; then
 fi
 
 CALLER_ARN=$(aws sts get-caller-identity --query Arn --output text)
+# Convert assumed-role session ARN to the actual IAM role ARN
+# arn:aws:sts::123:assumed-role/bootstrap-role/session → arn:aws:iam::123:role/bootstrap-role
+if echo "$CALLER_ARN" | grep -q ':assumed-role/'; then
+  ACCOUNT=$(echo "$CALLER_ARN" | cut -d: -f5)
+  ROLE_NAME=$(echo "$CALLER_ARN" | sed 's|.*:assumed-role/||; s|/.*||')
+  CALLER_ARN="arn:aws:iam::${ACCOUNT}:role/${ROLE_NAME}"
+fi
 echo "  Portfolio ID : ${PORTFOLIO_ID}"
 echo "  Caller ARN   : ${CALLER_ARN}"
 
