@@ -264,7 +264,7 @@ Available overrides:
 ## 9. Provision the deploy-runner product in the Operations account
 
 ```bash
-$RUN deploy-product-operation.sh
+$RUN provision-product-operation.sh
 ```
 
 This step assumes `AWSControlTowerExecution` in the operations account, accepts
@@ -273,7 +273,7 @@ the org-shared portfolio, grants the caller access, and provisions the product.
 To override defaults:
 
 ```bash
-$RUN deploy-product-operation.sh \
+$RUN provision-product-operation.sh \
   OPERATION_ACCOUNT_ID=123456789012 \
   CB_PROJECT_NAME=my-runner
 ```
