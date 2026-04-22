@@ -412,4 +412,21 @@ Available overrides:
 
 ---
 
+## 12. Delete the bootstrap stack
+
+The bootstrap CodeBuild project is ephemeral — it was only needed to run the
+steps above. Delete it now that the landing zone foundation is in place.
+
+```bash
+aws cloudformation delete-stack \
+  --region "$TARGET_REGION" \
+  --stack-name bootstrap
+```
+
+This removes the CodeBuild project, its IAM role, and the log group. All other
+resources created during bootstrap (Organization, accounts, Service Catalog,
+deploy-runners, source bucket, Step Function) are permanent and unaffected.
+
+---
+
 <!-- Subsequent sections will be added as bootstrap tasks are implemented. -->
