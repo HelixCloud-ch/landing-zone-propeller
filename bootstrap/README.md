@@ -92,7 +92,6 @@ permissions, delegated administration, and customer-managed KMS keys.
 
 ---
 
-
 ## 4. Deploy the Bootstrap CodeBuild stack
 
 The CodeBuild project uses `NO_SOURCE` — the source code is downloaded at
@@ -142,7 +141,6 @@ Then download `run.sh` from the same release zip so it is available in
 CloudShell:
 
 ```bash
-curl -sL "$LZP_ZIP_URL" -o /tmp/lzp.zip
 unzip -qo /tmp/lzp.zip "landing-zone-propeller-*/bootstrap/scripts/run.sh" -d /tmp
 RUN=$(find /tmp/landing-zone-propeller-* -name run.sh)
 chmod +x "$RUN"
@@ -157,7 +155,6 @@ $RUN <script-name> [KEY=VALUE ...]
 `run.sh` downloads the release zip inside CodeBuild, runs the named script, and
 polls until the build completes. Pass `KEY=VALUE` pairs to override any default
 environment variable defined in the target script.
-
 
 ---
 
@@ -236,7 +233,12 @@ $RUN provision-product-mpa.sh
 
 The script auto-resolves the product ID, artifact ID, and operation account ID
 from their default names. The source bucket defaults to
-`source-{operation_account_id}-{region}`.
+`source-{operation_account_id}-{region}`. It also configures the cross-account
+run role (`deploy-runner-run-role`) that allows the `landing-zone-propeller-sfn-role` in the
+operations account to start builds.
+
+If the product is already provisioned, the script updates it with the current
+parameters.
 
 To override defaults:
 
@@ -255,6 +257,9 @@ Available overrides:
 | `CB_PROJECT_NAME` | `deploy-runner` |
 | `OPERATION_ACCOUNT_NAME` | `operations` |
 | `OPERATION_SOURCE_BUCKET` | `source-{account_id}-{region}` |
+| `CALLER_ROLE_NAME` | `landing-zone-propeller-sfn-role` |
+| `CALLER_ARN` | `arn:aws:iam::{operation_account_id}:role/{CALLER_ROLE_NAME}` |
+| `CALLER_ACCOUNT_ID` | `{operation_account_id}` |
 | `PRODUCT_ID` | auto-resolved |
 | `ARTIFACT_ID` | auto-resolved |
 | `OPERATION_ACCOUNT_ID` | auto-resolved |
@@ -269,6 +274,11 @@ $RUN provision-product-operation.sh
 
 This step assumes `AWSControlTowerExecution` in the operations account, accepts
 the org-shared portfolio, grants the caller access, and provisions the product.
+It also configures the cross-account run role (`deploy-runner-run-role`) that
+allows the `landing-zone-propeller-sfn-role` in the operations account to start builds.
+
+If the product is already provisioned, the script updates it with the current
+parameters.
 
 To override defaults:
 
@@ -290,6 +300,9 @@ Available overrides:
 | `CB_PROJECT_NAME` | `deploy-runner` |
 | `OPERATION_SOURCE_BUCKET` | `source-{account_id}-{region}` |
 | `OPERATION_ACCOUNT_ID` | auto-resolved |
+| `CALLER_ROLE_NAME` | `landing-zone-propeller-sfn-role` |
+| `CALLER_ARN` | `arn:aws:iam::{operation_account_id}:role/{CALLER_ROLE_NAME}` |
+| `CALLER_ACCOUNT_ID` | `{operation_account_id}` |
 | `STS_REGION` | `us-east-1` |
 
 ---
