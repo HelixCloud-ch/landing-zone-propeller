@@ -352,7 +352,21 @@ not set.
 $RUN create-landing-zone-propeller-sfn.sh
 ```
 
-To trigger a build manually after deployment:
+To trigger a build manually after deployment, first assume a role in the
+Operations account from CloudShell (which runs in the MPA):
+
+```bash
+# Assume role into the Operations account
+CREDS=$(aws sts assume-role \
+  --region "$TARGET_REGION" \
+  --role-arn "arn:aws:iam::${OPERATION_ACCOUNT_ID}:role/AWSControlTowerExecution" \
+  --role-session-name "sfn-trigger" \
+  --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+  --output text)
+export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s" $CREDS)
+```
+
+Then start the execution:
 
 ```bash
 # Plan (default — ACTION defaults to plan if not provided)
@@ -376,6 +390,12 @@ aws stepfunctions start-execution \
       {"name": "ACTION", "value": "apply", "type": "PLAINTEXT"}
     ]
   }'
+```
+
+To return to the MPA context, unset the assumed credentials:
+
+```bash
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
 ```
 
 Available overrides:
