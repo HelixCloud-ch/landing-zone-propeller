@@ -332,4 +332,64 @@ Available overrides:
 
 ---
 
+## 11. (Temporary) Deploy the test Step Function in the Operations account
+
+> **This step deploys a temporary, minimal Step Function used during development
+> to manually test Terraform modules via the deploy-runner. It will be replaced
+> by a production orchestrator in a future iteration. Do not rely on this state
+> machine for production workflows.**
+
+Creates a Step Functions state machine (`landing-zone-propeller-sfn`) in the
+Operations account that can trigger deploy-runner CodeBuild builds in any
+account. For local builds it calls CodeBuild directly; for cross-account builds
+it assumes the `deploy-runner-run-role` in the target account.
+
+Pass `ACTION` via `env_overrides` to control whether the script runs
+`terraform plan` or `terraform apply`. Scripts default to `plan` if `ACTION` is
+not set.
+
+```bash
+$RUN create-landing-zone-propeller-sfn.sh
+```
+
+To trigger a build manually after deployment:
+
+```bash
+# Plan (default — ACTION defaults to plan if not provided)
+aws stepfunctions start-execution \
+  --region "$TARGET_REGION" \
+  --state-machine-arn "arn:aws:states:${TARGET_REGION}:${OPERATION_ACCOUNT_ID}:stateMachine:landing-zone-propeller-sfn" \
+  --input '{
+    "account_id": "123456789012",
+    "buildspec": "version: 0.2\nphases:\n  build:\n    commands:\n      - echo ACTION=${ACTION:-plan}",
+    "env_overrides": []
+  }'
+
+# Apply (pass ACTION=apply in env_overrides)
+aws stepfunctions start-execution \
+  --region "$TARGET_REGION" \
+  --state-machine-arn "arn:aws:states:${TARGET_REGION}:${OPERATION_ACCOUNT_ID}:stateMachine:landing-zone-propeller-sfn" \
+  --input '{
+    "account_id": "123456789012",
+    "buildspec": "version: 0.2\nphases:\n  build:\n    commands:\n      - echo ACTION=${ACTION:-plan}",
+    "env_overrides": [
+      {"name": "ACTION", "value": "apply", "type": "PLAINTEXT"}
+    ]
+  }'
+```
+
+Available overrides:
+
+| Variable | Default |
+|---|---|
+| `OPERATION_ACCOUNT_NAME` | `operations` |
+| `OPERATION_ROLE_NAME` | `AWSControlTowerExecution` |
+| `OPERATION_ACCOUNT_ID` | auto-resolved |
+| `TF_VERSION` | `1.14.9` |
+| `STATE_BUCKET_PREFIX` | `state-iac` |
+| `TF_STATE_KEY` | `bootstrap/landing-zone-propeller-sfn/terraform.tfstate` |
+| `SFN_NAME` | `landing-zone-propeller-sfn` |
+
+---
+
 <!-- Subsequent sections will be added as bootstrap tasks are implemented. -->
