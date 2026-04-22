@@ -294,4 +294,29 @@ Available overrides:
 
 ---
 
+## 10. Create the source bucket in the Operations account
+
+Creates the S3 source bucket (`source-{account_id}-{region}`) in the Operations
+account using Terraform. The bootstrap CodeBuild assumes
+`AWSControlTowerExecution` into the Operations account, installs Terraform, and
+applies the configuration. Terraform state is stored in the
+`state-iac-{account_id}-{region}` bucket that was created in step 9.
+
+```bash
+$RUN create-source-bucket.sh
+```
+
+Available overrides:
+
+| Variable | Default |
+|---|---|
+| `OPERATION_ACCOUNT_NAME` | `operations` |
+| `OPERATION_ROLE_NAME` | `AWSControlTowerExecution` |
+| `OPERATION_ACCOUNT_ID` | auto-resolved |
+| `TF_VERSION` | `1.14.9` |
+| `STATE_BUCKET_PREFIX` | `state-iac` |
+| `TF_STATE_KEY` | `bootstrap/source-bucket/terraform.tfstate` |
+
+---
+
 <!-- Subsequent sections will be added as bootstrap tasks are implemented. -->
