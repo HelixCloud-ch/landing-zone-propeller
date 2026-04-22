@@ -204,7 +204,7 @@ $RUN create-operation-account.sh OPERATION_EMAIL=ops@example.com
 ```
 
 The script creates the account, then assumes `AWSControlTowerExecution` in the
-new account and, evntually, enable the opt-in region (`eu-central-2` by default). This
+new account and, eventually, enable the opt-in region (`eu-central-2` by default). This
 ensures the account is ready for resource deployment.
 
 To override defaults:

@@ -11,7 +11,7 @@ PORTFOLIO_ID=$(aws servicecatalog list-portfolios \
   --output text)
 
 if [ "$PORTFOLIO_ID" = "None" ] || [ -z "$PORTFOLIO_ID" ]; then
-  echo "Portfolio '${PORTFOLIO_DISPLAY_NAME}' not found. Run deploy-service-catalog first." >&2
+  echo "Portfolio '${PORTFOLIO_DISPLAY_NAME}' not found. Run create-portfolio first." >&2
   exit 1
 fi
 echo "Portfolio ID: ${PORTFOLIO_ID}"

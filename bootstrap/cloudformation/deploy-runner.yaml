@@ -27,7 +27,7 @@ Parameters:
   CallerARN:
     Type: String
     Default: ""
-    Description: "(Optional) ARN of the caller (e.g., user or role). This is used to assume the role for the CodeBuild project example: arn:aws:iam::000000000000:role/service-role/xxx the role MUST exist"
+    Description: "(Optional) ARN of the caller (e.g., user or role). Used in a condition key on the cross-account run role. The role does not need to exist at provisioning time."
   CallerAccountId:
     Type: String
     Default: ""

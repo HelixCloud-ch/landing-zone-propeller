@@ -17,7 +17,7 @@ if [ -z "${PRODUCT_ID:-}" ]; then
     --query "ProductViewDetails[?ProductViewSummary.Name=='${PRODUCT_NAME}'].ProductViewSummary.ProductId | [0]" \
     --output text)
   if [ "$PRODUCT_ID" = "None" ] || [ -z "$PRODUCT_ID" ]; then
-    echo "Product '${PRODUCT_NAME}' not found. Run deploy-service-catalog first." >&2
+    echo "Product '${PRODUCT_NAME}' not found. Run create-portfolio first." >&2
     exit 1
   fi
   echo "Product ID: ${PRODUCT_ID}"

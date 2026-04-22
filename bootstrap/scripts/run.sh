@@ -14,10 +14,10 @@
 #   ./bootstrap/scripts/run.sh <script-name> [KEY=VALUE ...]
 #
 # Examples:
-#   ./bootstrap/scripts/run.sh deploy-service-catalog.sh
-#   ./bootstrap/scripts/run.sh share-service-catalog.sh
+#   ./bootstrap/scripts/run.sh create-portfolio.sh
+#   ./bootstrap/scripts/run.sh share-portfolio.sh
 #   ./bootstrap/scripts/run.sh create-operation-account.sh OPERATION_EMAIL=ops@acme.com
-#   ./bootstrap/scripts/run.sh deploy-product-mpa.sh PRODUCT_ID=prod-xxx ARTIFACT_ID=pa-xxx
+#   ./bootstrap/scripts/run.sh provision-product-mpa.sh
 
 set -euo pipefail
 
