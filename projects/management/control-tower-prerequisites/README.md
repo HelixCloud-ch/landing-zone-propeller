@@ -116,6 +116,12 @@ assuming a role into it). The inline buildspec downloads the repo zip and
 runs the deploy script.
 
 ```bash
+# Required variables — set these before running
+TARGET_REGION=eu-central-2
+MPA_ACCOUNT_ID=123456789012
+SFN_ARN="arn:aws:states:${TARGET_REGION}:${OPERATION_ACCOUNT_ID}:stateMachine:landing-zone-propeller-sfn"
+LZP_ZIP_URL="https://github.com/HelixCloud-ch/landing-zone-propeller/archive/refs/heads/main.zip"
+
 # Plan
 aws stepfunctions start-execution \
   --region "$TARGET_REGION" \
