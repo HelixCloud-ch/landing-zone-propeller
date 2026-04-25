@@ -1,13 +1,9 @@
 name: hello-operations
-description: Hello world for the operations account
+description: Hello world for the operations account (script-based)
 target: operations
 
 deploy:
-  type: terraform
-  backend:
-    bucket: "terraform-state-${AWS_ACCOUNT_ID}"
-    key: "propeller/hello-operations/terraform.tfstate"
-    region: "${AWS_REGION}"
+  type: script
 
 inputs: []
 
