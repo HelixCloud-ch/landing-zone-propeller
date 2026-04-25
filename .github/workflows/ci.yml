@@ -8,13 +8,16 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: hashicorp/setup-terraform@v3
-      - uses: astral-sh/setup-uv@v6
-      - uses: extractions/setup-just@v2
+      - uses: astral-sh/setup-uv@v8
+      - uses: extractions/setup-just@v3
 
       - name: Check
         run: |
           just setup
           just fmt-check
           just test
+
+      - name: Pipeline graph
+        run: cat dist/pipeline.lock.md >> $GITHUB_STEP_SUMMARY
