@@ -10,7 +10,7 @@ resource "aws_lambda_function" "autopilot" {
   handler          = "handler.handler"
   runtime          = "python3.14"
   timeout          = 900
-  memory_size      = 256
+  memory_size      = 512
   filename         = data.archive_file.autopilot.output_path
   source_code_hash = data.archive_file.autopilot.output_base64sha256
 
