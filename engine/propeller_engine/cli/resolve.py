@@ -50,9 +50,9 @@ def _generate_mermaid(pipeline: Pipeline) -> str:
 )
 @click.option(
     "--overrides",
-    required=True,
+    default=None,
     type=click.Path(exists=True),
-    help="Override propeller.yaml",
+    help="Override propeller.overrides.yaml (optional)",
 )
 @click.option("--output", required=True, type=click.Path(), help="Output lock file")
 @click.option(
@@ -64,10 +64,10 @@ def _generate_mermaid(pipeline: Pipeline) -> str:
     help="Generate Mermaid graph alongside lock file",
 )
 def main(
-    base: str, overrides: str, output: str, propeller_dir: str, graph: bool
+    base: str, overrides: str | None, output: str, propeller_dir: str, graph: bool
 ) -> None:
-    """Resolve a base pipeline with overrides."""
-    pipeline = resolve(Path(base), Path(overrides), propeller_dir)
+    """Resolve a base pipeline with optional overrides."""
+    pipeline = resolve(Path(base), Path(overrides) if overrides else None, propeller_dir)
     out = Path(output)
     content = yaml.dump(
         pipeline_to_dict(pipeline), default_flow_style=False, sort_keys=False

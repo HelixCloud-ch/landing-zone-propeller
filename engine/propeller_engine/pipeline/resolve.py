@@ -144,21 +144,28 @@ def _apply_targets(pipeline: Pipeline, targets: dict[str, str]) -> None:
 
 def resolve(
     base_path: Path,
-    overrides_path: Path,
+    overrides_path: Path | None,
     propeller_dir: str = ".propeller",
 ) -> Pipeline:
     pipeline = copy.deepcopy(load_base_pipeline(base_path))
-    config = load_overrides(overrides_path)
 
-    _apply_removals(pipeline, config.pipeline)
-    _apply_overrides(pipeline, config.pipeline)
-    _apply_additions(pipeline, config.pipeline)
-    _apply_stage_order(pipeline, config.pipeline)
+    if overrides_path:
+        config = load_overrides(overrides_path)
+        _apply_removals(pipeline, config.pipeline)
+        _apply_overrides(pipeline, config.pipeline)
+        _apply_additions(pipeline, config.pipeline)
+        _apply_stage_order(pipeline, config.pipeline)
+        propeller_version = config.propeller.get("version", "unknown")
+        targets = config.pipeline.targets
+    else:
+        propeller_version = "dev"
+        targets = {}
+
     _set_default_sources(pipeline, propeller_dir)
     _embed_project_io(pipeline)
-    _apply_targets(pipeline, config.pipeline.targets)
+    _apply_targets(pipeline, targets)
 
-    pipeline.propeller_version = config.propeller.get("version", "unknown")
+    pipeline.propeller_version = propeller_version
     pipeline.resolved_at = datetime.now(timezone.utc).isoformat()
     return pipeline
 
