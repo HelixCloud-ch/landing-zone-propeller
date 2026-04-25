@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: hashicorp/setup-terraform@v3
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v7
       - uses: extractions/setup-just@v3
 
       - name: Check
