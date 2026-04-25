@@ -1,0 +1,16 @@
+name: hello-operations
+description: Hello world for the operations account
+target: operations
+
+deploy:
+  type: terraform
+  backend:
+    bucket: "terraform-state-${AWS_ACCOUNT_ID}"
+    key: "propeller/hello-operations/terraform.tfstate"
+    region: "${AWS_REGION}"
+
+inputs: []
+
+outputs:
+  - key: /propeller/hello-operations/message
+    ref: message

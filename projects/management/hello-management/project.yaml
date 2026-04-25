@@ -1,0 +1,18 @@
+name: hello-management
+description: Hello world for the management account
+target: management
+
+deploy:
+  type: terraform
+  backend:
+    bucket: "terraform-state-${AWS_ACCOUNT_ID}"
+    key: "propeller/hello-management/terraform.tfstate"
+    region: "${AWS_REGION}"
+
+inputs:
+  - key: /propeller/hello-operations-2/message
+    var: operations_2_message
+
+outputs:
+  - key: /propeller/hello-management/message
+    ref: message
