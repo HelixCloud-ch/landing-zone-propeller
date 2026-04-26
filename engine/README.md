@@ -94,7 +94,10 @@ stages:
 
 ## Project Contract (`project.yaml`)
 
-Each project declares its deploy type, target account, inputs, and outputs:
+Each project declares its deploy type, target account, inputs, and outputs.
+Type-specific config lives under a key matching the type.
+
+Terraform:
 
 ```yaml
 name: hello-operations-2
@@ -102,10 +105,11 @@ target: operations
 
 deploy:
   type: terraform
-  backend:
-    bucket: "terraform-state-${AWS_ACCOUNT_ID}"
-    key: "propeller/hello-operations-2/terraform.tfstate"
-    region: "${AWS_REGION}"
+  terraform:
+    backend:
+      bucket: "terraform-state-${AWS_ACCOUNT_ID}"
+      key: "propeller/hello-operations-2/terraform.tfstate"
+      region: "${AWS_REGION}"
 
 inputs:
   - from: hello-operations.message
@@ -114,6 +118,30 @@ inputs:
 outputs:
   - name: hello-operations-2.message
     ref: message
+```
+
+CloudFormation:
+
+```yaml
+name: my-cfn-project
+target: operations
+
+deploy:
+  type: cloudformation
+  cloudformation:
+    stack_name: "my-stack-${AWS_REGION}"
+    template: cloudformation/template.yaml
+    region: "${AWS_REGION}"
+```
+
+Script (uses just recipes):
+
+```yaml
+name: hello-operations
+target: operations
+
+deploy:
+  type: script
 ```
 
 ## Overrides (`propeller.yaml`)

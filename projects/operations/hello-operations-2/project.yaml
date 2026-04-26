@@ -4,10 +4,11 @@ target: operations
 
 deploy:
   type: terraform
-  backend:
-    bucket: "terraform-state-${AWS_ACCOUNT_ID}"
-    key: "propeller/hello-operations-2/terraform.tfstate"
-    region: "${AWS_REGION}"
+  terraform:
+    backend:
+      bucket: "terraform-state-${AWS_ACCOUNT_ID}"
+      key: "propeller/hello-operations-2/terraform.tfstate"
+      region: "${AWS_REGION}"
 
 inputs:
   - from: hello-operations.message

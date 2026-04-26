@@ -23,7 +23,7 @@ class TerraformRunner(DeployRunner):
         return args
 
     def init(self) -> int:
-        backend = self.project.get("deploy", {}).get("backend", {})
+        backend = self.project.get("deploy", {}).get("terraform", {}).get("backend", {})
         cmd = ["terraform", "init"]
         for key, value in backend.items():
             cmd.append(f"-backend-config={key}={substitute_env(str(value))}")

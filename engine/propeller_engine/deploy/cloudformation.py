@@ -13,7 +13,7 @@ from .runner import DeployRunner, log, run_cmd, substitute_env, write_outputs_fi
 class CloudFormationRunner(DeployRunner):
     @property
     def _deploy_cfg(self) -> dict:
-        return self.project.get("deploy", {})
+        return self.project.get("deploy", {}).get("cloudformation", {})
 
     @property
     def _stack_name(self) -> str:
