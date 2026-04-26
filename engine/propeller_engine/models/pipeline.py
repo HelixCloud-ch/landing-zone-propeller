@@ -1,4 +1,4 @@
-"""Resolved pipeline models."""
+"""Models for the resolved pipeline definition."""
 
 from __future__ import annotations
 
@@ -6,11 +6,15 @@ from pydantic import BaseModel, Field
 
 
 class ProjectInput(BaseModel):
+    """Resolved input: full SSM key + variable name."""
+
     key: str
     var: str
 
 
 class ProjectOutput(BaseModel):
+    """Resolved output: full SSM key + terraform/script output name."""
+
     key: str
     ref: str
 

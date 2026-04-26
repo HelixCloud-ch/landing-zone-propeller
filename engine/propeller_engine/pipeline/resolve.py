@@ -120,6 +120,40 @@ def _set_default_sources(pipeline: Pipeline, propeller_dir: str) -> None:
                 )
 
 
+SSM_PREFIX = "/propeller"
+
+
+def _expand_input(inp: dict) -> dict:
+    """Expand shorthand input format to resolved format.
+
+    Shorthand: {from: "identity.role_arn", as: "admin_role_arn"}
+    Resolved:  {key: "/propeller/identity/role_arn", var: "admin_role_arn"}
+    """
+    if "from" in inp:
+        project, output_name = inp["from"].split(".", 1)
+        return {
+            "key": f"{SSM_PREFIX}/{project}/{output_name}",
+            "var": inp.get("as", output_name),
+        }
+    return inp  # Already in resolved format
+
+
+def _expand_output(out: dict, project_name: str) -> dict:
+    """Expand shorthand output format to resolved format.
+
+    Shorthand: {name: "identity.role_arn", ref: "admin_role_arn"}
+    Resolved:  {key: "/propeller/identity/role_arn", ref: "admin_role_arn"}
+    """
+    if "name" in out:
+        parts = out["name"].split(".", 1)
+        output_name = parts[1] if len(parts) > 1 else parts[0]
+        return {
+            "key": f"{SSM_PREFIX}/{project_name}/{output_name}",
+            "ref": out["ref"],
+        }
+    return out  # Already in resolved format
+
+
 def _embed_project_io(pipeline: Pipeline) -> None:
     for stage in pipeline.stages:
         for step in stage.steps:
@@ -129,8 +163,13 @@ def _embed_project_io(pipeline: Pipeline) -> None:
             if not project_yaml.exists():
                 continue
             data = yaml.safe_load(project_yaml.read_text())
-            step.inputs = [ProjectInput(**i) for i in data.get("inputs", [])]
-            step.outputs = [ProjectOutput(**o) for o in data.get("outputs", [])]
+            step.inputs = [
+                ProjectInput(**_expand_input(i)) for i in data.get("inputs", [])
+            ]
+            step.outputs = [
+                ProjectOutput(**_expand_output(o, step.project))
+                for o in data.get("outputs", [])
+            ]
             if not step.target and data.get("target"):
                 step.target = data["target"]
 
