@@ -54,7 +54,7 @@ def _find_dependents(dag: dict[str, set[str]], project: str) -> set[str]:
     return result
 
 
-def _make_step_branch(step: dict, bundle_s3_uri: str, tf_action: str):
+def _make_step_branch(step: dict, bundle_s3_uri: str, deploy_action: str):
     # Named steps/waits so the durable console shows each sub-operation per project.
     # ctx.wait() suspends without compute charges during polling.
     project = step["project"]
@@ -63,7 +63,7 @@ def _make_step_branch(step: dict, bundle_s3_uri: str, tf_action: str):
         try:
             config = ctx.step(lambda _: _prepare(step), name=f"prepare:{project}")
             build_id = ctx.step(
-                lambda _: _start_build(step, config, bundle_s3_uri, tf_action),
+                lambda _: _start_build(step, config, bundle_s3_uri, deploy_action),
                 name=f"start:{project}",
             )
 
@@ -121,7 +121,7 @@ def _prepare(step: dict) -> dict:
     return config
 
 
-def _start_build(step: dict, config: dict, bundle_s3_uri: str, tf_action: str) -> str:
+def _start_build(step: dict, config: dict, bundle_s3_uri: str, deploy_action: str) -> str:
     cb = _get_codebuild_client(config["accountId"], config["region"])
 
     # Parse s3://bucket/key from the URI
@@ -130,7 +130,7 @@ def _start_build(step: dict, config: dict, bundle_s3_uri: str, tf_action: str) -
 
     env_vars = [
         {"name": "PROJECT_NAME", "value": step["project"], "type": "PLAINTEXT"},
-        {"name": "DEPLOY_ACTION", "value": tf_action, "type": "PLAINTEXT"},
+        {"name": "DEPLOY_ACTION", "value": deploy_action, "type": "PLAINTEXT"},
         {"name": "AWS_ACCOUNT_ID", "value": config["accountId"], "type": "PLAINTEXT"},
         {"name": "AWS_REGION", "value": config["region"], "type": "PLAINTEXT"},
         {"name": "CONFIG_PATH", "value": f"config/{step['project']}.tfvars", "type": "PLAINTEXT"},
@@ -178,7 +178,7 @@ def _write_outputs(step: dict, exported_vars: list) -> dict:
     return {"written": written}
 
 
-def run_stage(context: DurableContext, stage: dict, bundle_s3_uri: str, tf_action: str) -> list[dict]:
+def run_stage(context: DurableContext, stage: dict, bundle_s3_uri: str, deploy_action: str) -> list[dict]:
     steps = stage["steps"]
     step_map = {s["project"]: s for s in steps}
     dag = _build_dag(steps)
@@ -196,7 +196,7 @@ def run_stage(context: DurableContext, stage: dict, bundle_s3_uri: str, tf_actio
             break
 
         # Run ready steps in parallel (or single)
-        branches = [_make_step_branch(step_map[p], bundle_s3_uri, tf_action) for p in ready]
+        branches = [_make_step_branch(step_map[p], bundle_s3_uri, deploy_action) for p in ready]
 
         # TODO: use named branches when supported — https://github.com/aws/aws-durable-execution-sdk-python/issues/303
         batch: BatchResult[dict] = context.parallel(
@@ -245,7 +245,7 @@ def run_stage(context: DurableContext, stage: dict, bundle_s3_uri: str, tf_actio
 def handler(event: dict, context: DurableContext):
     pipeline = event["pipeline"]
     bundle_s3_uri = event["bundle_s3_uri"]
-    tf_action = event.get("tf_action", "apply")
+    deploy_action = event.get("deploy_action", "apply")
 
     all_results: list[dict] = []
     stage_failed = False
@@ -260,7 +260,7 @@ def handler(event: dict, context: DurableContext):
                 })
             continue
 
-        stage_results = run_stage(context, stage, bundle_s3_uri, tf_action)
+        stage_results = run_stage(context, stage, bundle_s3_uri, deploy_action)
         all_results.extend(stage_results)
 
         if any(r["status"] == "failed" for r in stage_results):
