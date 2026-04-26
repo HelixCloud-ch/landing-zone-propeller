@@ -4,6 +4,15 @@ on:
   # schedule:
   #   - cron: "0 3 * * 0" # Weekly, Sunday 3am UTC
   workflow_dispatch:
+    inputs:
+      delete_all:
+        description: "Delete ALL dev pre-releases (ignore age)"
+        type: boolean
+        default: false
+      max_age_days:
+        description: "Max age in days (ignored if delete_all is true)"
+        type: string
+        default: "30"
 
 jobs:
   cleanup:
@@ -11,17 +20,24 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Delete old dev pre-releases
+      - name: Delete dev pre-releases
         env:
           GH_TOKEN: ${{ github.token }}
+          DELETE_ALL: ${{ github.event.inputs.delete_all || 'false' }}
+          MAX_AGE_DAYS: ${{ github.event.inputs.max_age_days || '30' }}
         run: |
-          CUTOFF=$(date -d '30 days ago' -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -v-30d -u +%Y-%m-%dT%H:%M:%SZ)
-          echo "Deleting dev pre-releases older than $CUTOFF"
+          if [ "$DELETE_ALL" = "true" ]; then
+            echo "Deleting ALL dev pre-releases"
+            CUTOFF="9999-12-31T00:00:00Z"
+          else
+            CUTOFF=$(date -d "${MAX_AGE_DAYS} days ago" -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -v-${MAX_AGE_DAYS}d -u +%Y-%m-%dT%H:%M:%SZ)
+            echo "Deleting dev pre-releases older than $CUTOFF"
+          fi
 
-          gh release list --repo ${{ github.repository }} --limit 100 \
-            | grep -i 'pre-release' \
-            | while read -r TAG TITLE TYPE DATE; do
-                if [[ "$TAG" == *"-dev-"* ]] && [[ "$DATE" < "$CUTOFF" ]]; then
+          gh release list --repo ${{ github.repository }} --limit 100 --json tagName,isPrerelease,publishedAt \
+            --jq '.[] | select(.isPrerelease) | select(.tagName | contains("-dev-")) | [.tagName, .publishedAt] | @tsv' \
+            | while IFS=$'\t' read -r TAG DATE; do
+                if [[ "$DATE" < "$CUTOFF" ]]; then
                   echo "Deleting $TAG ($DATE)"
                   gh release delete "$TAG" --repo ${{ github.repository }} --yes --cleanup-tag
                 fi
