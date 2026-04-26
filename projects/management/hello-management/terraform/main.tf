@@ -1,5 +1,3 @@
-# Demo project — validates cross-project I/O across accounts.
-
 terraform {
   required_version = ">= 1.14"
   required_providers {
@@ -8,23 +6,19 @@ terraform {
       version = "6.41.0"
     }
   }
-}
 
-variable "environment" {
-  type        = string
-  description = "Deployment environment name."
-  default     = "sandbox"
+  backend "s3" {}
 }
 
 variable "operations_2_message" {
-  description = "Message from the operations-2 project"
+  description = "Message from hello-operations-2 (injected from dependency)"
   type        = string
 }
 
 resource "aws_ssm_parameter" "hello" {
-  name  = "/propeller/${var.environment}/hello-management"
+  name  = "/demo/hello-management"
   type  = "String"
-  value = "Hello from management, received: ${var.operations_2_message}"
+  value = "Received: ${var.operations_2_message}"
   tags = {
     ManagedBy = "propeller"
     Project   = "hello-management"
@@ -32,6 +26,5 @@ resource "aws_ssm_parameter" "hello" {
 }
 
 output "message" {
-  description = "SSM parameter value written by this project."
-  value       = aws_ssm_parameter.hello.value
+  value = aws_ssm_parameter.hello.value
 }

@@ -5,8 +5,6 @@ target: operations
 deploy:
   type: script
 
-inputs: []
-
 outputs:
-  - key: /propeller/hello-operations/message
+  - name: hello-operations.message
     ref: message

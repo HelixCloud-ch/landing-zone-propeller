@@ -1,30 +1,25 @@
-# Demo project — validates script-based deploys with just recipes.
-
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-environment := env("ENVIRONMENT", "sandbox")
-region := env("AWS_REGION", "us-east-1")
-account_id := env("AWS_ACCOUNT_ID", "000000000000")
-param_name := "/propeller/" + environment + "/hello-operations"
+region := env("AWS_REGION", "eu-central-1")
 
 init:
     @echo "nothing to initialize"
 
 plan:
-    @echo "would write SSM parameter {{ param_name }}"
+    @echo "would write SSM parameter /demo/hello-operations"
 
 apply:
     aws ssm put-parameter \
-        --name "{{ param_name }}" \
+        --name "/demo/hello-operations" \
         --type String \
-        --value "Hello from operations account" \
+        --value "Hello from operations" \
         --overwrite \
         --region "{{ region }}"
-    echo '{"message": "Hello from operations account"}' > .propeller-outputs.json
+    echo '{"message": "Hello from operations"}' > .propeller-outputs.json
 
 destroy:
     aws ssm delete-parameter \
-        --name "{{ param_name }}" \
+        --name "/demo/hello-operations" \
         --region "{{ region }}" || true
 
 outputs:

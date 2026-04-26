@@ -10,9 +10,9 @@ deploy:
     region: "${AWS_REGION}"
 
 inputs:
-  - key: /propeller/hello-operations-2/message
-    var: operations_2_message
+  - from: hello-operations-2.message
+    as: operations_2_message
 
 outputs:
-  - key: /propeller/hello-management/message
+  - name: hello-management.message
     ref: message
