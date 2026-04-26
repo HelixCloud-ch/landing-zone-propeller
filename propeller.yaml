@@ -1,0 +1,16 @@
+# Propeller default pipeline definition.
+# Stages run sequentially. Steps within a stage run in parallel
+# unless constrained by depends_on.
+
+version: "1"
+
+stages:
+  - name: operations
+    steps:
+      - project: hello-operations
+      - project: hello-operations-2
+        depends_on: [hello-operations]
+
+  - name: management
+    steps:
+      - project: hello-management

@@ -1,0 +1,19 @@
+name: hello-operations-2
+description: Second hello world for the operations account
+target: operations
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "terraform-state-${AWS_ACCOUNT_ID}"
+      key: "propeller/hello-operations-2/terraform.tfstate"
+      region: "${AWS_REGION}"
+
+inputs:
+  - from: hello-operations.message
+    as: operations_message
+
+outputs:
+  - name: hello-operations-2.message
+    ref: message

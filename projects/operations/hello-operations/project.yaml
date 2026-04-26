@@ -1,0 +1,10 @@
+name: hello-operations
+description: Hello world for the operations account (script-based)
+target: operations
+
+deploy:
+  type: script
+
+outputs:
+  - name: hello-operations.message
+    ref: message

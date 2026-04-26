@@ -1,0 +1,37 @@
+version: 0.2
+
+env:
+  variables:
+    PROJECT_NAME: ""
+    DEPLOY_ACTION: "plan"
+    AWS_ACCOUNT_ID: ""
+    AWS_REGION: ""
+    CONFIG_PATH: ""
+    TF_VERSION: "1.14.9"
+  exported-variables:
+    - PROPELLER_OUTPUTS_JSON
+
+phases:
+  install:
+    commands:
+      - curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o /tmp/tf.zip
+      - unzip -o /tmp/tf.zip -d /usr/local/bin/
+      - curl -LsSf https://astral.sh/uv/install.sh | sh
+      - export PATH="$HOME/.local/bin:$PATH"
+
+  build:
+    commands:
+      - |
+        uv run --project engine propeller-deploy \
+          --project-dir projects/$PROJECT_NAME \
+          --config "$CONFIG_PATH" \
+          init
+      - |
+        uv run --project engine propeller-deploy \
+          --project-dir projects/$PROJECT_NAME \
+          --config "$CONFIG_PATH" \
+          $DEPLOY_ACTION
+
+  post_build:
+    commands:
+      - export PROPELLER_OUTPUTS_JSON=$(cat projects/$PROJECT_NAME/.propeller-outputs.json 2>/dev/null || echo '{}')

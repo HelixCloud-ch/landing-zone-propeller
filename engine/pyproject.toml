@@ -1,0 +1,20 @@
+[project]
+name = "propeller-engine"
+version = "0.1.0"
+description = "Propeller landing zone pipeline engine"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "click>=8.0",
+]
+
+[project.scripts]
+propeller-resolve = "propeller_engine.cli.resolve:main"
+propeller-validate = "propeller_engine.cli.validate:main"
+propeller-bundle = "propeller_engine.cli.bundle:main"
+propeller-deploy = "propeller_engine.cli.deploy:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

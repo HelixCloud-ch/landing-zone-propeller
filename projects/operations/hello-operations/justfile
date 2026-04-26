@@ -1,0 +1,26 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+region := env("AWS_REGION", "eu-central-1")
+
+init:
+    @echo "nothing to initialize"
+
+plan:
+    @echo "would write SSM parameter /demo/hello-operations"
+
+apply:
+    aws ssm put-parameter \
+        --name "/demo/hello-operations" \
+        --type String \
+        --value "Hello from operations" \
+        --overwrite \
+        --region "{{ region }}"
+    echo '{"message": "Hello from operations"}' > .propeller-outputs.json
+
+destroy:
+    aws ssm delete-parameter \
+        --name "/demo/hello-operations" \
+        --region "{{ region }}" || true
+
+outputs:
+    @cat .propeller-outputs.json 2>/dev/null || echo '{}'

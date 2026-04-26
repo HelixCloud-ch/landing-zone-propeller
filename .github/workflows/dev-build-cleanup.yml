@@ -1,0 +1,28 @@
+name: Dev Build Cleanup
+
+on:
+  # schedule:
+  #   - cron: "0 3 * * 0" # Weekly, Sunday 3am UTC
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Delete old dev pre-releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CUTOFF=$(date -d '30 days ago' -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -v-30d -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Deleting dev pre-releases older than $CUTOFF"
+
+          gh release list --repo ${{ github.repository }} --limit 100 \
+            | grep -i 'pre-release' \
+            | while read -r TAG TITLE TYPE DATE; do
+                if [[ "$TAG" == *"-dev-"* ]] && [[ "$DATE" < "$CUTOFF" ]]; then
+                  echo "Deleting $TAG ($DATE)"
+                  gh release delete "$TAG" --repo ${{ github.repository }} --yes --cleanup-tag
+                fi
+              done
