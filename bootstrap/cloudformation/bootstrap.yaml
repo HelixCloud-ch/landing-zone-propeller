@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Ephemeral bootstrap stack. Creates a CodeBuild project with AdministratorAccess
+  used to run infrastructure automation from the management account. All builds
+  are triggered with --buildspec-override so no source is needed at creation time.
+  Delete this stack once the bootstrap process is complete.
+
+Parameters:
+  ResourcesNamePrefix:
+    Type: String
+    Default: bootstrap
+    Description: >-
+      Prefix for the Name tag and all resource names.
+
+Resources:
+  BootstrapRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ResourcesNamePrefix}-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      # Why: AdministratorAccess is intentional for this ephemeral bootstrap
+      # project. It needs to create accounts, Service Catalog resources, and
+      # assume cross-account roles. The stack is deleted at the end of bootstrap.
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Tags:
+        - Key: Name
+          Value: !Sub "${ResourcesNamePrefix}-role"
+
+  BootstrapLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${ResourcesNamePrefix}"
+      # Why: short retention is appropriate for an ephemeral bootstrap tool.
+      # The log group is deleted with the stack once bootstrap is complete.
+      RetentionInDays: 14
+
+  BootstrapProject:
+    DependsOn: BootstrapLogGroup
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Ref ResourcesNamePrefix
+      Description: >-
+        Ephemeral bootstrap CodeBuild project. Triggered with --buildspec-override
+        for each bootstrap operation. Delete this project by deleting the stack.
+      ServiceRole: !GetAtt BootstrapRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux-x86_64-standard:6.0
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            build:
+              commands:
+                - echo "No buildspec override provided"
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref BootstrapLogGroup
+      Tags:
+        - Key: Name
+          Value: !Ref ResourcesNamePrefix
+
+Outputs:
+  CodeBuildProjectName:
+    Description: Name of the bootstrap CodeBuild project.
+    Value: !Ref BootstrapProject

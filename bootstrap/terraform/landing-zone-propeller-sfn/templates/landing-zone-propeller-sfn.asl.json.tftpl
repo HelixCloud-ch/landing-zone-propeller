@@ -1,0 +1,40 @@
+{
+  "Comment": "Triggers a deploy-runner CodeBuild build in any account. Pass action (plan/apply) via env_overrides; scripts default to plan if ACTION is not set.",
+  "StartAt": "IsLocalAccount",
+  "States": {
+    "IsLocalAccount": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.account_id",
+          "StringEquals": "${local_account_id}",
+          "Next": "StartLocalBuild"
+        }
+      ],
+      "Default": "StartCrossAccountBuild"
+    },
+    "StartLocalBuild": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::codebuild:startBuild.sync",
+      "Parameters": {
+        "ProjectName": "${deploy_runner_project_name}",
+        "BuildspecOverride.$": "$.buildspec",
+        "EnvironmentVariablesOverride.$": "$.env_overrides"
+      },
+      "End": true
+    },
+    "StartCrossAccountBuild": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::codebuild:startBuild.sync",
+      "Credentials": {
+        "RoleArn.$": "States.Format('arn:aws:iam::{}:role/${cross_account_run_role_name}', $.account_id)"
+      },
+      "Parameters": {
+        "ProjectName": "${deploy_runner_project_name}",
+        "BuildspecOverride.$": "$.buildspec",
+        "EnvironmentVariablesOverride.$": "$.env_overrides"
+      },
+      "End": true
+    }
+  }
+}
