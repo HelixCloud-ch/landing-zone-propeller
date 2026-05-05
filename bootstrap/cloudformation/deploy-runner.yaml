@@ -1,0 +1,228 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: 'AWS::LanguageExtensions'
+Description: >-
+  Provisions baseline resources for each AWS account: IaC state S3 bucket,
+  CodeBuild project for infrastructure automation, and optional cross-account
+  execution role.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: deploy-runner
+    Description: >-
+      (Optional) Name prefix used for the CodeBuild project, IAM role, and
+      related resources.
+  CreateBucket:
+    Type: String
+    Default: true
+    AllowedValues: [true, false]
+  BucketName:
+    Type: String
+    Default: ""
+    Description: "(Optional) Name of the Bucket. Default: state-iac-{AccountID}-{Region}"
+  CBS3SourceBucket:
+    Type: String
+    Default: ""
+    Description: "(Optional) Name of the S3 bucket containing the codebuildproject. Leave empty to use NO_SOURCE."
+  CallerARN:
+    Type: String
+    Default: ""
+    Description: "(Optional) ARN of the caller (e.g., user or role). Used in a condition key on the cross-account run role. The role does not need to exist at provisioning time."
+  CallerAccountId:
+    Type: String
+    Default: ""
+    Description: "(Optional) AWS Account ID of the caller. Required together with CallerARN to create the cross-account assume role."
+  S3WriteBuckets:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: "(Optional) List of S3 buckets to grant write access to the CodeBuild role"
+  S3ReadBuckets:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: "(Optional) List of S3 buckets to grant read access to the CodeBuild role"
+
+Conditions:
+  CreateBucketCondition: !Equals [ !Ref CreateBucket, "true" ]
+  UseDefaultBucketName: !Equals [ !Ref BucketName, "" ]
+  HasS3Source: !Not [ !Equals [ !Ref CBS3SourceBucket, "" ] ]
+  CreateCBCallerPolicy: !And
+    - !Not [ !Equals [ !Ref CallerARN, "" ] ]
+    - !Not [ !Equals [ !Ref CallerAccountId, "" ] ]
+  CreateCBS3WritePolicy: !Not
+    - !Equals
+      - !Join ["", !Ref S3WriteBuckets]
+      - ""
+  CreateCBS3ReadPolicy: !Or
+    - !Not [ !Equals [ !Ref CBS3SourceBucket, "" ] ]
+    - !Not
+      - !Equals
+        - !Join ["", !Ref S3ReadBuckets]
+        - ""
+
+Resources:
+  IaCBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Condition: CreateBucketCondition
+    Properties:
+      BucketNamespace: account-regional
+      BucketName:
+        Fn::If:
+          - UseDefaultBucketName
+          - !Sub "state-iac-${AWS::AccountId}-${AWS::Region}-an"
+          - !Ref BucketName
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value:
+            Fn::If:
+              - UseDefaultBucketName
+              - !Sub "state-iac-${AWS::AccountId}-${AWS::Region}"
+              - !Ref BucketName
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-service-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AdministratorAccess"
+
+  'Fn::ForEach::ReadBucketPolicies':
+    - S3RBucketName
+    - !Split
+      - ","
+      - !If
+        - HasS3Source
+        - !Sub
+          - "${SourceBucket},${ReadBuckets}"
+          - SourceBucket: !Ref CBS3SourceBucket
+            ReadBuckets: !Join [",", !Ref S3ReadBuckets]
+        - !Join [",", !Ref S3ReadBuckets]
+    - 'ReadBucketPolicy&{S3RBucketName}':
+        Type: AWS::IAM::Policy
+        Condition: CreateCBS3ReadPolicy
+        Properties:
+          PolicyName: !Join ['-', ['read', !Ref 'S3RBucketName']]
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetObjectVersion
+                  - s3:GetObject
+                  - s3:GetBucketLocation
+                  - s3:GetBucketAcl
+                Resource:
+                 - !Join ['' , ['arn:aws:s3:::',!Ref 'S3RBucketName']]
+                 - !Join ['' , ['arn:aws:s3:::',!Ref 'S3RBucketName', "/*"]]
+          Roles:
+            - Ref: CodeBuildRole
+
+  'Fn::ForEach::WriteBucketPolicies':
+    - S3WBucketName
+    - !Ref S3WriteBuckets
+    - 'WriteBucketPolicy&{S3WBucketName}':
+        Type: AWS::IAM::Policy
+        Condition: CreateCBS3WritePolicy
+        Properties:
+          PolicyName: !Join ['-', ['write', !Ref 'S3WBucketName']]
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:PutObject
+                  - s3:GetBucketLocation
+                  - s3:GetBucketAcl
+                Resource:
+                 - !Join ['' , ['arn:aws:s3:::',!Ref 'S3WBucketName']]
+                 - !Join ['' , ['arn:aws:s3:::',!Ref 'S3WBucketName', "/*"]]
+          Roles:
+            - Ref: CodeBuildRole
+
+  CodebuildLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${ProjectName}"
+      RetentionInDays: 90
+
+  DeployRunnerProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Ref ProjectName
+      TimeoutInMinutes: 60
+      ServiceRole: !Ref CodeBuildRole
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Cache:
+        Type: NO_CACHE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux-x86_64-standard:6.0
+        Type: LINUX_CONTAINER
+        ImagePullCredentialsType: CODEBUILD
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref CodebuildLogGroup
+      Source:
+        Type:
+          Fn::If:
+          - HasS3Source
+          - S3
+          - NO_SOURCE
+        Location:
+          Fn::If:
+          - HasS3Source
+          - !Sub "${CBS3SourceBucket}/"
+          - !Ref AWS::NoValue
+        BuildSpec:
+          Fn::If:
+          - HasS3Source
+          - !Ref AWS::NoValue
+          - |
+            version: 0.2
+            phases:
+              build:
+                commands:
+                  - echo "No buildspec override provided"
+  CodeBuildRunRole:
+    Type: AWS::IAM::Role
+    Condition: CreateCBCallerPolicy
+    Properties:
+      RoleName: !Sub "${ProjectName}-run-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${CallerAccountId}:root"
+            Action: sts:AssumeRole
+            Condition:
+              ArnEquals:
+                aws:PrincipalArn: !Ref CallerARN
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess"
+
