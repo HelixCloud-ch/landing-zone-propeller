@@ -66,10 +66,11 @@ Resources:
     UpdateReplacePolicy: Retain
     Condition: CreateBucketCondition
     Properties:
+      BucketNamespace: account-regional
       BucketName:
         Fn::If:
           - UseDefaultBucketName
-          - !Sub "state-iac-${AWS::AccountId}-${AWS::Region}"
+          - !Sub "state-iac-${AWS::AccountId}-${AWS::Region}-an"
           - !Ref BucketName
       VersioningConfiguration:
         Status: Enabled
