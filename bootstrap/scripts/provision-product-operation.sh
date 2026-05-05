@@ -10,7 +10,7 @@ set -x
 : "${PRODUCT_NAME:=deploy-runner}"
 : "${PROVISIONED_PRODUCT_NAME:=deploy-runner}"
 : "${CB_PROJECT_NAME:=deploy-runner}"
-: "${CALLER_ROLE_NAME:=landing-zone-propeller-sfn-role}"
+: "${CALLER_ROLE_NAME:=landing-zone-propeller-autopilot-role}"
 
 # ── Resolve operation account ID ─────────────────────────────────────────────
 if [ -z "${OPERATION_ACCOUNT_ID:-}" ]; then

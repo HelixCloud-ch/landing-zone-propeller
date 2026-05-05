@@ -8,7 +8,7 @@ set -x
 : "${PORTFOLIO_DISPLAY_NAME:=landing-zone-propeller}"
 : "${PRODUCT_NAME:=deploy-runner}"
 : "${OPERATION_ACCOUNT_NAME:=operations}"
-: "${CALLER_ROLE_NAME:=landing-zone-propeller-sfn-role}"
+: "${CALLER_ROLE_NAME:=propeller-autopilot-role}"
 
 # ── Resolve PRODUCT_ID from name if not provided ─────────────────────────────
 if [ -z "${PRODUCT_ID:-}" ]; then
