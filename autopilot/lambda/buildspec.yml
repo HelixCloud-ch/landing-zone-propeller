@@ -16,11 +16,13 @@ phases:
     commands:
       - curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o /tmp/tf.zip
       - unzip -o /tmp/tf.zip -d /usr/local/bin/
+      - curl -fsSL https://just.systems/install.sh | bash -s -- --to /usr/local/bin
       - curl -LsSf https://astral.sh/uv/install.sh | sh
       - export PATH="$HOME/.local/bin:$PATH"
 
   build:
     commands:
+      - cd bundle
       - |
         uv run --project engine propeller-deploy \
           --project-dir projects/$PROJECT_NAME \
@@ -34,4 +36,4 @@ phases:
 
   post_build:
     commands:
-      - export PROPELLER_OUTPUTS_JSON=$(cat projects/$PROJECT_NAME/.propeller-outputs.json 2>/dev/null || echo '{}')
+      - export PROPELLER_OUTPUTS_JSON=$(cat bundle/projects/$PROJECT_NAME/.propeller-outputs.json 2>/dev/null || echo '{}')

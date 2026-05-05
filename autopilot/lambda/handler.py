@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 import boto3
 from aws_durable_execution_sdk_python import (
@@ -18,6 +19,9 @@ ACCOUNT_SSM_PREFIX = "/propeller/accounts"
 POLL_INTERVAL_SECONDS = 15
 RUN_ROLE_NAME = "deploy-runner-run-role"
 CODEBUILD_PROJECT_NAME = "deploy-runner"
+
+_BUILDSPEC_PATH = Path(__file__).parent / "buildspec.yml"
+BUILDSPEC = _BUILDSPEC_PATH.read_text()
 
 
 def _get_parameter(name: str) -> str:
@@ -150,7 +154,7 @@ def _start_build(step: dict, config: dict, bundle_s3_uri: str, deploy_action: st
         projectName=config["codebuildProject"],
         sourceTypeOverride="S3",
         sourceLocationOverride=s3_location,
-        buildspecOverride="bundle/codebuild/buildspec.yml",
+        buildspecOverride=BUILDSPEC,
         environmentVariablesOverride=env_vars,
     )
     return resp["build"]["id"]

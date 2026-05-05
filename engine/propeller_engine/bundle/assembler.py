@@ -73,11 +73,6 @@ def create_bundle(
         if config_dir.is_dir():
             shutil.copytree(config_dir, build / "config")
 
-        # Buildspec
-        buildspec_src = propeller_dir / "codebuild"
-        if buildspec_src.is_dir():
-            shutil.copytree(buildspec_src, build / "codebuild")
-
         # Engine (for propeller-deploy in CodeBuild)
         engine_src = propeller_dir / "engine"
         if engine_src.is_dir():
