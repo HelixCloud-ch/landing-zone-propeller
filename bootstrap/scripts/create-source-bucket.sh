@@ -10,6 +10,7 @@ set -x
 : "${TF_VERSION:=1.14.9}"
 : "${STATE_BUCKET_PREFIX:=state-iac}"
 : "${TF_STATE_KEY:=bootstrap/source-bucket/terraform.tfstate}"
+: "${SOURCE_BUCKET_PREFIX:=source}"
 
 # ── Resolve operation account ID ─────────────────────────────────────────────
 if [ -z "${OPERATION_ACCOUNT_ID:-}" ]; then
@@ -26,17 +27,16 @@ if [ -z "${OPERATION_ACCOUNT_ID:-}" ]; then
 fi
 echo "Operation account ID: ${OPERATION_ACCOUNT_ID}"
 
-STATE_BUCKET="${STATE_BUCKET_PREFIX}-${OPERATION_ACCOUNT_ID}-${AWS_REGION}"
-SOURCE_BUCKET="source-${OPERATION_ACCOUNT_ID}-${AWS_REGION}"
+STATE_BUCKET="${STATE_BUCKET_PREFIX}-${OPERATION_ACCOUNT_ID}-${AWS_REGION}-an"
 
 # ── Resolve organization ID ──────────────────────────────────────────────────
 ORG_ID=$(aws organizations describe-organization \
   --query 'Organization.Id' --output text)
 echo "Organization ID: ${ORG_ID}"
 
-echo "  State bucket   : ${STATE_BUCKET}"
-echo "  Source bucket   : ${SOURCE_BUCKET}"
-echo "  TF state key   : ${TF_STATE_KEY}"
+echo "  State bucket          : ${STATE_BUCKET}"
+echo "  Source bucket prefix  : ${SOURCE_BUCKET_PREFIX}"
+echo "  TF state key          : ${TF_STATE_KEY}"
 
 # ── Assume role in operation account ─────────────────────────────────────────
 ROLE_ARN="arn:aws:iam::${OPERATION_ACCOUNT_ID}:role/${OPERATION_ROLE_NAME}"
@@ -83,7 +83,7 @@ terraform -chdir="$TF_DIR" init \
 
 echo "--- Terraform apply ---"
 terraform -chdir="$TF_DIR" apply -auto-approve \
-  -var="bucket_name=${SOURCE_BUCKET}" \
+  -var="bucket_prefix=${SOURCE_BUCKET_PREFIX}" \
   -var="region=${AWS_REGION}" \
   -var="organization_id=${ORG_ID}"
 

@@ -1,6 +1,6 @@
 resource "aws_s3_bucket" "this" {
-  bucket = var.bucket_name
-
+  bucket           = format("${var.bucket_prefix}-%s-%s-an", data.aws_caller_identity.current.account_id, data.aws_region.current.region)
+  bucket_namespace = "account-regional"
   lifecycle {
     prevent_destroy = true
   }

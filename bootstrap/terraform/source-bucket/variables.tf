@@ -1,6 +1,6 @@
-variable "bucket_name" {
+variable "bucket_prefix" {
   type        = string
-  description = "Name of the source bucket (e.g. source-{account_id}-{region})."
+  description = "Prefix of the source bucket (e.g. source)."
 }
 
 variable "region" {

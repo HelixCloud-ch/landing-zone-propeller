@@ -27,7 +27,7 @@ if [ -z "${OPERATION_ACCOUNT_ID:-}" ]; then
 fi
 echo "Operation account ID: ${OPERATION_ACCOUNT_ID}"
 
-STATE_BUCKET="${STATE_BUCKET_PREFIX}-${OPERATION_ACCOUNT_ID}-${AWS_REGION}"
+STATE_BUCKET="${STATE_BUCKET_PREFIX}-${OPERATION_ACCOUNT_ID}-${AWS_REGION}-an"
 
 # ── Resolve organization ID ──────────────────────────────────────────────────
 ORG_ID=$(aws organizations describe-organization \
