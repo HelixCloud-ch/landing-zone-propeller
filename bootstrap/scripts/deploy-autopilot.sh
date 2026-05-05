@@ -33,7 +33,7 @@ if [ -z "${OPERATIONS_ACCOUNT_ID:-}" ]; then
 fi
 echo "Operations account ID: ${OPERATIONS_ACCOUNT_ID}"
 
-STATE_BUCKET="${STATE_BUCKET_PREFIX}-${OPERATIONS_ACCOUNT_ID}-${AWS_REGION}"
+STATE_BUCKET="${STATE_BUCKET_PREFIX}-${OPERATIONS_ACCOUNT_ID}-${AWS_REGION}-an"
 
 echo "  State bucket : ${STATE_BUCKET}"
 echo "  TF state key : ${TF_STATE_KEY}"
