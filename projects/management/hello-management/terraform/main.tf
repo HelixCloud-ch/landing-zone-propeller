@@ -28,3 +28,7 @@ resource "aws_ssm_parameter" "hello" {
 output "message" {
   value = aws_ssm_parameter.hello.value
 }
+
+output "test_account_id" {
+  value = "123456789012"
+}

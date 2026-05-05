@@ -141,14 +141,12 @@ def _expand_input(inp: dict) -> dict:
 def _expand_output(out: dict, project_name: str) -> dict:
     """Expand shorthand output format to resolved format.
 
-    Shorthand: {name: "identity.role_arn", ref: "admin_role_arn"}
-    Resolved:  {key: "/propeller/identity/role_arn", ref: "admin_role_arn"}
+    Dots in the name are converted to path separators in the SSM key.
     """
     if "name" in out:
-        parts = out["name"].split(".", 1)
-        output_name = parts[1] if len(parts) > 1 else parts[0]
+        path = out["name"].replace(".", "/")
         return {
-            "key": f"{SSM_PREFIX}/{project_name}/{output_name}",
+            "key": f"{SSM_PREFIX}/{path}",
             "ref": out["ref"],
         }
     return out  # Already in resolved format

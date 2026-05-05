@@ -17,3 +17,6 @@ inputs:
 outputs:
   - name: hello-management.message
     ref: message
+
+  - name: accounts.testaccount.id
+    ref: test_account_id
