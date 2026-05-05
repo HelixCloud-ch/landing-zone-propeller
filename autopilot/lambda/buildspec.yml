@@ -34,7 +34,4 @@ phases:
           --project-dir projects/$PROJECT_NAME \
           --config "$CONFIG_PATH" \
           $DEPLOY_ACTION
-
-  post_build:
-    commands:
-      - export PROPELLER_OUTPUTS_JSON=$(cat bundle/projects/$PROJECT_NAME/.propeller-outputs.json 2>/dev/null || echo '{}')
+      - export PROPELLER_OUTPUTS_JSON=$(cat projects/$PROJECT_NAME/.propeller-outputs.json 2>/dev/null || echo '{}')
