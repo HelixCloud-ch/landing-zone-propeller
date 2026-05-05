@@ -6,7 +6,7 @@ deploy:
   type: terraform
   terraform:
     backend:
-      bucket: "terraform-state-${AWS_ACCOUNT_ID}"
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
       key: "propeller/hello-management/terraform.tfstate"
       region: "${AWS_REGION}"
 
