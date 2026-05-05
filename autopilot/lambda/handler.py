@@ -114,7 +114,7 @@ def _get_parameter_optional(name: str) -> str | None:
 def _prepare(step: dict) -> dict:
     target = step.get("target", "default")
     prefix = f"{ACCOUNT_SSM_PREFIX}/{target}"
-    account_id = _get_parameter(f"{prefix}/account_id")
+    account_id = _get_parameter(f"{prefix}/id")
     region = _get_parameter_optional(f"{prefix}/region") or os.environ["AWS_REGION"]
 
     config = {
