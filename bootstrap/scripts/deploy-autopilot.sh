@@ -93,14 +93,14 @@ terraform -chdir="$TF_DIR" apply -auto-approve \
 echo "--- Seeding account registry parameters ---"
 aws ssm put-parameter \
   --region "$AWS_REGION" \
-  --name "/propeller/accounts/management/account_id" \
+  --name "/propeller/accounts/management/id" \
   --value "$MANAGEMENT_ACCOUNT_ID" \
   --type String \
   --overwrite
 
 aws ssm put-parameter \
   --region "$AWS_REGION" \
-  --name "/propeller/accounts/operations/account_id" \
+  --name "/propeller/accounts/operations/id" \
   --value "$OPERATIONS_ACCOUNT_ID" \
   --type String \
   --overwrite
