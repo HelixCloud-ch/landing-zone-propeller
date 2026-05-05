@@ -34,7 +34,8 @@ class TerraformRunner(DeployRunner):
         return run_cmd(cmd, cwd=self.tf_dir)
 
     def apply(self) -> int:
-        rc = run_cmd(["terraform", "apply", "tfplan"], cwd=self.tf_dir)
+        cmd = ["terraform", "apply", "-auto-approve"] + self._var_args()
+        rc = run_cmd(cmd, cwd=self.tf_dir)
         if rc != 0:
             return rc
         self._write_outputs()
