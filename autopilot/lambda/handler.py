@@ -150,6 +150,7 @@ def _start_build(step: dict, config: dict, bundle_s3_uri: str, deploy_action: st
         projectName=config["codebuildProject"],
         sourceTypeOverride="S3",
         sourceLocationOverride=s3_location,
+        buildspecOverride="bundle/codebuild/buildspec.yml",
         environmentVariablesOverride=env_vars,
     )
     return resp["build"]["id"]
