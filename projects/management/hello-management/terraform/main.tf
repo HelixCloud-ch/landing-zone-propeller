@@ -26,7 +26,8 @@ resource "aws_ssm_parameter" "hello" {
 }
 
 output "message" {
-  value = aws_ssm_parameter.hello.value
+  value     = aws_ssm_parameter.hello.value
+  sensitive = true
 }
 
 output "test_account_id" {
