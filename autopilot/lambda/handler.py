@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import boto3
 from aws_durable_execution_sdk_python import (
@@ -103,11 +104,18 @@ def _get_codebuild_client(account_id: str, region: str) -> boto3.client:
     )
 
 
+def _get_parameter_optional(name: str) -> str | None:
+    try:
+        return ssm.get_parameter(Name=name)["Parameter"]["Value"]
+    except ssm.exceptions.ParameterNotFound:
+        return None
+
+
 def _prepare(step: dict) -> dict:
     target = step.get("target", "default")
     prefix = f"{ACCOUNT_SSM_PREFIX}/{target}"
     account_id = _get_parameter(f"{prefix}/account_id")
-    region = _get_parameter(f"{prefix}/region")
+    region = _get_parameter_optional(f"{prefix}/region") or os.environ["AWS_REGION"]
 
     config = {
         "accountId": account_id,
