@@ -18,7 +18,11 @@ set -x
 : "${STATE_BUCKET_PREFIX:=state-iac}"
 : "${TF_STATE_KEY:=bootstrap/autopilot/terraform.tfstate}"
 
-# ── Resolve operations account ID ────────────────────────────────────────────
+# ── Resolve management account ID ────────────────────────────────────────────
+# The script is invoked from the management account, so grab its ID before we assume into operations.
+MANAGEMENT_ACCOUNT_ID=$(aws sts get-caller-identity --region "$STS_REGION" --query Account --output text)
+echo "Management account ID: ${MANAGEMENT_ACCOUNT_ID}"
+
 if [ -z "${OPERATIONS_ACCOUNT_ID:-}" ]; then
   echo "--- Resolving operations account '${OPERATIONS_ACCOUNT_NAME}' from org root ---"
   ORG_ROOT_ID=$(aws organizations list-roots --query 'Roots[0].Id' --output text)
@@ -84,5 +88,21 @@ terraform -chdir="$TF_DIR" init \
 echo "--- Terraform apply ---"
 terraform -chdir="$TF_DIR" apply -auto-approve \
   -var="region=${AWS_REGION}"
+
+# ── Seed account registry SSM parameters ─────────────────────────────────────
+echo "--- Seeding account registry parameters ---"
+aws ssm put-parameter \
+  --region "$AWS_REGION" \
+  --name "/propeller/accounts/management/account_id" \
+  --value "$MANAGEMENT_ACCOUNT_ID" \
+  --type String \
+  --overwrite
+
+aws ssm put-parameter \
+  --region "$AWS_REGION" \
+  --name "/propeller/accounts/operations/account_id" \
+  --value "$OPERATIONS_ACCOUNT_ID" \
+  --type String \
+  --overwrite
 
 echo "Done."
