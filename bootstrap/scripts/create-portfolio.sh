@@ -10,6 +10,7 @@ echo "AWS CLI: $(which aws 2>/dev/null || echo 'not found')"
 : "${PORTFOLIO_PROVIDER_NAME:=landing-zone-propeller}"
 : "${PRODUCT_NAME:=deploy-runner}"
 : "${PRODUCT_TEMPLATE_PATH:=bootstrap/cloudformation/deploy-runner.yaml}"
+: "${PRODUCT_VERSION:=v1.0.2}"
 
 # CodeBuild exposes AWS_DEFAULT_REGION; normalise to AWS_REGION for consistency
 : "${AWS_REGION:=${AWS_DEFAULT_REGION:?AWS_REGION or AWS_DEFAULT_REGION is required}}"
@@ -69,14 +70,48 @@ PRODUCT_ID=$(aws servicecatalog search-products-as-admin \
 
 if [ "$PRODUCT_ID" != "None" ] && [ -n "$PRODUCT_ID" ]; then
   echo "Product already exists: ${PRODUCT_ID}"
+  
+  # Check if the desired version exists and is active
+  echo "--- Check provisioning artifact version ---"
+  ARTIFACT_STATUS=$(aws servicecatalog list-provisioning-artifacts \
+    --product-id "$PRODUCT_ID" \
+    --query "ProvisioningArtifactDetails[?Name=='${PRODUCT_VERSION}'] | [0].Active" \
+    --output text)
+  
+  if [ "$ARTIFACT_STATUS" = "True" ]; then
+    echo "Product version ${PRODUCT_VERSION} is already active"
+  elif [ "$ARTIFACT_STATUS" = "False" ]; then
+    echo "Product version ${PRODUCT_VERSION} exists but is inactive"
+    # Get the artifact ID to update it
+    ARTIFACT_ID=$(aws servicecatalog list-provisioning-artifacts \
+      --product-id "$PRODUCT_ID" \
+      --query "ProvisioningArtifactDetails[?Name=='${PRODUCT_VERSION}'].Id | [0]" \
+      --output text)
+    
+    echo "Activating provisioning artifact: ${ARTIFACT_ID}"
+    aws servicecatalog update-provisioning-artifact \
+      --product-id "$PRODUCT_ID" \
+      --provisioning-artifact-id "$ARTIFACT_ID" \
+      --active
+    echo "Product version ${PRODUCT_VERSION} activated"
+  else
+    echo "Product version ${PRODUCT_VERSION} does not exist, creating new provisioning artifact"
+    aws servicecatalog create-provisioning-artifact \
+      --product-id "$PRODUCT_ID" \
+      --parameters \
+        "Name=${PRODUCT_VERSION},Info={LoadTemplateFromURL=${TEMPLATE_URL}},Type=CLOUD_FORMATION_TEMPLATE" \
+      --idempotency-token "bootstrap-artifact-$(date +%s)"
+    echo "Product version ${PRODUCT_VERSION} created"
+  fi
 else
+  echo "Product does not exist, creating new product with version ${PRODUCT_VERSION}"
   IDEMPOTENCY_TOKEN="bootstrap-product-$(echo "${CODEBUILD_BUILD_ID:-manual}" | tr -cd 'a-zA-Z0-9_-')"
   PRODUCT_ID=$(aws servicecatalog create-product \
     --name "$PRODUCT_NAME" \
     --owner "$PORTFOLIO_PROVIDER_NAME" \
     --product-type CLOUD_FORMATION_TEMPLATE \
     --provisioning-artifact-parameters \
-      "Name=v1.0.2,Info={LoadTemplateFromURL=${TEMPLATE_URL}},Type=CLOUD_FORMATION_TEMPLATE" \
+      "Name=${PRODUCT_VERSION},Info={LoadTemplateFromURL=${TEMPLATE_URL}},Type=CLOUD_FORMATION_TEMPLATE" \
     --idempotency-token "$IDEMPOTENCY_TOKEN" \
     --query 'ProductViewDetail.ProductViewSummary.ProductId' \
     --output text)
