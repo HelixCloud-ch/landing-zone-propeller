@@ -82,6 +82,7 @@ terraform -chdir="$TF_DIR" init \
   -backend-config="region=${AWS_REGION}"
 
 echo "--- Terraform apply ---"
-terraform -chdir="$TF_DIR" apply -auto-approve
+terraform -chdir="$TF_DIR" apply -auto-approve \
+  -var="region=${AWS_REGION}"
 
 echo "Done."
