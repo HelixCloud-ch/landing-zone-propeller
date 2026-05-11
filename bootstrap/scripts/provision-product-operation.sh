@@ -3,8 +3,8 @@ set -euo pipefail
 set -x
 
 : "${AWS_REGION:=${AWS_DEFAULT_REGION:?AWS_REGION or AWS_DEFAULT_REGION is required}}"
-: "${OPERATION_ACCOUNT_NAME:=operations}"
-: "${OPERATION_ROLE_NAME:=AWSControlTowerExecution}"
+: "${OPERATIONS_ACCOUNT_NAME:=operations}"
+: "${OPERATIONS_ROLE_NAME:=AWSControlTowerExecution}"
 : "${STS_REGION:=us-east-1}"
 : "${PORTFOLIO_DISPLAY_NAME:=landing-zone-propeller}"
 : "${PRODUCT_NAME:=deploy-runner}"
@@ -12,28 +12,28 @@ set -x
 : "${CB_PROJECT_NAME:=deploy-runner}"
 : "${CALLER_ROLE_NAME:=propeller-autopilot-role}"
 
-# ── Resolve operation account ID ─────────────────────────────────────────────
-if [ -z "${OPERATION_ACCOUNT_ID:-}" ]; then
-  echo "--- Resolving operation account '${OPERATION_ACCOUNT_NAME}' from org root ---"
+# ── Resolve operations account ID ─────────────────────────────────────────────
+if [ -z "${OPERATIONS_ACCOUNT_ID:-}" ]; then
+  echo "--- Resolving operations account '${OPERATIONS_ACCOUNT_NAME}' from org root ---"
   ORG_ROOT_ID=$(aws organizations list-roots --query 'Roots[0].Id' --output text)
-  OPERATION_ACCOUNT_ID=$(aws organizations list-accounts-for-parent \
+  OPERATIONS_ACCOUNT_ID=$(aws organizations list-accounts-for-parent \
     --parent-id "$ORG_ROOT_ID" \
-    --query "Accounts[?Name=='${OPERATION_ACCOUNT_NAME}' && Status=='ACTIVE'].Id | [0]" \
+    --query "Accounts[?Name=='${OPERATIONS_ACCOUNT_NAME}' && Status=='ACTIVE'].Id | [0]" \
     --output text)
-  if [ "$OPERATION_ACCOUNT_ID" = "None" ] || [ -z "$OPERATION_ACCOUNT_ID" ]; then
-    echo "Account '${OPERATION_ACCOUNT_NAME}' not found." >&2
+  if [ "$OPERATIONS_ACCOUNT_ID" = "None" ] || [ -z "$OPERATIONS_ACCOUNT_ID" ]; then
+    echo "Account '${OPERATIONS_ACCOUNT_NAME}' not found." >&2
     exit 1
   fi
 fi
-echo "Operation account ID: ${OPERATION_ACCOUNT_ID}"
+echo "Operation account ID: ${OPERATIONS_ACCOUNT_ID}"
 
-: "${OPERATION_SOURCE_BUCKET:=source-${OPERATION_ACCOUNT_ID}-${AWS_REGION}}"
-: "${CALLER_ARN:=arn:aws:iam::${OPERATION_ACCOUNT_ID}:role/${CALLER_ROLE_NAME}}"
-: "${CALLER_ACCOUNT_ID:=${OPERATION_ACCOUNT_ID}}"
+: "${OPERATIONS_SOURCE_BUCKET:=source-${OPERATIONS_ACCOUNT_ID}-${AWS_REGION}}"
+: "${CALLER_ARN:=arn:aws:iam::${OPERATIONS_ACCOUNT_ID}:role/${CALLER_ROLE_NAME}}"
+: "${CALLER_ACCOUNT_ID:=${OPERATIONS_ACCOUNT_ID}}"
 
-# ── Assume role in operation account ─────────────────────────────────────────
-ROLE_ARN="arn:aws:iam::${OPERATION_ACCOUNT_ID}:role/${OPERATION_ROLE_NAME}"
-echo "--- Assuming ${OPERATION_ROLE_NAME} in ${OPERATION_ACCOUNT_ID} (via ${STS_REGION}) ---"
+# ── Assume role in operations account ─────────────────────────────────────────
+ROLE_ARN="arn:aws:iam::${OPERATIONS_ACCOUNT_ID}:role/${OPERATIONS_ROLE_NAME}"
+echo "--- Assuming ${OPERATIONS_ROLE_NAME} in ${OPERATIONS_ACCOUNT_ID} (via ${STS_REGION}) ---"
 
 CREDS=$(aws sts assume-role \
   --region "$STS_REGION" \
@@ -47,7 +47,7 @@ export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN
 CURRENT_ACCOUNT=$(aws sts get-caller-identity --region "$STS_REGION" --query Account --output text)
 echo "Now operating as: ${CURRENT_ACCOUNT}"
 
-if [ "$CURRENT_ACCOUNT" != "$OPERATION_ACCOUNT_ID" ]; then
+if [ "$CURRENT_ACCOUNT" != "$OPERATIONS_ACCOUNT_ID" ]; then
   echo "Account mismatch" >&2
   exit 1
 fi
@@ -127,17 +127,17 @@ echo "Artifact ID: ${ARTIFACT_ID}"
 PROVISIONING_PARAMS=( \
   "Key=ProjectName,Value=${CB_PROJECT_NAME}" \
   "Key=CreateBucket,Value=true" \
-  "Key=S3ReadBuckets,Value=${OPERATION_SOURCE_BUCKET}" \
+  "Key=S3ReadBuckets,Value=${OPERATIONS_SOURCE_BUCKET}" \
   "Key=CallerARN,Value=${CALLER_ARN}" \
   "Key=CallerAccountId,Value=${CALLER_ACCOUNT_ID}" \
 )
 
-echo "--- Provision product in operation account ---"
+echo "--- Provision product in operations account ---"
 echo "  Product ID       : ${PRODUCT_ID}"
 echo "  Artifact ID      : ${ARTIFACT_ID}"
 echo "  Provisioned name : ${PROVISIONED_PRODUCT_NAME}"
 echo "  CB project name  : ${CB_PROJECT_NAME}"
-echo "  Source bucket     : ${OPERATION_SOURCE_BUCKET}"
+echo "  Source bucket     : ${OPERATIONS_SOURCE_BUCKET}"
 echo "  Caller ARN        : ${CALLER_ARN}"
 echo "  Caller account    : ${CALLER_ACCOUNT_ID}"
 

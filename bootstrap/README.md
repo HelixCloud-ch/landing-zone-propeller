@@ -200,7 +200,7 @@ $RUN share-portfolio.sh PORTFOLIO_DISPLAY_NAME=my-portfolio
 ## 7. Create the Operations account
 
 ```bash
-$RUN create-operation-account.sh OPERATION_EMAIL=ops@example.com
+$RUN create-operations-account.sh OPERATIONS_EMAIL=ops@example.com
 ```
 
 The script creates the account, then assumes `AWSControlTowerExecution` in the
@@ -210,18 +210,18 @@ ensures the account is ready for resource deployment.
 To override defaults:
 
 ```bash
-$RUN create-operation-account.sh \
-  OPERATION_EMAIL=ops@example.com \
-  OPERATION_ACCOUNT_NAME=operations
+$RUN create-operations-account.sh \
+  OPERATIONS_EMAIL=ops@example.com \
+  OPERATIONS_ACCOUNT_NAME=operations
 ```
 
 Available overrides:
 
 | Variable | Default |
 |---|---|
-| `OPERATION_EMAIL` | required |
-| `OPERATION_ACCOUNT_NAME` | `operations` |
-| `OPERATION_ROLE_NAME` | `AWSControlTowerExecution` |
+| `OPERATIONS_EMAIL` | required |
+| `OPERATIONS_ACCOUNT_NAME` | `operations` |
+| `OPERATIONS_ROLE_NAME` | `AWSControlTowerExecution` |
 
 ---
 
@@ -231,9 +231,9 @@ Available overrides:
 $RUN provision-product-mpa.sh
 ```
 
-The script auto-resolves the product ID, artifact ID, and operation account ID
+The script auto-resolves the product ID, artifact ID, and operations account ID
 from their default names. The source bucket defaults to
-`source-{operation_account_id}-{region}`. It also configures the cross-account
+`source-{operations_account_id}-{region}`. It also configures the cross-account
 run role (`deploy-runner-run-role`) that allows the `landing-zone-propeller-sfn-role` in the
 operations account to start builds.
 
@@ -255,21 +255,21 @@ Available overrides:
 | `PRODUCT_NAME` | `deploy-runner` |
 | `PROVISIONED_PRODUCT_NAME` | `deploy-runner` |
 | `CB_PROJECT_NAME` | `deploy-runner` |
-| `OPERATION_ACCOUNT_NAME` | `operations` |
-| `OPERATION_SOURCE_BUCKET` | `source-{account_id}-{region}` |
+| `OPERATIONS_ACCOUNT_NAME` | `operations` |
+| `OPERATIONS_SOURCE_BUCKET` | `source-{account_id}-{region}` |
 | `CALLER_ROLE_NAME` | `landing-zone-propeller-sfn-role` |
-| `CALLER_ARN` | `arn:aws:iam::{operation_account_id}:role/{CALLER_ROLE_NAME}` |
-| `CALLER_ACCOUNT_ID` | `{operation_account_id}` |
+| `CALLER_ARN` | `arn:aws:iam::{operations_account_id}:role/{CALLER_ROLE_NAME}` |
+| `CALLER_ACCOUNT_ID` | `{operations_account_id}` |
 | `PRODUCT_ID` | auto-resolved |
 | `ARTIFACT_ID` | auto-resolved |
-| `OPERATION_ACCOUNT_ID` | auto-resolved |
+| `OPERATIONS_ACCOUNT_ID` | auto-resolved |
 
 ---
 
 ## 9. Provision the deploy-runner product in the Operations account
 
 ```bash
-$RUN provision-product-operation.sh
+$RUN provision-product-operations.sh
 ```
 
 This step assumes `AWSControlTowerExecution` in the operations account, accepts
@@ -283,8 +283,8 @@ parameters.
 To override defaults:
 
 ```bash
-$RUN provision-product-operation.sh \
-  OPERATION_ACCOUNT_ID=123456789012 \
+$RUN provision-product-operations.sh \
+  OPERATIONS_ACCOUNT_ID=123456789012 \
   CB_PROJECT_NAME=my-runner
 ```
 
@@ -292,17 +292,17 @@ Available overrides:
 
 | Variable | Default |
 |---|---|
-| `OPERATION_ACCOUNT_NAME` | `operations` |
-| `OPERATION_ROLE_NAME` | `AWSControlTowerExecution` |
+| `OPERATIONS_ACCOUNT_NAME` | `operations` |
+| `OPERATIONS_ROLE_NAME` | `AWSControlTowerExecution` |
 | `PORTFOLIO_DISPLAY_NAME` | `landing-zone-propeller` |
 | `PRODUCT_NAME` | `deploy-runner` |
 | `PROVISIONED_PRODUCT_NAME` | `deploy-runner` |
 | `CB_PROJECT_NAME` | `deploy-runner` |
-| `OPERATION_SOURCE_BUCKET` | `source-{account_id}-{region}` |
-| `OPERATION_ACCOUNT_ID` | auto-resolved |
+| `OPERATIONS_SOURCE_BUCKET` | `source-{account_id}-{region}` |
+| `OPERATIONS_ACCOUNT_ID` | auto-resolved |
 | `CALLER_ROLE_NAME` | `landing-zone-propeller-sfn-role` |
-| `CALLER_ARN` | `arn:aws:iam::{operation_account_id}:role/{CALLER_ROLE_NAME}` |
-| `CALLER_ACCOUNT_ID` | `{operation_account_id}` |
+| `CALLER_ARN` | `arn:aws:iam::{operations_account_id}:role/{CALLER_ROLE_NAME}` |
+| `CALLER_ACCOUNT_ID` | `{operations_account_id}` |
 | `STS_REGION` | `us-east-1` |
 
 ---
@@ -323,9 +323,9 @@ Available overrides:
 
 | Variable | Default |
 |---|---|
-| `OPERATION_ACCOUNT_NAME` | `operations` |
-| `OPERATION_ROLE_NAME` | `AWSControlTowerExecution` |
-| `OPERATION_ACCOUNT_ID` | auto-resolved |
+| `OPERATIONS_ACCOUNT_NAME` | `operations` |
+| `OPERATIONS_ROLE_NAME` | `AWSControlTowerExecution` |
+| `OPERATIONS_ACCOUNT_ID` | auto-resolved |
 | `TF_VERSION` | `1.14.9` |
 | `STATE_BUCKET_PREFIX` | `state-iac` |
 | `TF_STATE_KEY` | `bootstrap/source-bucket/terraform.tfstate` |
@@ -359,7 +359,7 @@ Operations account from CloudShell (which runs in the MPA):
 # Assume role into the Operations account
 CREDS=$(aws sts assume-role \
   --region "$TARGET_REGION" \
-  --role-arn "arn:aws:iam::${OPERATION_ACCOUNT_ID}:role/AWSControlTowerExecution" \
+  --role-arn "arn:aws:iam::${OPERATIONS_ACCOUNT_ID}:role/AWSControlTowerExecution" \
   --role-session-name "sfn-trigger" \
   --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
   --output text)
@@ -372,7 +372,7 @@ Then start the execution:
 # Plan (default — ACTION defaults to plan if not provided)
 aws stepfunctions start-execution \
   --region "$TARGET_REGION" \
-  --state-machine-arn "arn:aws:states:${TARGET_REGION}:${OPERATION_ACCOUNT_ID}:stateMachine:landing-zone-propeller-sfn" \
+  --state-machine-arn "arn:aws:states:${TARGET_REGION}:${OPERATIONS_ACCOUNT_ID}:stateMachine:landing-zone-propeller-sfn" \
   --input '{
     "account_id": "123456789012",
     "buildspec": "version: 0.2\nphases:\n  build:\n    commands:\n      - echo ACTION=${ACTION:-plan}",
@@ -382,7 +382,7 @@ aws stepfunctions start-execution \
 # Apply (pass ACTION=apply in env_overrides)
 aws stepfunctions start-execution \
   --region "$TARGET_REGION" \
-  --state-machine-arn "arn:aws:states:${TARGET_REGION}:${OPERATION_ACCOUNT_ID}:stateMachine:landing-zone-propeller-sfn" \
+  --state-machine-arn "arn:aws:states:${TARGET_REGION}:${OPERATIONS_ACCOUNT_ID}:stateMachine:landing-zone-propeller-sfn" \
   --input '{
     "account_id": "123456789012",
     "buildspec": "version: 0.2\nphases:\n  build:\n    commands:\n      - echo ACTION=${ACTION:-plan}",
@@ -402,9 +402,9 @@ Available overrides:
 
 | Variable | Default |
 |---|---|
-| `OPERATION_ACCOUNT_NAME` | `operations` |
-| `OPERATION_ROLE_NAME` | `AWSControlTowerExecution` |
-| `OPERATION_ACCOUNT_ID` | auto-resolved |
+| `OPERATIONS_ACCOUNT_NAME` | `operations` |
+| `OPERATIONS_ROLE_NAME` | `AWSControlTowerExecution` |
+| `OPERATIONS_ACCOUNT_ID` | auto-resolved |
 | `TF_VERSION` | `1.14.9` |
 | `STATE_BUCKET_PREFIX` | `state-iac` |
 | `TF_STATE_KEY` | `bootstrap/landing-zone-propeller-sfn/terraform.tfstate` |

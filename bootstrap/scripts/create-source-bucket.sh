@@ -3,8 +3,8 @@ set -euo pipefail
 set -x
 
 : "${AWS_REGION:=${AWS_DEFAULT_REGION:?AWS_REGION or AWS_DEFAULT_REGION is required}}"
-: "${OPERATION_ACCOUNT_NAME:=operations}"
-: "${OPERATION_ROLE_NAME:=AWSControlTowerExecution}"
+: "${OPERATIONS_ACCOUNT_NAME:=operations}"
+: "${OPERATIONS_ROLE_NAME:=AWSControlTowerExecution}"
 : "${STS_REGION:=us-east-1}"
 : "${TF_DIR:=bootstrap/terraform/source-bucket}"
 : "${TF_VERSION:=1.14.9}"
@@ -12,22 +12,22 @@ set -x
 : "${TF_STATE_KEY:=bootstrap/source-bucket/terraform.tfstate}"
 : "${SOURCE_BUCKET_PREFIX:=source}"
 
-# ── Resolve operation account ID ─────────────────────────────────────────────
-if [ -z "${OPERATION_ACCOUNT_ID:-}" ]; then
-  echo "--- Resolving operation account '${OPERATION_ACCOUNT_NAME}' from org root ---"
+# ── Resolve operations account ID ─────────────────────────────────────────────
+if [ -z "${OPERATIONS_ACCOUNT_ID:-}" ]; then
+  echo "--- Resolving operations account '${OPERATIONS_ACCOUNT_NAME}' from org root ---"
   ORG_ROOT_ID=$(aws organizations list-roots --query 'Roots[0].Id' --output text)
-  OPERATION_ACCOUNT_ID=$(aws organizations list-accounts-for-parent \
+  OPERATIONS_ACCOUNT_ID=$(aws organizations list-accounts-for-parent \
     --parent-id "$ORG_ROOT_ID" \
-    --query "Accounts[?Name=='${OPERATION_ACCOUNT_NAME}' && Status=='ACTIVE'].Id | [0]" \
+    --query "Accounts[?Name=='${OPERATIONS_ACCOUNT_NAME}' && Status=='ACTIVE'].Id | [0]" \
     --output text)
-  if [ "$OPERATION_ACCOUNT_ID" = "None" ] || [ -z "$OPERATION_ACCOUNT_ID" ]; then
-    echo "Account '${OPERATION_ACCOUNT_NAME}' not found. Run create-operation-account first." >&2
+  if [ "$OPERATIONS_ACCOUNT_ID" = "None" ] || [ -z "$OPERATIONS_ACCOUNT_ID" ]; then
+    echo "Account '${OPERATIONS_ACCOUNT_NAME}' not found. Run create-operations-account first." >&2
     exit 1
   fi
 fi
-echo "Operation account ID: ${OPERATION_ACCOUNT_ID}"
+echo "Operation account ID: ${OPERATIONS_ACCOUNT_ID}"
 
-STATE_BUCKET="${STATE_BUCKET_PREFIX}-${OPERATION_ACCOUNT_ID}-${AWS_REGION}-an"
+STATE_BUCKET="${STATE_BUCKET_PREFIX}-${OPERATIONS_ACCOUNT_ID}-${AWS_REGION}-an"
 
 # ── Resolve organization ID ──────────────────────────────────────────────────
 ORG_ID=$(aws organizations describe-organization \
@@ -38,9 +38,9 @@ echo "  State bucket          : ${STATE_BUCKET}"
 echo "  Source bucket prefix  : ${SOURCE_BUCKET_PREFIX}"
 echo "  TF state key          : ${TF_STATE_KEY}"
 
-# ── Assume role in operation account ─────────────────────────────────────────
-ROLE_ARN="arn:aws:iam::${OPERATION_ACCOUNT_ID}:role/${OPERATION_ROLE_NAME}"
-echo "--- Assuming ${OPERATION_ROLE_NAME} in ${OPERATION_ACCOUNT_ID} (via ${STS_REGION}) ---"
+# ── Assume role in operations account ─────────────────────────────────────────
+ROLE_ARN="arn:aws:iam::${OPERATIONS_ACCOUNT_ID}:role/${OPERATIONS_ROLE_NAME}"
+echo "--- Assuming ${OPERATIONS_ROLE_NAME} in ${OPERATIONS_ACCOUNT_ID} (via ${STS_REGION}) ---"
 
 CREDS=$(aws sts assume-role \
   --region "$STS_REGION" \
@@ -54,8 +54,8 @@ export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN
 CURRENT_ACCOUNT=$(aws sts get-caller-identity --region "$STS_REGION" --query Account --output text)
 echo "Now operating as: ${CURRENT_ACCOUNT}"
 
-if [ "$CURRENT_ACCOUNT" != "$OPERATION_ACCOUNT_ID" ]; then
-  echo "Account mismatch: expected ${OPERATION_ACCOUNT_ID}, got ${CURRENT_ACCOUNT}" >&2
+if [ "$CURRENT_ACCOUNT" != "$OPERATIONS_ACCOUNT_ID" ]; then
+  echo "Account mismatch: expected ${OPERATIONS_ACCOUNT_ID}, got ${CURRENT_ACCOUNT}" >&2
   exit 1
 fi
 
