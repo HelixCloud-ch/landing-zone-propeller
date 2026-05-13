@@ -25,7 +25,7 @@ if [ -z "${OPERATIONS_ACCOUNT_ID:-}" ]; then
     exit 1
   fi
 fi
-echo "Operation account ID: ${OPERATIONS_ACCOUNT_ID}"
+echo "Operations account ID: ${OPERATIONS_ACCOUNT_ID}"
 
 STATE_BUCKET="${STATE_BUCKET_PREFIX}-${OPERATIONS_ACCOUNT_ID}-${AWS_REGION}-an"
 

@@ -25,7 +25,7 @@ if [ -z "${OPERATIONS_ACCOUNT_ID:-}" ]; then
     exit 1
   fi
 fi
-echo "Operation account ID: ${OPERATIONS_ACCOUNT_ID}"
+echo "Operations account ID: ${OPERATIONS_ACCOUNT_ID}"
 
 : "${OPERATIONS_SOURCE_BUCKET:=source-${OPERATIONS_ACCOUNT_ID}-${AWS_REGION}}"
 : "${CALLER_ARN:=arn:aws:iam::${OPERATIONS_ACCOUNT_ID}:role/${CALLER_ROLE_NAME}}"

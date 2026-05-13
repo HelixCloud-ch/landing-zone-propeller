@@ -26,9 +26,9 @@ OPERATIONS_ACCOUNT_ID=$(aws organizations list-accounts-for-parent \
 
 # ── Create account if it does not exist ──────────────────────────────────────
 if [ "$OPERATIONS_ACCOUNT_ID" != "None" ] && [ -n "$OPERATIONS_ACCOUNT_ID" ]; then
-  echo "Operation account already exists: ${OPERATIONS_ACCOUNT_ID}"
+  echo "Operations account already exists: ${OPERATIONS_ACCOUNT_ID}"
 else
-  echo "Creating Operation account..."
+  echo "Creating Operations account..."
   CREATE_REQ=$(aws organizations create-account \
     --email "$OPERATIONS_EMAIL" \
     --account-name "$OPERATIONS_ACCOUNT_NAME" \

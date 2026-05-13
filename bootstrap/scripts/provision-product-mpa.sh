@@ -49,7 +49,7 @@ if [ -z "${OPERATIONS_ACCOUNT_ID:-}" ]; then
     echo "Account '${OPERATIONS_ACCOUNT_NAME}' not found in org root. Run create-operations-account first." >&2
     exit 1
   fi
-  echo "Operation account ID: ${OPERATIONS_ACCOUNT_ID}"
+  echo "Operations account ID: ${OPERATIONS_ACCOUNT_ID}"
 fi
 
 : "${OPERATIONS_SOURCE_BUCKET:=source-${OPERATIONS_ACCOUNT_ID}-${AWS_REGION}}"
@@ -65,7 +65,7 @@ PROVISIONING_PARAMS=( \
 )
 
 echo "--- Provision product in MPA ---"
-echo "  Operation account : ${OPERATIONS_ACCOUNT_ID}"
+echo "  Operations account : ${OPERATIONS_ACCOUNT_ID}"
 echo "  Product ID        : ${PRODUCT_ID}"
 echo "  Artifact ID       : ${ARTIFACT_ID}"
 echo "  Provisioned name  : ${PROVISIONED_PRODUCT_NAME}"
