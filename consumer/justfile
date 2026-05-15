@@ -1,0 +1,64 @@
+# Propeller consumer recipes, auto-updated on every `just pull`.
+# Import this from your root justfile:
+#   import? '.propeller/consumer/justfile'
+#
+# The root justfile should define the `pull` recipe (bootstrap/update).
+# All other recipes are provided here and stay in sync with the framework.
+
+# Requirements: uv, yq, jq, aws-cli
+
+bundle_s3_bucket := env("PROPELLER_BUNDLE_BUCKET", "")
+lambda_function := env("PROPELLER_LAMBDA_ARN", "")
+
+# Resolve the pipeline (merge base + overrides)
+resolve:
+    mkdir -p dist
+    uv run --project .propeller/engine propeller-resolve \
+        --base .propeller/propeller.yaml \
+        --overrides propeller.overrides.yaml \
+        --output dist/pipeline.lock.yaml \
+        --propeller-dir .propeller
+
+# Validate the resolved pipeline
+validate:
+    uv run --project .propeller/engine propeller-validate \
+        --pipeline dist/pipeline.lock.yaml \
+        --no-check-sources
+
+# Bundle everything into a single deployable zip
+bundle:
+    uv run --project .propeller/engine propeller-bundle \
+        --pipeline dist/pipeline.lock.yaml \
+        --propeller-dir .propeller \
+        --config-dir config \
+        --output dist/bundle.zip
+
+# Upload the bundle to S3
+upload:
+    aws s3 cp dist/bundle.zip "s3://{{bundle_s3_bucket}}/bundle.zip"
+
+# Invoke the autopilot Lambda to run the pipeline
+trigger:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DEPLOY_ACTION="${DEPLOY_ACTION:-apply}"
+    FUNCTION_ARN="{{lambda_function}}:\$LATEST"
+    PAYLOAD=$(jq -n \
+        --argjson pipeline "$(jq '.stages' dist/pipeline.lock.json)" \
+        --arg bundle_s3_uri "s3://{{bundle_s3_bucket}}/bundle.zip" \
+        --arg deploy_action "$DEPLOY_ACTION" \
+        '{pipeline: {stages: $pipeline}, bundle_s3_uri: $bundle_s3_uri, deploy_action: $deploy_action}')
+    echo "Invoking ${FUNCTION_ARN} (${DEPLOY_ACTION})..."
+    aws lambda invoke \
+        --function-name "$FUNCTION_ARN" \
+        --invocation-type Event \
+        --payload "$PAYLOAD" \
+        --cli-binary-format raw-in-base64-out \
+        /dev/null
+    echo "Triggered"
+
+# Build locally (resolve + validate + bundle)
+build: resolve validate bundle
+
+# Deploy to AWS (build + upload + trigger)
+deploy: build upload trigger

@@ -1,0 +1,17 @@
+# Landing Zone Propeller - Consumer Justfile
+# Recipes are provided by the framework and auto-updated on `just pull`.
+
+import? '.propeller/consumer/justfile'
+
+# Bootstrap/update: download the framework at the pinned version.
+pull:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VERSION=$(yq '.propeller.version' propeller.overrides.yaml)
+    REPO=$(yq '.propeller.repo // "HelixCloud-ch/landing-zone-propeller"' propeller.overrides.yaml)
+    rm -rf .propeller
+    mkdir -p .propeller
+    curl -fsSL "https://github.com/${REPO}/releases/download/${VERSION}/propeller-${VERSION}.zip" -o /tmp/propeller-download.zip
+    unzip -qo /tmp/propeller-download.zip -d .propeller
+    rm -f /tmp/propeller-download.zip
+    echo "Pulled propeller ${VERSION}"
