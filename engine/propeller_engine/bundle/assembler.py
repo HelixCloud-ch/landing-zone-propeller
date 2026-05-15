@@ -82,8 +82,14 @@ def create_bundle(
                 ignore=shutil.ignore_patterns(".venv", "__pycache__", "*.pyc"),
             )
 
-        # Resolved pipeline
-        shutil.copy2(pipeline_path, build / "pipeline-resolved.yaml")
+        # Resolved pipeline files (copy from dist/)
+        shutil.copy2(pipeline_path, build / pipeline_path.name)
+        json_path = pipeline_path.with_suffix(".json")
+        if json_path.exists():
+            shutil.copy2(json_path, build / json_path.name)
+        graph_path = pipeline_path.with_suffix(".md")
+        if graph_path.exists():
+            shutil.copy2(graph_path, build / graph_path.name)
 
         # Manifest
         manifest = {
