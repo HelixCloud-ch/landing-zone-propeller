@@ -62,3 +62,7 @@ build: resolve validate bundle
 
 # Deploy to AWS (build + upload + trigger)
 deploy: build upload trigger
+
+# Remove generated files
+clean:
+    rm -rf .propeller dist
