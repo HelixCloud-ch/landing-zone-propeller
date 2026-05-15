@@ -1,0 +1,8 @@
+.propeller/
+dist/
+
+*.tfplan
+.terraform/
+__pycache__/
+*.pyc
+.venv/
