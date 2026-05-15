@@ -42,14 +42,15 @@ trigger:
     #!/usr/bin/env bash
     set -euo pipefail
     DEPLOY_ACTION="${DEPLOY_ACTION:-apply}"
+    FUNCTION_ARN="{{lambda_function}}:\$LATEST"
     PAYLOAD=$(jq -n \
         --argjson pipeline "$(jq '.stages' dist/pipeline.lock.json)" \
         --arg bundle_s3_uri "s3://{{bundle_s3_bucket}}/bundle.zip" \
         --arg deploy_action "$DEPLOY_ACTION" \
         '{pipeline: {stages: $pipeline}, bundle_s3_uri: $bundle_s3_uri, deploy_action: $deploy_action}')
-    echo "Invoking {{lambda_function}} (${DEPLOY_ACTION})..."
+    echo "Invoking ${FUNCTION_ARN} (${DEPLOY_ACTION})..."
     aws lambda invoke \
-        --function-name "{{lambda_function}}" \
+        --function-name "$FUNCTION_ARN" \
         --invocation-type Event \
         --payload "$PAYLOAD" \
         --cli-binary-format raw-in-base64-out \
