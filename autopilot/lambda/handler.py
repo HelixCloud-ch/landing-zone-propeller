@@ -182,12 +182,18 @@ def _write_outputs(step: dict, exported_vars: list) -> dict:
             break
 
     outputs = json.loads(outputs_json)
+    if not outputs and output_defs:
+        print(f"[propeller] Warning: PROPELLER_OUTPUTS_JSON is empty for {step['project']}, "
+              f"expected outputs: {[o['ref'] for o in output_defs]}")
+
     written = {}
     for out_def in output_defs:
         ref = out_def["ref"]
         if ref in outputs:
             ssm.put_parameter(Name=out_def["key"], Value=str(outputs[ref]), Type="String", Overwrite=True)
             written[ref] = out_def["key"]
+        else:
+            print(f"[propeller] Warning: output '{ref}' not found in build outputs for {step['project']}")
     return {"written": written}
 
 
