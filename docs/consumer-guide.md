@@ -41,15 +41,11 @@ Pins the framework version and defines pipeline customizations: target
 remapping, project overrides/additions/removals, and stage reordering.
 See the generated file for commented examples.
 
-### `config/`
-
-Per-project configuration files (e.g. `<project-name>.tfvars` for
-Terraform projects).
-
 ### `projects/`
 
-Custom projects not in the framework. Each needs a `project.yaml`
-following the project contract.
+Per-project customizations and custom projects. For framework projects,
+provide `config.auto.tfvars` (and optional `overrides.tf`) mirroring the
+project structure. Custom projects include the full source.
 
 ## Environment Variables
 

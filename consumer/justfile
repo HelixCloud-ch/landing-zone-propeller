@@ -30,7 +30,7 @@ bundle:
     uv run --project .propeller/engine propeller-bundle \
         --pipeline dist/pipeline.lock.yaml \
         --propeller-dir .propeller \
-        --config-dir config \
+        --overlay-dir projects \
         --output dist/bundle.zip
 
 # Upload the bundle to S3

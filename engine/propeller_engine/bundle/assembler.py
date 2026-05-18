@@ -39,11 +39,24 @@ def _get_git_sha() -> str:
         return "unknown"
 
 
+def _overlay_project(dest: Path, overlay_dir: Path, project_name: str) -> None:
+    """Overlay consumer files on top of a framework project."""
+    overlay_project = overlay_dir / project_name
+    if not overlay_project.is_dir():
+        return
+    for src_file in overlay_project.rglob("*"):
+        if src_file.is_file():
+            rel = src_file.relative_to(overlay_project)
+            target = dest / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, target)
+
+
 def create_bundle(
     pipeline_path: Path,
     propeller_dir: Path,
-    config_dir: Path,
     output_path: Path,
+    overlay_dir: Path | None = None,
 ) -> None:
     """Assemble the deployment bundle zip."""
     data = yaml.safe_load(pipeline_path.read_text())
@@ -63,15 +76,14 @@ def create_bundle(
                     dest = projects_out / step.project
                     shutil.copytree(src, dest)
                     rewrite_module_paths(dest)
+                    # Overlay consumer files on top
+                    if overlay_dir:
+                        _overlay_project(dest, overlay_dir, step.project)
 
         # Modules
         modules_src = propeller_dir / "modules"
         if modules_src.is_dir():
             shutil.copytree(modules_src, build / "modules")
-
-        # Config
-        if config_dir.is_dir():
-            shutil.copytree(config_dir, build / "config")
 
         # Engine (for propeller-deploy in CodeBuild)
         engine_src = propeller_dir / "engine"

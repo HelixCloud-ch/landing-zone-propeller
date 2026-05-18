@@ -67,12 +67,10 @@ class DeployRunner:
         project: dict,
         project_dir: Path,
         inputs: dict[str, str],
-        config: str | None,
     ):
         self.project = project
         self.project_dir = project_dir
         self.inputs = inputs
-        self.config = config
 
     def init(self) -> int:
         raise NotImplementedError
@@ -91,21 +89,21 @@ class DeployRunner:
 
 
 def get_runner(
-    project: dict, project_dir: Path, inputs: dict[str, str], config: str | None
+    project: dict, project_dir: Path, inputs: dict[str, str]
 ) -> DeployRunner:
     deploy_type = project.get("deploy", {}).get("type", "")
 
     if deploy_type == "terraform":
         from .terraform import TerraformRunner
 
-        return TerraformRunner(project, project_dir, inputs, config)
+        return TerraformRunner(project, project_dir, inputs)
     elif deploy_type == "cloudformation":
         from .cloudformation import CloudFormationRunner
 
-        return CloudFormationRunner(project, project_dir, inputs, config)
+        return CloudFormationRunner(project, project_dir, inputs)
     elif deploy_type == "script":
         from .script import ScriptRunner
 
-        return ScriptRunner(project, project_dir, inputs, config)
+        return ScriptRunner(project, project_dir, inputs)
     else:
         raise click.ClickException(f"Unknown deploy type: {deploy_type}")

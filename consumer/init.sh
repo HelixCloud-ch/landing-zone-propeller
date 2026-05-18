@@ -45,7 +45,7 @@ if grep -q "PROPELLER_VERSION_PLACEHOLDER" propeller.overrides.yaml 2>/dev/null;
     rm -f propeller.overrides.yaml.bak
 fi
 
-mkdir -p config projects
+mkdir -p projects
 
 echo ""
 echo "Done! Next steps:"
