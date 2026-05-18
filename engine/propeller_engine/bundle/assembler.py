@@ -41,8 +41,25 @@ def _get_git_sha() -> str:
 
 def _overlay_project(dest: Path, overlay_dir: Path, project_name: str) -> None:
     """Overlay consumer files on top of a framework project."""
-    overlay_project = overlay_dir / project_name
-    if not overlay_project.is_dir():
+    # Find the overlay by project name (supports nested grouping)
+    overlay_project = None
+    for candidate in overlay_dir.rglob("project.yaml"):
+        data = yaml.safe_load(candidate.read_text())
+        if data.get("name") == project_name:
+            overlay_project = candidate.parent
+            break
+    # Also check direct name match (for overlays without project.yaml)
+    if overlay_project is None:
+        direct = overlay_dir / project_name
+        if direct.is_dir():
+            overlay_project = direct
+    if overlay_project is None:
+        # Try recursive directory name match
+        for d in overlay_dir.rglob(project_name):
+            if d.is_dir():
+                overlay_project = d
+                break
+    if overlay_project is None:
         return
     for src_file in overlay_project.rglob("*"):
         if src_file.is_file():
