@@ -16,7 +16,7 @@
 # Examples:
 #   ./bootstrap/scripts/run.sh create-portfolio.sh
 #   ./bootstrap/scripts/run.sh share-portfolio.sh
-#   ./bootstrap/scripts/run.sh create-operation-account.sh OPERATION_EMAIL=ops@acme.com
+#   ./bootstrap/scripts/run.sh create-operations-account.sh OPERATIONS_EMAIL=ops@acme.com
 #   ./bootstrap/scripts/run.sh provision-product-mpa.sh
 
 set -euo pipefail

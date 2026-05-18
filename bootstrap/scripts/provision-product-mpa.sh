@@ -7,7 +7,7 @@ set -x
 : "${CB_PROJECT_NAME:=deploy-runner}"
 : "${PORTFOLIO_DISPLAY_NAME:=landing-zone-propeller}"
 : "${PRODUCT_NAME:=deploy-runner}"
-: "${OPERATION_ACCOUNT_NAME:=operations}"
+: "${OPERATIONS_ACCOUNT_NAME:=operations}"
 : "${CALLER_ROLE_NAME:=propeller-autopilot-role}"
 
 # ── Resolve PRODUCT_ID from name if not provided ─────────────────────────────
@@ -37,40 +37,40 @@ if [ -z "${ARTIFACT_ID:-}" ]; then
   echo "Artifact ID: ${ARTIFACT_ID}"
 fi
 
-# ── Resolve operation account ID ─────────────────────────────────────────────
-if [ -z "${OPERATION_ACCOUNT_ID:-}" ]; then
-  echo "--- Resolving operation account '${OPERATION_ACCOUNT_NAME}' from org root ---"
+# ── Resolve operations account ID ─────────────────────────────────────────────
+if [ -z "${OPERATIONS_ACCOUNT_ID:-}" ]; then
+  echo "--- Resolving operations account '${OPERATIONS_ACCOUNT_NAME}' from org root ---"
   ORG_ROOT_ID=$(aws organizations list-roots --query 'Roots[0].Id' --output text)
-  OPERATION_ACCOUNT_ID=$(aws organizations list-accounts-for-parent \
+  OPERATIONS_ACCOUNT_ID=$(aws organizations list-accounts-for-parent \
     --parent-id "$ORG_ROOT_ID" \
-    --query "Accounts[?Name=='${OPERATION_ACCOUNT_NAME}' && Status=='ACTIVE'].Id | [0]" \
+    --query "Accounts[?Name=='${OPERATIONS_ACCOUNT_NAME}' && Status=='ACTIVE'].Id | [0]" \
     --output text)
-  if [ "$OPERATION_ACCOUNT_ID" = "None" ] || [ -z "$OPERATION_ACCOUNT_ID" ]; then
-    echo "Account '${OPERATION_ACCOUNT_NAME}' not found in org root. Run create-operation-account first." >&2
+  if [ "$OPERATIONS_ACCOUNT_ID" = "None" ] || [ -z "$OPERATIONS_ACCOUNT_ID" ]; then
+    echo "Account '${OPERATIONS_ACCOUNT_NAME}' not found in org root. Run create-operations-account first." >&2
     exit 1
   fi
-  echo "Operation account ID: ${OPERATION_ACCOUNT_ID}"
+  echo "Operations account ID: ${OPERATIONS_ACCOUNT_ID}"
 fi
 
-: "${OPERATION_SOURCE_BUCKET:=source-${OPERATION_ACCOUNT_ID}-${AWS_REGION}}"
-: "${CALLER_ARN:=arn:aws:iam::${OPERATION_ACCOUNT_ID}:role/${CALLER_ROLE_NAME}}"
-: "${CALLER_ACCOUNT_ID:=${OPERATION_ACCOUNT_ID}}"
+: "${OPERATIONS_SOURCE_BUCKET:=source-${OPERATIONS_ACCOUNT_ID}-${AWS_REGION}}"
+: "${CALLER_ARN:=arn:aws:iam::${OPERATIONS_ACCOUNT_ID}:role/${CALLER_ROLE_NAME}}"
+: "${CALLER_ACCOUNT_ID:=${OPERATIONS_ACCOUNT_ID}}"
 
 PROVISIONING_PARAMS=( \
   "Key=ProjectName,Value=${CB_PROJECT_NAME}" \
   "Key=CreateBucket,Value=true" \
-  "Key=S3ReadBuckets,Value=${OPERATION_SOURCE_BUCKET}" \
+  "Key=S3ReadBuckets,Value=${OPERATIONS_SOURCE_BUCKET}" \
   "Key=CallerARN,Value=${CALLER_ARN}" \
   "Key=CallerAccountId,Value=${CALLER_ACCOUNT_ID}" \
 )
 
 echo "--- Provision product in MPA ---"
-echo "  Operation account : ${OPERATION_ACCOUNT_ID}"
+echo "  Operations account : ${OPERATIONS_ACCOUNT_ID}"
 echo "  Product ID        : ${PRODUCT_ID}"
 echo "  Artifact ID       : ${ARTIFACT_ID}"
 echo "  Provisioned name  : ${PROVISIONED_PRODUCT_NAME}"
 echo "  CB project name   : ${CB_PROJECT_NAME}"
-echo "  Source bucket      : ${OPERATION_SOURCE_BUCKET}"
+echo "  Source bucket      : ${OPERATIONS_SOURCE_BUCKET}"
 echo "  Caller ARN         : ${CALLER_ARN}"
 echo "  Caller account     : ${CALLER_ACCOUNT_ID}"
 

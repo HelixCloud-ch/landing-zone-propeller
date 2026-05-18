@@ -50,7 +50,7 @@ Resources:
       Name: !Ref ResourcesNamePrefix
       Description: >-
         Ephemeral bootstrap CodeBuild project. Triggered with --buildspec-override
-        for each bootstrap operation. Delete this project by deleting the stack.
+        for each bootstrap operations. Delete this project by deleting the stack.
       ServiceRole: !GetAtt BootstrapRole.Arn
       Artifacts:
         Type: NO_ARTIFACTS
