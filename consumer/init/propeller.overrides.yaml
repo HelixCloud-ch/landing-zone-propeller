@@ -10,14 +10,14 @@ pipeline:
   # Override framework projects with local versions
   # overrides:
   #   - project: hello-operations
-  #     source: "./projects/my-custom-ops"
+  #     source: "./landing-zone/projects/my-custom-ops"
 
   # Add custom projects to existing stages
   # additions:
   #   - stage: operations
   #     step:
   #       project: my-project
-  #       source: "./projects/my-project"
+  #       source: "./landing-zone/projects/my-project"
 
   # Remove framework projects you don't need
   # removals:

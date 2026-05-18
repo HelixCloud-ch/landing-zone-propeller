@@ -34,21 +34,22 @@ curl -fsSL "https://github.com/${REPO}/releases/download/${VERSION}/propeller-${
 unzip -qo /tmp/propeller-init.zip -d .propeller
 rm -f /tmp/propeller-init.zip
 
-# Copy templates without overwriting existing files
+# Copy root templates
 cp -n .propeller/consumer/init/.gitignore .gitignore 2>/dev/null || true
 cp -n .propeller/consumer/init/justfile justfile 2>/dev/null || true
-cp -n .propeller/consumer/init/propeller.overrides.yaml propeller.overrides.yaml 2>/dev/null || true
+
+# Create landing-zone directory with overrides template
+mkdir -p landing-zone/projects
+cp -n .propeller/consumer/init/propeller.overrides.yaml landing-zone/propeller.overrides.yaml 2>/dev/null || true
 
 # Pin the downloaded version
-if grep -q "PROPELLER_VERSION_PLACEHOLDER" propeller.overrides.yaml 2>/dev/null; then
-    sed -i.bak "s/PROPELLER_VERSION_PLACEHOLDER/${VERSION}/" propeller.overrides.yaml
-    rm -f propeller.overrides.yaml.bak
+if grep -q "PROPELLER_VERSION_PLACEHOLDER" landing-zone/propeller.overrides.yaml 2>/dev/null; then
+    sed -i.bak "s/PROPELLER_VERSION_PLACEHOLDER/${VERSION}/" landing-zone/propeller.overrides.yaml
+    rm -f landing-zone/propeller.overrides.yaml.bak
 fi
-
-mkdir -p projects
 
 echo ""
 echo "Done! Next steps:"
-echo "  1. Edit propeller.overrides.yaml"
+echo "  1. Edit landing-zone/propeller.overrides.yaml"
 echo "  2. Run: just build"
 echo ""
