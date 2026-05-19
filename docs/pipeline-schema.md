@@ -28,7 +28,7 @@ stages:
         depends_on: [operations-baseline]
         inputs:
           - name: operations-baseline.log_bucket
-            var: log_bucket_arn
+            var: log_bucket
         outputs:
           - name: account-factory.admin_role_arn
             var: admin_role_arn

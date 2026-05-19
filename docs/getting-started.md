@@ -1,4 +1,4 @@
-# Consumer Guide
+# Getting Started
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ project structure. Custom projects include the full source.
 
 ## CI
 
-See [consumer-ci.md](consumer-ci.md) for full setup. In short:
+See [ci-setup.md](ci-setup.md) for full setup. In short:
 
 ```yaml
 - run: just pull

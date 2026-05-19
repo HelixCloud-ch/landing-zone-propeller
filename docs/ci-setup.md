@@ -1,4 +1,4 @@
-# Consumer CI Setup (GitHub version)
+# CI Setup
 
 One-time setup for deploying from GitHub Actions using static IAM credentials.
 
