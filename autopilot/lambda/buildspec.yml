@@ -8,6 +8,7 @@ env:
     AWS_ACCOUNT_ID: ""
     AWS_REGION: ""
     TF_VERSION: "1.14.9"
+    JUST_VERSION: "1.51.0"
     PROPELLER_OUTPUTS_JSON: "{}"
   exported-variables:
     - PROPELLER_OUTPUTS_JSON
@@ -17,19 +18,13 @@ phases:
     commands:
       - curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o /tmp/tf.zip
       - unzip -o /tmp/tf.zip -d /usr/local/bin/
-      - curl -fsSL https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+      - curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --tag ${JUST_VERSION} --to /usr/local/bin
       - curl -LsSf https://astral.sh/uv/install.sh | sh
       - export PATH="$HOME/.local/bin:$PATH"
 
   build:
     commands:
       - cd bundle
-      - |
-        uv run --project engine propeller-deploy \
-          --project-dir projects/$PROJECT_NAME \
-          init
-      - |
-        uv run --project engine propeller-deploy \
-          --project-dir projects/$PROJECT_NAME \
-          $DEPLOY_ACTION
-      - export PROPELLER_OUTPUTS_JSON=$(cat projects/$PROJECT_NAME/.propeller-outputs.json 2>/dev/null || echo '{}')
+      - uv run --project engine propeller-deploy --project-dir "projects/$PROJECT_NAME" init
+      - uv run --project engine propeller-deploy --project-dir "projects/$PROJECT_NAME" $DEPLOY_ACTION
+      - export PROPELLER_OUTPUTS_JSON=$(cat "projects/$PROJECT_NAME/.propeller-outputs.json" 2>/dev/null || echo '{}')
