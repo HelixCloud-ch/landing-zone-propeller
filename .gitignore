@@ -449,3 +449,6 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/sam,node,linux,macos,dotenv,python,windows,terraform,visualstudiocode
+
+### Propeller ###
+.propeller-outputs.json

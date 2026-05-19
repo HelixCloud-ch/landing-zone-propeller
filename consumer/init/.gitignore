@@ -1,6 +1,9 @@
+### Propeller ###
 .propeller/
 dist/
+.propeller-outputs.json
 
+### Other, minimal ###
 *.tfplan
 .terraform/
 __pycache__/
