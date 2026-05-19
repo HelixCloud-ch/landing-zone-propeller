@@ -54,6 +54,15 @@ Create `.github/workflows/deploy.yml`:
 name: Deploy
 on:
   workflow_dispatch:
+    inputs:
+      action:
+        description: 'Deploy action'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+        default: apply
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -68,6 +77,7 @@ jobs:
       - env:
           PROPELLER_BUNDLE_BUCKET: ${{ vars.PROPELLER_BUNDLE_BUCKET }}
           PROPELLER_LAMBDA_ARN: ${{ vars.PROPELLER_LAMBDA_ARN }}
+          DEPLOY_ACTION: ${{ inputs.action }}
         run: |
           just pull
           just deploy
