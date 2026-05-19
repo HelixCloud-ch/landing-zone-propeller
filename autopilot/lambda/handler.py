@@ -325,6 +325,13 @@ def handler(event: dict, context: DurableContext):
     bundle_s3_uri = event["bundle_s3_uri"]
     deploy_action = event.get("deploy_action", "apply")
     namespace = pipeline.get("namespace", "")
+    only = set(event.get("only", []))
+
+    # Filter pipeline to only the specified projects (if set)
+    if only:
+        for stage in pipeline["stages"]:
+            stage["steps"] = [s for s in stage["steps"] if s["project"] in only]
+        pipeline["stages"] = [s for s in pipeline["stages"] if s["steps"]]
 
     all_results: list[dict] = []
     stage_failed = False
