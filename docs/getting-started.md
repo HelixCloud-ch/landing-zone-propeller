@@ -52,6 +52,7 @@ project structure. Custom projects include the full source.
 - `PROPELLER_BUNDLE_BUCKET` - S3 bucket for bundles (required for upload/trigger)
 - `PROPELLER_LAMBDA_ARN` - Autopilot Lambda ARN (`:$LATEST` is appended automatically if unqualified)
 - `DEPLOY_ACTION` - `plan` or `apply` (default: `apply`)
+- `ONLY` - deploy a single project by name (default: full pipeline)
 
 ## CI
 
