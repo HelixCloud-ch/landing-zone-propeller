@@ -1,5 +1,5 @@
-name: hello-operations-2
-description: Second hello world for the operations account
+name: control-tower-prerequisites
+description: Control Tower Prerequisites
 
 deploy:
   type: terraform
