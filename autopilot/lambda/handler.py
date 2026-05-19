@@ -162,7 +162,15 @@ def _prepare(step: dict) -> dict:
     }
     inputs = {}
     for inp in step.get("inputs", []):
-        inputs[inp["var"]] = _get_parameter(inp["key"])
+        field = inp.get("field")
+        if field:
+            # Blob read — get JSON parameter, extract field
+            blob_value = _get_parameter(inp["key"])
+            blob = json.loads(blob_value)
+            inputs[inp["var"]] = str(blob.get(field, ""))
+        else:
+            # Individual parameter read
+            inputs[inp["var"]] = _get_parameter(inp["key"])
     config["inputs"] = inputs
     return config
 
@@ -226,21 +234,54 @@ def _write_outputs(step: dict, exported_vars: list) -> dict:
             f"expected outputs: {[o['ref'] for o in output_defs]}"
         )
 
+    # Separate blob outputs from individual (absolute) outputs
+    blob_outputs = {}
     written = {}
+
     for out_def in output_defs:
         ref = out_def["ref"]
-        if ref in outputs:
+        field = out_def.get("field")
+        value = outputs.get(ref)
+
+        if value is None:
+            print(
+                f"[propeller] Warning: output '{ref}' not found in build outputs for {step['project']}"
+            )
+            continue
+
+        if field:
+            # Blob output — collect for batch write
+            blob_outputs[field] = value
+        else:
+            # Individual parameter — write directly (skip empty)
+            str_value = str(value)
+            if not str_value:
+                print(
+                    f"[propeller] Warning: skipping empty individual output '{ref}' for {step['project']}"
+                )
+                continue
             ssm.put_parameter(
                 Name=out_def["key"],
-                Value=str(outputs[ref]),
+                Value=str_value,
                 Type="String",
                 Overwrite=True,
             )
             written[ref] = out_def["key"]
-        else:
-            print(
-                f"[propeller] Warning: output '{ref}' not found in build outputs for {step['project']}"
-            )
+
+    # Write blob outputs as a single JSON parameter
+    if blob_outputs:
+        blob_key = output_defs[0][
+            "key"
+        ]  # All blob outputs share the same key (project path)
+        ssm.put_parameter(
+            Name=blob_key,
+            Value=json.dumps(blob_outputs),
+            Type="String",
+            Overwrite=True,
+        )
+        for field in blob_outputs:
+            written[field] = f"{blob_key}[{field}]"
+
     return {"written": written}
 
 

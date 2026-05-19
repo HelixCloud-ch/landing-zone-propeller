@@ -6,17 +6,19 @@ from pydantic import BaseModel, Field
 
 
 class ProjectInput(BaseModel):
-    """Resolved input: full SSM key + variable name."""
+    """Resolved input: SSM key + optional field (for JSON blob) + variable name."""
 
     key: str
     var: str
+    field: str | None = None
 
 
 class ProjectOutput(BaseModel):
-    """Resolved output: full SSM key + terraform/script output name."""
+    """Resolved output: SSM key + optional field (for JSON blob) + terraform/script output name."""
 
     key: str
     ref: str
+    field: str | None = None
 
 
 class Step(BaseModel):
