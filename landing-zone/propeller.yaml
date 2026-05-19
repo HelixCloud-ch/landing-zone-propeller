@@ -19,15 +19,15 @@ stages:
             var: backup_admin_account_id
           - name: /accounts.backup-central.id
             var: backup_central_account_id
-          - name: control-tower-prerequisites.security_ou_id
+          - name: security_ou_id
             var: security_ou_id
-          - name: control-tower-prerequisites.control_tower_admin_role_arn
+          - name: control_tower_admin_role_arn
             var: control_tower_admin_role_arn
-          - name: control-tower-prerequisites.control_tower_cloudtrail_role_arn
+          - name: control_tower_cloudtrail_role_arn
             var: control_tower_cloudtrail_role_arn
-          - name: control-tower-prerequisites.control_tower_stackset_role_arn
+          - name: control_tower_stackset_role_arn
             var: control_tower_stackset_role_arn
-          - name: control-tower-prerequisites.control_tower_config_aggregator_role_arn
+          - name: control_tower_config_aggregator_role_arn
             var: control_tower_config_aggregator_role_arn
 
   - name: operations
@@ -35,7 +35,7 @@ stages:
       - project: hello-operations
         target: operations
         outputs:
-          - name: hello-operations.message
+          - name: message
             var: message
 
   - name: management
@@ -46,7 +46,7 @@ stages:
           - name: hello-operations.message
             var: operations_message
         outputs:
-          - name: hello-management.message
+          - name: message
             var: message
           - name: /accounts.testaccount.id
             var: test_account_id

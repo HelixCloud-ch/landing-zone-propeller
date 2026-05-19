@@ -19,10 +19,12 @@ from aws_durable_execution_sdk_python.config import (
 ssm = boto3.client("ssm")
 sts = boto3.client("sts")
 
-ACCOUNT_SSM_PREFIX = "/propeller/accounts"
-POLL_INTERVAL_SECONDS = 15
-RUN_ROLE_NAME = "deploy-runner-run-role"
+ACCOUNTS_SSM_PREFIX = "/propeller/accounts"
+
 CODEBUILD_PROJECT_NAME = "deploy-runner"
+RUN_ROLE_NAME = "deploy-runner-run-role"
+
+POLL_INTERVAL_SECONDS = 15
 
 _BUILDSPEC_PATH = Path(__file__).parent / "buildspec.yml"
 BUILDSPEC = _BUILDSPEC_PATH.read_text()
@@ -151,7 +153,7 @@ def _get_parameter_optional(name: str) -> str | None:
 
 def _prepare(step: dict) -> dict:
     target = step.get("target", "default")
-    prefix = f"{ACCOUNT_SSM_PREFIX}/{target}"
+    prefix = f"{ACCOUNTS_SSM_PREFIX}/{target}"
     account_id = _get_parameter(f"{prefix}/id")
     region = _get_parameter_optional(f"{prefix}/region") or os.environ["AWS_REGION"]
 
@@ -161,8 +163,22 @@ def _prepare(step: dict) -> dict:
         "codebuildProject": CODEBUILD_PROJECT_NAME,
     }
     inputs = {}
+    blob_cache: dict[str, dict] = {}
     for inp in step.get("inputs", []):
-        inputs[inp["var"]] = _get_parameter(inp["key"])
+        field = inp.get("field")
+        if field:
+            # Blob read: cache the blob to avoid repeated SSM calls
+            key = inp["key"]
+            if key not in blob_cache:
+                blob_cache[key] = json.loads(_get_parameter(key))
+            inputs[inp["var"]] = str(blob_cache[key].get(field, ""))
+        else:
+            # Individual parameter read — unwrap JSON value
+            raw = _get_parameter(inp["key"])
+            try:
+                inputs[inp["var"]] = json.loads(raw).get("value", raw)
+            except (json.JSONDecodeError, AttributeError):
+                inputs[inp["var"]] = raw
     config["inputs"] = inputs
     return config
 
@@ -226,21 +242,47 @@ def _write_outputs(step: dict, exported_vars: list) -> dict:
             f"expected outputs: {[o['ref'] for o in output_defs]}"
         )
 
+    # Separate blob outputs from individual (absolute) outputs
+    blob_outputs = {}
     written = {}
+
     for out_def in output_defs:
         ref = out_def["ref"]
-        if ref in outputs:
+        field = out_def.get("field")
+        value = outputs.get(ref)
+
+        if value is None:
+            print(
+                f"[propeller] Warning: output '{ref}' not found in build outputs for {step['project']}"
+            )
+            continue
+
+        if field:
+            # Blob output — collect for batch write
+            blob_outputs[field] = value
+        else:
+            # Individual parameter — wrap in JSON to support empty values
             ssm.put_parameter(
                 Name=out_def["key"],
-                Value=str(outputs[ref]),
+                Value=json.dumps({"value": str(value)}),
                 Type="String",
                 Overwrite=True,
             )
             written[ref] = out_def["key"]
-        else:
-            print(
-                f"[propeller] Warning: output '{ref}' not found in build outputs for {step['project']}"
-            )
+
+    # Write blob outputs as a single JSON parameter
+    if blob_outputs:
+        # Find the blob key from the first output that has a field
+        blob_key = next(o["key"] for o in output_defs if o.get("field"))
+        ssm.put_parameter(
+            Name=blob_key,
+            Value=json.dumps(blob_outputs),
+            Type="String",
+            Overwrite=True,
+        )
+        for field in blob_outputs:
+            written[field] = f"{blob_key}[{field}]"
+
     return {"written": written}
 
 
