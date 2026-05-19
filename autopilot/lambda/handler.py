@@ -19,10 +19,12 @@ from aws_durable_execution_sdk_python.config import (
 ssm = boto3.client("ssm")
 sts = boto3.client("sts")
 
-ACCOUNT_SSM_PREFIX = "/propeller/accounts"
-POLL_INTERVAL_SECONDS = 15
-RUN_ROLE_NAME = "deploy-runner-run-role"
+ACCOUNTS_SSM_PREFIX = "/propeller/accounts"
+
 CODEBUILD_PROJECT_NAME = "deploy-runner"
+RUN_ROLE_NAME = "deploy-runner-run-role"
+
+POLL_INTERVAL_SECONDS = 15
 
 _BUILDSPEC_PATH = Path(__file__).parent / "buildspec.yml"
 BUILDSPEC = _BUILDSPEC_PATH.read_text()
@@ -151,7 +153,7 @@ def _get_parameter_optional(name: str) -> str | None:
 
 def _prepare(step: dict) -> dict:
     target = step.get("target", "default")
-    prefix = f"{ACCOUNT_SSM_PREFIX}/{target}"
+    prefix = f"{ACCOUNTS_SSM_PREFIX}/{target}"
     account_id = _get_parameter(f"{prefix}/id")
     region = _get_parameter_optional(f"{prefix}/region") or os.environ["AWS_REGION"]
 
@@ -161,13 +163,15 @@ def _prepare(step: dict) -> dict:
         "codebuildProject": CODEBUILD_PROJECT_NAME,
     }
     inputs = {}
+    blob_cache: dict[str, dict] = {}
     for inp in step.get("inputs", []):
         field = inp.get("field")
         if field:
-            # Blob read — get JSON parameter, extract field
-            blob_value = _get_parameter(inp["key"])
-            blob = json.loads(blob_value)
-            inputs[inp["var"]] = str(blob.get(field, ""))
+            # Blob read: cache the blob to avoid repeated SSM calls
+            key = inp["key"]
+            if key not in blob_cache:
+                blob_cache[key] = json.loads(_get_parameter(key))
+            inputs[inp["var"]] = str(blob_cache[key].get(field, ""))
         else:
             # Individual parameter read
             inputs[inp["var"]] = _get_parameter(inp["key"])
