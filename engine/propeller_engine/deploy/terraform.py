@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
@@ -17,11 +16,6 @@ class TerraformRunner(DeployRunner):
 
     def _var_args(self) -> list[str]:
         args = []
-        if self.config:
-            config_path = Path(self.config)
-            if not config_path.is_absolute():
-                config_path = os.path.relpath(config_path, self.tf_dir)
-            args.extend(["-var-file", str(config_path)])
         for var_name, value in self.inputs.items():
             args.extend(["-var", f"{var_name}={value}"])
         return args

@@ -39,11 +39,41 @@ def _get_git_sha() -> str:
         return "unknown"
 
 
+def _overlay_project(dest: Path, overlay_dir: Path, project_name: str) -> None:
+    """Overlay consumer files on top of a framework project."""
+    # Find the overlay by project name (supports nested grouping)
+    overlay_project = None
+    for candidate in overlay_dir.rglob("project.yaml"):
+        data = yaml.safe_load(candidate.read_text())
+        if data.get("name") == project_name:
+            overlay_project = candidate.parent
+            break
+    # Also check direct name match (for overlays without project.yaml)
+    if overlay_project is None:
+        direct = overlay_dir / project_name
+        if direct.is_dir():
+            overlay_project = direct
+    if overlay_project is None:
+        # Try recursive directory name match
+        for d in overlay_dir.rglob(project_name):
+            if d.is_dir():
+                overlay_project = d
+                break
+    if overlay_project is None:
+        return
+    for src_file in overlay_project.rglob("*"):
+        if src_file.is_file():
+            rel = src_file.relative_to(overlay_project)
+            target = dest / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, target)
+
+
 def create_bundle(
     pipeline_path: Path,
     propeller_dir: Path,
-    config_dir: Path,
     output_path: Path,
+    overlay_dir: Path | None = None,
 ) -> None:
     """Assemble the deployment bundle zip."""
     data = yaml.safe_load(pipeline_path.read_text())
@@ -63,15 +93,14 @@ def create_bundle(
                     dest = projects_out / step.project
                     shutil.copytree(src, dest)
                     rewrite_module_paths(dest)
+                    # Overlay consumer files on top
+                    if overlay_dir:
+                        _overlay_project(dest, overlay_dir, step.project)
 
         # Modules
         modules_src = propeller_dir / "modules"
         if modules_src.is_dir():
             shutil.copytree(modules_src, build / "modules")
-
-        # Config
-        if config_dir.is_dir():
-            shutil.copytree(config_dir, build / "config")
 
         # Engine (for propeller-deploy in CodeBuild)
         engine_src = propeller_dir / "engine"

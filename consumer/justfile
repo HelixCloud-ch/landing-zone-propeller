@@ -14,10 +14,10 @@ lambda_function := env("PROPELLER_LAMBDA_ARN", "")
 resolve:
     mkdir -p dist
     uv run --project .propeller/engine propeller-resolve \
-        --base .propeller/propeller.yaml \
-        --overrides propeller.overrides.yaml \
+        --base .propeller/landing-zone/propeller.yaml \
+        --overrides landing-zone/propeller.overrides.yaml \
         --output dist/pipeline.lock.yaml \
-        --propeller-dir .propeller
+        --propeller-dir .propeller/landing-zone
 
 # Validate the resolved pipeline
 validate:
@@ -29,8 +29,8 @@ validate:
 bundle:
     uv run --project .propeller/engine propeller-bundle \
         --pipeline dist/pipeline.lock.yaml \
-        --propeller-dir .propeller \
-        --config-dir config \
+        --propeller-dir .propeller/landing-zone \
+        --overlay-dir landing-zone/projects \
         --output dist/bundle.zip
 
 # Upload the bundle to S3

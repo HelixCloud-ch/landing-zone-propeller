@@ -12,8 +12,8 @@ Or pin a specific version:
 curl -fsSL ... | bash -s -- --version v1.0.0
 ```
 
-This creates the base structure: `justfile`, `propeller.overrides.yaml`,
-`.gitignore`, `config/`, and `projects/`.
+This creates: `justfile`, `.gitignore`, and `landing-zone/` with
+`propeller.overrides.yaml` and an empty `projects/` directory.
 
 ## Workflow
 
@@ -35,21 +35,17 @@ just deploy     # build + upload + trigger
 
 ## Configuration
 
-### `propeller.overrides.yaml`
+### `landing-zone/propeller.overrides.yaml`
 
 Pins the framework version and defines pipeline customizations: target
 remapping, project overrides/additions/removals, and stage reordering.
 See the generated file for commented examples.
 
-### `config/`
+### `landing-zone/projects/`
 
-Per-project configuration files (e.g. `<project-name>.tfvars` for
-Terraform projects).
-
-### `projects/`
-
-Custom projects not in the framework. Each needs a `project.yaml`
-following the project contract.
+Per-project customizations and custom projects. For framework projects,
+provide `config.auto.tfvars` (and optional `overrides.tf`) mirroring the
+project structure. Custom projects include the full source.
 
 ## Environment Variables
 

@@ -10,7 +10,11 @@ from aws_durable_execution_sdk_python import (
     DurableContext,
     durable_execution,
 )
-from aws_durable_execution_sdk_python.config import CompletionConfig, Duration, ParallelConfig
+from aws_durable_execution_sdk_python.config import (
+    CompletionConfig,
+    Duration,
+    ParallelConfig,
+)
 
 ssm = boto3.client("ssm")
 sts = boto3.client("sts")
@@ -30,6 +34,7 @@ def _get_parameter(name: str) -> str:
 
 # --- DAG execution ---
 
+
 def _build_dag(steps: list[dict]) -> dict[str, set[str]]:
     stage_projects = {s["project"] for s in steps}
     return {
@@ -38,12 +43,13 @@ def _build_dag(steps: list[dict]) -> dict[str, set[str]]:
     }
 
 
-def _find_ready(dag: dict[str, set[str]], completed: set[str], failed: set[str], skipped: set[str]) -> list[str]:
+def _find_ready(
+    dag: dict[str, set[str]], completed: set[str], failed: set[str], skipped: set[str]
+) -> list[str]:
     done = completed | failed | skipped
     running_or_done = done
     return sorted(
-        p for p, deps in dag.items()
-        if p not in running_or_done and deps <= completed
+        p for p, deps in dag.items() if p not in running_or_done and deps <= completed
     )
 
 
@@ -73,18 +79,31 @@ def _make_step_branch(step: dict, bundle_s3_uri: str, deploy_action: str):
             )
 
             while True:
-                result = ctx.step(lambda _: _check_build(build_id, config), name=f"poll:{project}")
-                if result["status"] in ("SUCCEEDED", "FAILED", "FAULT", "STOPPED", "TIMED_OUT"):
+                result = ctx.step(
+                    lambda _: _check_build(build_id, config), name=f"poll:{project}"
+                )
+                if result["status"] in (
+                    "SUCCEEDED",
+                    "FAILED",
+                    "FAULT",
+                    "STOPPED",
+                    "TIMED_OUT",
+                ):
                     break
                 ctx.wait(Duration.from_seconds(POLL_INTERVAL_SECONDS))
 
             if result["status"] != "SUCCEEDED":
                 return {
-                    "status": "failed", "project": project,
-                    "error": f"Build {result['status']}", "build_id": build_id,
+                    "status": "failed",
+                    "project": project,
+                    "error": f"Build {result['status']}",
+                    "build_id": build_id,
                 }
 
-            ctx.step(lambda _: _write_outputs(step, result["exportedVars"]), name=f"outputs:{project}")
+            ctx.step(
+                lambda _: _write_outputs(step, result["exportedVars"]),
+                name=f"outputs:{project}",
+            )
             return {"status": "succeeded", "project": project, "build_id": build_id}
 
         except Exception as e:
@@ -133,7 +152,9 @@ def _prepare(step: dict) -> dict:
     return config
 
 
-def _start_build(step: dict, config: dict, bundle_s3_uri: str, deploy_action: str) -> str:
+def _start_build(
+    step: dict, config: dict, bundle_s3_uri: str, deploy_action: str
+) -> str:
     cb = _get_codebuild_client(config["accountId"], config["region"])
 
     # Parse s3://bucket/key from the URI
@@ -145,10 +166,11 @@ def _start_build(step: dict, config: dict, bundle_s3_uri: str, deploy_action: st
         {"name": "DEPLOY_ACTION", "value": deploy_action, "type": "PLAINTEXT"},
         {"name": "AWS_ACCOUNT_ID", "value": config["accountId"], "type": "PLAINTEXT"},
         {"name": "AWS_REGION", "value": config["region"], "type": "PLAINTEXT"},
-        {"name": "CONFIG_PATH", "value": f"config/{step['project']}.tfvars", "type": "PLAINTEXT"},
     ]
     for var_name, value in config.get("inputs", {}).items():
-        env_vars.append({"name": f"PROPELLER_INPUT_{var_name}", "value": value, "type": "PLAINTEXT"})
+        env_vars.append(
+            {"name": f"PROPELLER_INPUT_{var_name}", "value": value, "type": "PLAINTEXT"}
+        )
 
     resp = cb.start_build(
         projectName=config["codebuildProject"],
@@ -183,21 +205,32 @@ def _write_outputs(step: dict, exported_vars: list) -> dict:
 
     outputs = json.loads(outputs_json)
     if not outputs and output_defs:
-        print(f"[propeller] Warning: PROPELLER_OUTPUTS_JSON is empty for {step['project']}, "
-              f"expected outputs: {[o['ref'] for o in output_defs]}")
+        print(
+            f"[propeller] Warning: PROPELLER_OUTPUTS_JSON is empty for {step['project']}, "
+            f"expected outputs: {[o['ref'] for o in output_defs]}"
+        )
 
     written = {}
     for out_def in output_defs:
         ref = out_def["ref"]
         if ref in outputs:
-            ssm.put_parameter(Name=out_def["key"], Value=str(outputs[ref]), Type="String", Overwrite=True)
+            ssm.put_parameter(
+                Name=out_def["key"],
+                Value=str(outputs[ref]),
+                Type="String",
+                Overwrite=True,
+            )
             written[ref] = out_def["key"]
         else:
-            print(f"[propeller] Warning: output '{ref}' not found in build outputs for {step['project']}")
+            print(
+                f"[propeller] Warning: output '{ref}' not found in build outputs for {step['project']}"
+            )
     return {"written": written}
 
 
-def run_stage(context: DurableContext, stage: dict, bundle_s3_uri: str, deploy_action: str) -> list[dict]:
+def run_stage(
+    context: DurableContext, stage: dict, bundle_s3_uri: str, deploy_action: str
+) -> list[dict]:
     steps = stage["steps"]
     step_map = {s["project"]: s for s in steps}
     dag = _build_dag(steps)
@@ -215,14 +248,18 @@ def run_stage(context: DurableContext, stage: dict, bundle_s3_uri: str, deploy_a
             break
 
         # Run ready steps in parallel (or single)
-        branches = [_make_step_branch(step_map[p], bundle_s3_uri, deploy_action) for p in ready]
+        branches = [
+            _make_step_branch(step_map[p], bundle_s3_uri, deploy_action) for p in ready
+        ]
 
         # TODO: use named branches when supported — https://github.com/aws/aws-durable-execution-sdk-python/issues/303
         batch: BatchResult[dict] = context.parallel(
             branches,
             name=f"wave:{stage['name']}:{wave_num}",
             config=ParallelConfig(
-                completion_config=CompletionConfig(tolerated_failure_count=len(branches)),
+                completion_config=CompletionConfig(
+                    tolerated_failure_count=len(branches)
+                ),
             ),
         )
 
@@ -260,6 +297,7 @@ def run_stage(context: DurableContext, stage: dict, bundle_s3_uri: str, deploy_a
 
 # --- Main handler ---
 
+
 @durable_execution
 def handler(event: dict, context: DurableContext):
     pipeline = event["pipeline"]
@@ -272,11 +310,13 @@ def handler(event: dict, context: DurableContext):
     for stage in pipeline["stages"]:
         if stage_failed:
             for step in stage["steps"]:
-                all_results.append({
-                    "status": "skipped",
-                    "project": step["project"],
-                    "error": "previous stage failed",
-                })
+                all_results.append(
+                    {
+                        "status": "skipped",
+                        "project": step["project"],
+                        "error": "previous stage failed",
+                    }
+                )
             continue
 
         stage_results = run_stage(context, stage, bundle_s3_uri, deploy_action)

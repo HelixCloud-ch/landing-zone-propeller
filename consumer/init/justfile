@@ -7,8 +7,8 @@ import? '.propeller/consumer/justfile'
 pull:
     #!/usr/bin/env bash
     set -euo pipefail
-    VERSION=$(yq '.propeller.version' propeller.overrides.yaml)
-    REPO=$(yq '.propeller.repo // "HelixCloud-ch/landing-zone-propeller"' propeller.overrides.yaml)
+    VERSION=$(yq '.propeller.version' landing-zone/propeller.overrides.yaml)
+    REPO=$(yq '.propeller.repo // "HelixCloud-ch/landing-zone-propeller"' landing-zone/propeller.overrides.yaml)
     rm -rf .propeller
     mkdir -p .propeller
     curl -fsSL "https://github.com/${REPO}/releases/download/${VERSION}/propeller-${VERSION}.zip" -o /tmp/propeller-download.zip

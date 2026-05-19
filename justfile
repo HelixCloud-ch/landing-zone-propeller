@@ -8,9 +8,9 @@ setup:
 resolve:
     mkdir -p dist
     uv run --project engine propeller-resolve \
-        --base propeller.yaml \
+        --base landing-zone/propeller.yaml \
         --output dist/pipeline.lock.yaml \
-        --propeller-dir .
+        --propeller-dir landing-zone
 
 # Validate the resolved pipeline
 validate:
@@ -20,11 +20,11 @@ validate:
 
 # Check terraform formatting
 fmt-check:
-    terraform fmt -check -recursive projects/ autopilot/terraform/
+    terraform fmt -check -recursive landing-zone/projects/ autopilot/terraform/
 
 # Format terraform files
 fmt:
-    terraform fmt -recursive projects/ autopilot/terraform/
+    terraform fmt -recursive landing-zone/projects/ autopilot/terraform/
 
 # Smoke test: resolve + validate
 test: resolve validate

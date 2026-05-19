@@ -17,14 +17,8 @@ from ..deploy.runner import collect_inputs, get_runner, load_project_yaml, log
     type=click.Path(exists=True),
     help="Project directory containing project.yaml",
 )
-@click.option(
-    "--config",
-    default=None,
-    type=click.Path(),
-    help="Path to config file (e.g., .tfvars for terraform)",
-)
 @click.pass_context
-def main(ctx: click.Context, project_dir: str, config: str | None) -> None:
+def main(ctx: click.Context, project_dir: str) -> None:
     """Deploy a propeller project based on its project.yaml."""
     ctx.ensure_object(dict)
     project_dir_path = Path(project_dir).resolve()
@@ -35,7 +29,7 @@ def main(ctx: click.Context, project_dir: str, config: str | None) -> None:
     for var_name, value in inputs.items():
         log(f"Input: {var_name} = {value}")
 
-    ctx.obj["runner"] = get_runner(project, project_dir_path, inputs, config)
+    ctx.obj["runner"] = get_runner(project, project_dir_path, inputs)
 
 
 @main.command()
