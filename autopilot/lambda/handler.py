@@ -112,10 +112,11 @@ def _make_step_branch(
                     "build_id": build_id,
                 }
 
-            ctx.step(
-                lambda _: _write_outputs(step, result["exportedVars"]),
-                name=f"outputs:{project}",
-            )
+            if deploy_action == "apply":
+                ctx.step(
+                    lambda _: _write_outputs(step, result["exportedVars"]),
+                    name=f"outputs:{project}",
+                )
             return {
                 "status": "succeeded",
                 "project": project,
