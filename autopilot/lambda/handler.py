@@ -65,7 +65,9 @@ def _find_dependents(dag: dict[str, set[str]], project: str) -> set[str]:
     return result
 
 
-def _make_step_branch(step: dict, bundle_s3_uri: str, deploy_action: str):
+def _make_step_branch(
+    step: dict, bundle_s3_uri: str, deploy_action: str, namespace: str
+):
     # Named steps/waits so the durable console shows each sub-operation per project.
     # ctx.wait() suspends without compute charges during polling.
     project = step["project"]
@@ -74,7 +76,9 @@ def _make_step_branch(step: dict, bundle_s3_uri: str, deploy_action: str):
         try:
             config = ctx.step(lambda _: _prepare(step), name=f"prepare:{project}")
             build_id = ctx.step(
-                lambda _: _start_build(step, config, bundle_s3_uri, deploy_action),
+                lambda _: _start_build(
+                    step, config, bundle_s3_uri, deploy_action, namespace
+                ),
                 name=f"start:{project}",
             )
 
@@ -153,7 +157,7 @@ def _prepare(step: dict) -> dict:
 
 
 def _start_build(
-    step: dict, config: dict, bundle_s3_uri: str, deploy_action: str
+    step: dict, config: dict, bundle_s3_uri: str, deploy_action: str, namespace: str
 ) -> str:
     cb = _get_codebuild_client(config["accountId"], config["region"])
 
@@ -163,6 +167,7 @@ def _start_build(
 
     env_vars = [
         {"name": "PROJECT_NAME", "value": step["project"], "type": "PLAINTEXT"},
+        {"name": "PROPELLER_NAMESPACE", "value": namespace, "type": "PLAINTEXT"},
         {"name": "DEPLOY_ACTION", "value": deploy_action, "type": "PLAINTEXT"},
         {"name": "AWS_ACCOUNT_ID", "value": config["accountId"], "type": "PLAINTEXT"},
         {"name": "AWS_REGION", "value": config["region"], "type": "PLAINTEXT"},
@@ -229,7 +234,11 @@ def _write_outputs(step: dict, exported_vars: list) -> dict:
 
 
 def run_stage(
-    context: DurableContext, stage: dict, bundle_s3_uri: str, deploy_action: str
+    context: DurableContext,
+    stage: dict,
+    bundle_s3_uri: str,
+    deploy_action: str,
+    namespace: str,
 ) -> list[dict]:
     steps = stage["steps"]
     step_map = {s["project"]: s for s in steps}
@@ -249,7 +258,8 @@ def run_stage(
 
         # Run ready steps in parallel (or single)
         branches = [
-            _make_step_branch(step_map[p], bundle_s3_uri, deploy_action) for p in ready
+            _make_step_branch(step_map[p], bundle_s3_uri, deploy_action, namespace)
+            for p in ready
         ]
 
         # TODO: use named branches when supported — https://github.com/aws/aws-durable-execution-sdk-python/issues/303
@@ -303,6 +313,7 @@ def handler(event: dict, context: DurableContext):
     pipeline = event["pipeline"]
     bundle_s3_uri = event["bundle_s3_uri"]
     deploy_action = event.get("deploy_action", "apply")
+    namespace = pipeline.get("namespace", "")
 
     all_results: list[dict] = []
     stage_failed = False
@@ -319,7 +330,9 @@ def handler(event: dict, context: DurableContext):
                 )
             continue
 
-        stage_results = run_stage(context, stage, bundle_s3_uri, deploy_action)
+        stage_results = run_stage(
+            context, stage, bundle_s3_uri, deploy_action, namespace
+        )
         all_results.extend(stage_results)
 
         if any(r["status"] == "failed" for r in stage_results):
