@@ -3,27 +3,31 @@ propeller:
   repo: "HelixCloud-ch/landing-zone-propeller"
 
 pipeline:
-  # Override target accounts (remap logical targets to different accounts)
+  # Remap targets to different accounts
   # targets:
-  #   hello-operations: sandbox
+  #   operations-baseline: sandbox
 
-  # Override framework projects with local versions
+  # Use local project sources instead of the framework's
   # overrides:
-  #   - project: hello-operations
-  #     source: "./landing-zone/projects/my-custom-ops"
+  #   - project: operations-baseline
+  #     source: "./landing-zone/projects/my-custom-baseline"
 
   # Add custom projects to existing stages
   # additions:
-  #   - stage: operations
+  #   - stage: baseline
   #     step:
   #       project: my-project
   #       source: "./landing-zone/projects/my-project"
+  #       target: operations
+  #       outputs:
+  #         - name: my-project.result
+  #           var: result
 
-  # Remove framework projects you don't need
+  # Remove framework projects
   # removals:
-  #   - project: hello-management
+  #   - project: security-hub
 
-  # Reorder stages (must list all stages)
+  # Reorder stages (must list all)
   # stage_order:
-  #   - management
-  #   - operations
+  #   - identity
+  #   - baseline
