@@ -173,8 +173,12 @@ def _prepare(step: dict) -> dict:
                 blob_cache[key] = json.loads(_get_parameter(key))
             inputs[inp["var"]] = str(blob_cache[key].get(field, ""))
         else:
-            # Individual parameter read
-            inputs[inp["var"]] = _get_parameter(inp["key"])
+            # Individual parameter read — unwrap JSON value
+            raw = _get_parameter(inp["key"])
+            try:
+                inputs[inp["var"]] = json.loads(raw).get("value", raw)
+            except (json.JSONDecodeError, AttributeError):
+                inputs[inp["var"]] = raw
     config["inputs"] = inputs
     return config
 
@@ -257,16 +261,10 @@ def _write_outputs(step: dict, exported_vars: list) -> dict:
             # Blob output — collect for batch write
             blob_outputs[field] = value
         else:
-            # Individual parameter — write directly (skip empty)
-            str_value = str(value)
-            if not str_value:
-                print(
-                    f"[propeller] Warning: skipping empty individual output '{ref}' for {step['project']}"
-                )
-                continue
+            # Individual parameter — wrap in JSON to support empty values
             ssm.put_parameter(
                 Name=out_def["key"],
-                Value=str_value,
+                Value=json.dumps({"value": str(value)}),
                 Type="String",
                 Overwrite=True,
             )
