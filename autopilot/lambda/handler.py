@@ -20,6 +20,7 @@ ssm = boto3.client("ssm")
 sts = boto3.client("sts")
 
 ACCOUNTS_SSM_PREFIX = "/propeller/accounts"
+EMPTY_SENTINEL = "__EMPTY__"
 
 CODEBUILD_PROJECT_NAME = "deploy-runner"
 RUN_ROLE_NAME = "deploy-runner-run-role"
@@ -173,12 +174,9 @@ def _prepare(step: dict) -> dict:
                 blob_cache[key] = json.loads(_get_parameter(key))
             inputs[inp["var"]] = str(blob_cache[key].get(field, ""))
         else:
-            # Individual parameter read — unwrap JSON value
+            # Individual parameter read — decode sentinel
             raw = _get_parameter(inp["key"])
-            try:
-                inputs[inp["var"]] = json.loads(raw).get("value", raw)
-            except (json.JSONDecodeError, AttributeError):
-                inputs[inp["var"]] = raw
+            inputs[inp["var"]] = "" if raw == EMPTY_SENTINEL else raw
     config["inputs"] = inputs
     return config
 
@@ -261,13 +259,17 @@ def _write_outputs(step: dict, exported_vars: list) -> dict:
             # Blob output — collect for batch write
             blob_outputs[field] = value
         else:
-            # Individual parameter — wrap in JSON to support empty values
+            # Individual parameter — use sentinel for empty values
+            str_value = str(value)
+            ssm_value = EMPTY_SENTINEL if str_value == "" else str_value
             ssm.put_parameter(
                 Name=out_def["key"],
-                Value=json.dumps({"value": str(value)}),
+                Value=ssm_value,
                 Type="String",
                 Overwrite=True,
             )
+            if str_value == "":
+                print(f"[propeller] Output '{ref}' is empty for {step['project']}, stored as sentinel")
             written[ref] = out_def["key"]
 
     # Write blob outputs as a single JSON parameter

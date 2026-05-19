@@ -48,5 +48,4 @@ stages:
         outputs:
           - name: message
             var: message
-          - name: /accounts.testaccount.id
-            var: test_account_id
+
