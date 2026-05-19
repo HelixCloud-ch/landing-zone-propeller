@@ -274,9 +274,8 @@ def _write_outputs(step: dict, exported_vars: list) -> dict:
 
     # Write blob outputs as a single JSON parameter
     if blob_outputs:
-        blob_key = output_defs[0][
-            "key"
-        ]  # All blob outputs share the same key (project path)
+        # Find the blob key from the first output that has a field
+        blob_key = next(o["key"] for o in output_defs if o.get("field"))
         ssm.put_parameter(
             Name=blob_key,
             Value=json.dumps(blob_outputs),
