@@ -47,11 +47,6 @@ class TerraformRunner(DeployRunner):
         return run_cmd(["terraform", "output", "-json"], cwd=self.tf_dir)
 
     def _write_outputs(self) -> None:
-        output_defs = self.project.get("outputs", [])
-        if not output_defs:
-            write_outputs_file({}, self.project_dir)
-            return
-
         result = subprocess.run(
             ["terraform", "output", "-json"],
             cwd=self.tf_dir,
@@ -64,18 +59,16 @@ class TerraformRunner(DeployRunner):
             return
 
         tf_outputs = json.loads(result.stdout)
+        # Write all terraform outputs, the Lambda picks what it needs
+        # based on the pipeline definition.
         outputs = {}
-        for out_def in output_defs:
-            ref = out_def["ref"]
-            if ref in tf_outputs:
-                value = tf_outputs[ref].get("value", "")
-                if isinstance(value, (list, dict)):
-                    value = json.dumps(value)
-                else:
-                    value = str(value)
-                outputs[ref] = value
-                log(f"Output: {ref} → {value}")
+        for name, data in tf_outputs.items():
+            value = data.get("value", "")
+            if isinstance(value, (list, dict)):
+                value = json.dumps(value)
             else:
-                log(f"Warning: output '{ref}' not found in terraform outputs")
+                value = str(value)
+            outputs[name] = value
+            log(f"Output: {name} → {value}")
 
         write_outputs_file(outputs, self.project_dir)
