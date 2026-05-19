@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
-
-from .runner import DeployRunner, log, run_cmd, write_outputs_file
+from .runner import DeployRunner, run_cmd
 
 
 class ScriptRunner(DeployRunner):
@@ -24,7 +22,7 @@ class ScriptRunner(DeployRunner):
         rc = self._just("apply")
         if rc != 0:
             return rc
-        self._read_outputs()
+        # The project's justfile apply recipe writes .propeller-outputs.json.
         return 0
 
     def destroy(self) -> int:
@@ -32,27 +30,3 @@ class ScriptRunner(DeployRunner):
 
     def outputs(self) -> int:
         return self._just("outputs")
-
-    def _read_outputs(self) -> None:
-        output_defs = self.project.get("outputs", [])
-        if not output_defs:
-            write_outputs_file({}, self.project_dir)
-            return
-
-        outputs_path = self.project_dir / ".propeller-outputs.json"
-        if not outputs_path.exists():
-            log("Warning: script did not produce .propeller-outputs.json")
-            write_outputs_file({}, self.project_dir)
-            return
-
-        all_outputs = json.loads(outputs_path.read_text())
-        outputs = {}
-        for out_def in output_defs:
-            ref = out_def["ref"]
-            if ref in all_outputs:
-                outputs[ref] = str(all_outputs[ref])
-                log(f"Output: {ref} → {outputs[ref]}")
-            else:
-                log(f"Warning: output '{ref}' not found in script outputs")
-
-        write_outputs_file(outputs, self.project_dir)

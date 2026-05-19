@@ -123,53 +123,73 @@ def _set_default_sources(pipeline: Pipeline, propeller_dir: str) -> None:
 SSM_PREFIX = "/propeller"
 
 
-def _expand_input(inp: dict) -> dict:
+def _expand_input(inp: dict, namespace: str | None) -> dict:
     """Expand shorthand input format to resolved format.
 
-    Shorthand: {from: "identity.role_arn", as: "admin_role_arn"}
-    Resolved:  {key: "/propeller/identity/role_arn", var: "admin_role_arn"}
+    If 'name' starts with '/', it's absolute (no namespace prefix).
+    Otherwise, namespace is prepended.
+
+    Example: {name: "hello-operations.message", var: "msg"} with namespace "landing-zone"
+    Resolved: {key: "/propeller/landing-zone/hello-operations/message", var: "msg"}
     """
-    if "from" in inp:
-        project, output_name = inp["from"].split(".", 1)
+    if "name" in inp and "key" not in inp:
+        name = inp["name"]
+        if name.startswith("/"):
+            path = name[1:].replace(".", "/")
+        elif namespace:
+            path = f"{namespace}/{name}".replace(".", "/")
+        else:
+            path = name.replace(".", "/")
         return {
-            "key": f"{SSM_PREFIX}/{project}/{output_name}",
-            "var": inp.get("as", output_name),
+            "key": f"{SSM_PREFIX}/{path}",
+            "var": inp.get("var", name.rsplit(".", 1)[-1]),
         }
     return inp  # Already in resolved format
 
 
-def _expand_output(out: dict, project_name: str) -> dict:
+def _expand_output(out: dict, namespace: str | None) -> dict:
     """Expand shorthand output format to resolved format.
 
-    Dots in the name are converted to path separators in the SSM key.
+    If 'name' starts with '/', it's absolute (no namespace prefix).
+    Otherwise, namespace is prepended.
+
+    Example: {name: "hello-operations.message", var: "message"} with namespace "landing-zone"
+    Resolved: {key: "/propeller/landing-zone/hello-operations/message", ref: "message"}
     """
-    if "name" in out:
-        path = out["name"].replace(".", "/")
+    if "name" in out and "key" not in out:
+        name = out["name"]
+        if name.startswith("/"):
+            path = name[1:].replace(".", "/")
+        elif namespace:
+            path = f"{namespace}/{name}".replace(".", "/")
+        else:
+            path = name.replace(".", "/")
         return {
             "key": f"{SSM_PREFIX}/{path}",
-            "ref": out["ref"],
+            "ref": out["var"],
         }
     return out  # Already in resolved format
 
 
-def _embed_project_io(pipeline: Pipeline) -> None:
+def _expand_step_io(pipeline: Pipeline) -> None:
+    """Expand shorthand inputs/outputs on pipeline steps to resolved format."""
+    namespace = pipeline.namespace
     for stage in pipeline.stages:
         for step in stage.steps:
-            if not step.source:
-                continue
-            project_yaml = Path(step.source) / "project.yaml"
-            if not project_yaml.exists():
-                continue
-            data = yaml.safe_load(project_yaml.read_text())
-            step.inputs = [
-                ProjectInput(**_expand_input(i)) for i in data.get("inputs", [])
-            ]
-            step.outputs = [
-                ProjectOutput(**_expand_output(o, step.project))
-                for o in data.get("outputs", [])
-            ]
-            if not step.target and data.get("target"):
-                step.target = data["target"]
+            if step.inputs:
+                expanded_inputs = []
+                for i in step.inputs:
+                    raw = i.model_dump() if hasattr(i, "model_dump") else i
+                    expanded_inputs.append(ProjectInput(**_expand_input(raw, namespace)))
+                step.inputs = expanded_inputs
+            if step.outputs:
+                expanded_outputs = []
+                for o in step.outputs:
+                    raw = o.model_dump() if hasattr(o, "model_dump") else o
+                    expanded_outputs.append(
+                        ProjectOutput(**_expand_output(raw, namespace))
+                    )
+                step.outputs = expanded_outputs
 
 
 def _apply_targets(pipeline: Pipeline, targets: dict[str, str]) -> None:
@@ -199,7 +219,7 @@ def resolve(
         targets = {}
 
     _set_default_sources(pipeline, propeller_dir)
-    _embed_project_io(pipeline)
+    _expand_step_io(pipeline)
     _apply_targets(pipeline, targets)
 
     pipeline.propeller_version = propeller_version
@@ -223,6 +243,7 @@ def _step_to_dict(step: Step) -> dict:
 def pipeline_to_dict(pipeline: Pipeline) -> dict:
     data: dict = {
         "version": pipeline.version,
+        "namespace": pipeline.namespace,
         "propeller_version": pipeline.propeller_version,
         "resolved_at": pipeline.resolved_at,
         "stages": [],

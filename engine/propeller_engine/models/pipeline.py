@@ -24,8 +24,8 @@ class Step(BaseModel):
     source: str | None = None
     target: str | None = None
     depends_on: list[str] = Field(default_factory=list)
-    inputs: list[ProjectInput] = Field(default_factory=list)
-    outputs: list[ProjectOutput] = Field(default_factory=list)
+    inputs: list[dict | ProjectInput] = Field(default_factory=list)
+    outputs: list[dict | ProjectOutput] = Field(default_factory=list)
 
 
 class Stage(BaseModel):
@@ -35,6 +35,7 @@ class Stage(BaseModel):
 
 class Pipeline(BaseModel):
     version: str
+    namespace: str | None = None
     propeller_version: str | None = None
     resolved_at: str | None = None
     stages: list[Stage]

@@ -3,6 +3,7 @@ version: 0.2
 env:
   variables:
     PROJECT_NAME: ""
+    PROPELLER_NAMESPACE: ""
     DEPLOY_ACTION: "plan"
     AWS_ACCOUNT_ID: ""
     AWS_REGION: ""

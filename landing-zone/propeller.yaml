@@ -3,14 +3,36 @@
 # unless constrained by depends_on.
 
 version: "1"
+namespace: landing-zone
 
 stages:
   - name: operations
     steps:
       - project: hello-operations
+        target: operations
+        outputs:
+          - name: hello-operations.message
+            var: message
+
       - project: hello-operations-2
+        target: operations
         depends_on: [hello-operations]
+        inputs:
+          - name: hello-operations.message
+            var: operations_message
+        outputs:
+          - name: hello-operations-2.message
+            var: message
 
   - name: management
     steps:
       - project: hello-management
+        target: management
+        inputs:
+          - name: hello-operations-2.message
+            var: operations_2_message
+        outputs:
+          - name: hello-management.message
+            var: message
+          - name: /accounts.testaccount.id
+            var: test_account_id

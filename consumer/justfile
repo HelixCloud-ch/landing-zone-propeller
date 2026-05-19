@@ -44,10 +44,10 @@ trigger:
     DEPLOY_ACTION="${DEPLOY_ACTION:-apply}"
     FUNCTION_ARN="{{lambda_function}}:\$LATEST"
     PAYLOAD=$(jq -n \
-        --argjson pipeline "$(jq '.stages' dist/pipeline.lock.json)" \
+        --argjson pipeline "$(jq '{namespace: .namespace, stages: .stages}' dist/pipeline.lock.json)" \
         --arg bundle_s3_uri "s3://{{bundle_s3_bucket}}/bundle.zip" \
         --arg deploy_action "$DEPLOY_ACTION" \
-        '{pipeline: {stages: $pipeline}, bundle_s3_uri: $bundle_s3_uri, deploy_action: $deploy_action}')
+        '{pipeline: $pipeline, bundle_s3_uri: $bundle_s3_uri, deploy_action: $deploy_action}')
     echo "Invoking ${FUNCTION_ARN} (${DEPLOY_ACTION})..."
     aws lambda invoke \
         --function-name "$FUNCTION_ARN" \

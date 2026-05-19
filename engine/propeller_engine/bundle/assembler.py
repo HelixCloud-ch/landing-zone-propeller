@@ -103,7 +103,8 @@ def create_bundle(
             shutil.copytree(modules_src, build / "modules")
 
         # Engine (for propeller-deploy in CodeBuild)
-        engine_src = propeller_dir / "engine"
+        # Engine lives at the framework root, not inside the pipeline directory
+        engine_src = propeller_dir.parent / "engine" if (propeller_dir.parent / "engine").is_dir() else propeller_dir / "engine"
         if engine_src.is_dir():
             shutil.copytree(
                 engine_src,
