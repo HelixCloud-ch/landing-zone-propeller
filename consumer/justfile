@@ -43,12 +43,17 @@ trigger:
     set -euo pipefail
     DEPLOY_ACTION="${DEPLOY_ACTION:-apply}"
     FUNCTION_ARN="{{lambda_function}}:\$LATEST"
+    ONLY_ARGS=""
+    if [[ -n "${ONLY:-}" ]]; then
+        ONLY_ARGS=$(jq -n --arg only "$ONLY" '{only: [$only]}')
+    fi
     PAYLOAD=$(jq -n \
         --argjson pipeline "$(jq '{namespace: .namespace, stages: .stages}' dist/pipeline.lock.json)" \
         --arg bundle_s3_uri "s3://{{bundle_s3_bucket}}/bundle.zip" \
         --arg deploy_action "$DEPLOY_ACTION" \
-        '{pipeline: $pipeline, bundle_s3_uri: $bundle_s3_uri, deploy_action: $deploy_action}')
-    echo "Invoking ${FUNCTION_ARN} (${DEPLOY_ACTION})..."
+        --argjson only_filter "${ONLY_ARGS:-null}" \
+        '{pipeline: $pipeline, bundle_s3_uri: $bundle_s3_uri, deploy_action: $deploy_action} + (if $only_filter then $only_filter else {} end)')
+    echo "Invoking ${FUNCTION_ARN} (${DEPLOY_ACTION})${ONLY:+ [only: $ONLY]}..."
     aws lambda invoke \
         --function-name "$FUNCTION_ARN" \
         --invocation-type Event \
