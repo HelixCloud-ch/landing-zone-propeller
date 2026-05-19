@@ -10,15 +10,15 @@ terraform {
   backend "s3" {}
 }
 
-variable "operations_2_message" {
-  description = "Message from hello-operations-2 (injected from dependency)"
+variable "operations_message" {
+  description = "Message from hello-operations (injected from dependency)"
   type        = string
 }
 
 resource "aws_ssm_parameter" "hello" {
   name  = "/demo/hello-management"
   type  = "String"
-  value = "Received: ${var.operations_2_message}"
+  value = "Received: ${var.operations_message}"
   tags = {
     ManagedBy = "propeller"
     Project   = "hello-management"
