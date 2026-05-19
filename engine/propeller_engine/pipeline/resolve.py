@@ -126,26 +126,23 @@ SSM_PREFIX = "/propeller"
 def _expand_input(inp: dict, namespace: str | None) -> dict:
     """Expand shorthand input format to resolved format.
 
-    If 'from' starts with '/', it's absolute (no namespace prefix).
+    If 'name' starts with '/', it's absolute (no namespace prefix).
     Otherwise, namespace is prepended.
 
-    Example: {from: "hello-operations.message", as: "msg"} with namespace "landing-zone"
-    Resolved: {key: "/propeller/landing-zone/hello-operations/message", var: "msg"}
-
-    Absolute: {from: "/landing-zone.hello-operations.message", as: "msg"}
+    Example: {name: "hello-operations.message", var: "msg"} with namespace "landing-zone"
     Resolved: {key: "/propeller/landing-zone/hello-operations/message", var: "msg"}
     """
-    if "from" in inp:
-        from_val = inp["from"]
-        if from_val.startswith("/"):
-            path = from_val[1:].replace(".", "/")
+    if "name" in inp and "key" not in inp:
+        name = inp["name"]
+        if name.startswith("/"):
+            path = name[1:].replace(".", "/")
         elif namespace:
-            path = f"{namespace}/{from_val}".replace(".", "/")
+            path = f"{namespace}/{name}".replace(".", "/")
         else:
-            path = from_val.replace(".", "/")
+            path = name.replace(".", "/")
         return {
             "key": f"{SSM_PREFIX}/{path}",
-            "var": inp.get("as", from_val.rsplit(".", 1)[-1]),
+            "var": inp.get("var", name.rsplit(".", 1)[-1]),
         }
     return inp  # Already in resolved format
 
@@ -153,29 +150,23 @@ def _expand_input(inp: dict, namespace: str | None) -> dict:
 def _expand_output(out: dict, namespace: str | None) -> dict:
     """Expand shorthand output format to resolved format.
 
-    If name starts with '/', it's absolute (no namespace prefix).
+    If 'name' starts with '/', it's absolute (no namespace prefix).
     Otherwise, namespace is prepended.
 
-    Shorthand: {name: "message", ref: "message"} with namespace "landing-zone"
-    Resolved:  {key: "/propeller/landing-zone/message", ref: "message"}
-
-    Absolute:  {name: "/accounts.test.id", ref: "test_id"}
-    Resolved:  {key: "/propeller/accounts/test/id", ref: "test_id"}
+    Example: {name: "hello-operations.message", var: "message"} with namespace "landing-zone"
+    Resolved: {key: "/propeller/landing-zone/hello-operations/message", ref: "message"}
     """
-    if "name" in out:
+    if "name" in out and "key" not in out:
         name = out["name"]
         if name.startswith("/"):
-            # Absolute path — strip leading slash, expand dots
             path = name[1:].replace(".", "/")
         elif namespace:
-            # Relative — prepend namespace
             path = f"{namespace}/{name}".replace(".", "/")
         else:
-            # No namespace — expand dots directly
             path = name.replace(".", "/")
         return {
             "key": f"{SSM_PREFIX}/{path}",
-            "ref": out["ref"],
+            "ref": out["var"],
         }
     return out  # Already in resolved format
 

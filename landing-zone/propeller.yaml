@@ -12,27 +12,27 @@ stages:
         target: operations
         outputs:
           - name: hello-operations.message
-            ref: message
+            var: message
 
       - project: hello-operations-2
         target: operations
         depends_on: [hello-operations]
         inputs:
-          - from: hello-operations.message
-            as: operations_message
+          - name: hello-operations.message
+            var: operations_message
         outputs:
           - name: hello-operations-2.message
-            ref: message
+            var: message
 
   - name: management
     steps:
       - project: hello-management
         target: management
         inputs:
-          - from: hello-operations-2.message
-            as: operations_2_message
+          - name: hello-operations-2.message
+            var: operations_2_message
         outputs:
           - name: hello-management.message
-            ref: message
+            var: message
           - name: /accounts.testaccount.id
-            ref: test_account_id
+            var: test_account_id
