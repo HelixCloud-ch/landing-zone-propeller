@@ -96,10 +96,15 @@ def _make_step_branch(
                     break
                 ctx.wait(Duration.from_seconds(POLL_INTERVAL_SECONDS))
 
+            target = step.get("target")
+            account_id = config.get("accountId")
+
             if result["status"] != "SUCCEEDED":
                 return {
                     "status": "failed",
                     "project": project,
+                    "target": target,
+                    "account_id": account_id,
                     "error": f"Build {result['status']}",
                     "build_id": build_id,
                 }
@@ -108,7 +113,13 @@ def _make_step_branch(
                 lambda _: _write_outputs(step, result["exportedVars"]),
                 name=f"outputs:{project}",
             )
-            return {"status": "succeeded", "project": project, "build_id": build_id}
+            return {
+                "status": "succeeded",
+                "project": project,
+                "target": target,
+                "account_id": account_id,
+                "build_id": build_id,
+            }
 
         except Exception as e:
             return {"status": "failed", "project": project, "error": str(e)}
