@@ -6,6 +6,32 @@ version: "1"
 namespace: landing-zone
 
 stages:
+  - name: control-tower
+    steps:
+      - project: control-tower-prerequisites
+        target: management
+        outputs:
+          - name: /accounts.log-archive.id
+            var: log_archive_account_id
+          - name: /accounts.audit.id
+            var: audit_account_id
+          - name: /accounts.backup-admin.id
+            var: audit_account_id
+          - name: /accounts.backup-central.id
+            var: audit_account_id
+          - name: control-tower-prerequisites.security_ou_id
+            var: security_ou_id
+          - name: control-tower-prerequisites.control_tower_admin_role_arn
+            var: control_tower_admin_role_arn
+          - name: control-tower-prerequisites.control_tower_cloudtrail_role_arn
+            var: control_tower_cloudtrail_role_arn
+          - name: control-tower-prerequisites.control_tower_stackset_role_arn
+            var: control_tower_stackset_role_arn
+          - name: control-tower-prerequisites.control_tower_config_aggregator_role_arn
+            var: control_tower_config_aggregator_role_arn
+          - name: control-tower-prerequisites.security_ou_id
+            var: security_ou_id
+
   - name: operations
     steps:
       - project: hello-operations
