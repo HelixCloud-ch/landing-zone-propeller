@@ -25,6 +25,19 @@ stages:
           - name: control_tower_stackset_role_arn
           - name: control_tower_config_aggregator_role_arn
 
+      - project: control-tower
+        target: management
+        depends_on: [control-tower-prerequisites]
+        inputs:
+          - name: /accounts.log-archive.id
+            var: log_archive_account_id
+          - name: /accounts.audit.id
+            var: security_tooling_account_id
+          - name: /accounts.backup-admin.id
+            var: backup_admin_account_id
+          - name: /accounts.backup-central.id
+            var: backup_central_account_id
+
   - name: operations
     steps:
       - project: hello-operations
