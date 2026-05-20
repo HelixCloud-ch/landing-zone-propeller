@@ -29,8 +29,11 @@ stages:
     steps:
       - project: hello-operations
         target: operations
+        inputs:
+          - name: control-tower-prerequisites.security_ou_id
         outputs:
           - name: message
+          - name: color
 
   - name: management
     steps:

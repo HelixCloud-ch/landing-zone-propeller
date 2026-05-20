@@ -1,21 +1,25 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 region := env("AWS_REGION", "eu-central-1")
+security_ou_id := env("PROPELLER_INPUT_security_ou_id", "")
 
 init:
     @echo "nothing to initialize"
 
 plan:
-    @echo "would write SSM parameter /demo/hello-operations"
+    @echo "Input: security_ou_id={{ security_ou_id }}"
+    @echo "Would write demo SSM parameter /demo/hello-operations"
 
 apply:
+    @echo "Input: security_ou_id={{ security_ou_id }}"
     aws ssm put-parameter \
         --name "/demo/hello-operations" \
         --type String \
-        --value "Hello from operations" \
+        --value "Hello from operations (OU: {{ security_ou_id }})" \
         --overwrite \
         --region "{{ region }}"
-    echo '{"message": "Hello from operations"}' > .propeller-outputs.json
+    @echo "Writing outputs..."
+    echo '{"message": "Hello from operations", "color": "blue"}' > .propeller-outputs.json
 
 destroy:
     aws ssm delete-parameter \
