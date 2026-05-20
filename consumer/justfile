@@ -51,8 +51,9 @@ trigger:
         --argjson pipeline "$(jq '{namespace: .namespace, propeller_version: .propeller_version, stages: .stages}' dist/pipeline.lock.json)" \
         --arg bundle_s3_uri "s3://{{bundle_s3_bucket}}/bundle.zip" \
         --arg deploy_action "$DEPLOY_ACTION" \
+        --arg git_sha "$(git rev-parse --short HEAD 2>/dev/null || echo '')" \
         --argjson only_filter "${ONLY_ARGS:-null}" \
-        '{pipeline: $pipeline, bundle_s3_uri: $bundle_s3_uri, deploy_action: $deploy_action} + (if $only_filter then $only_filter else {} end)')
+        '{pipeline: $pipeline, bundle_s3_uri: $bundle_s3_uri, deploy_action: $deploy_action, git_sha: $git_sha} + (if $only_filter then $only_filter else {} end)')
     echo "Invoking ${FUNCTION_ARN} (${DEPLOY_ACTION})${ONLY:+ [only: $ONLY]}..."
     aws lambda invoke \
         --function-name "$FUNCTION_ARN" \

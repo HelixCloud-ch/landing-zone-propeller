@@ -70,7 +70,7 @@ def _find_dependents(dag: dict[str, set[str]], project: str) -> set[str]:
 
 
 def _make_step_branch(
-    step: dict, bundle_s3_uri: str, deploy_action: str, namespace: str, propeller_version: str
+    step: dict, bundle_s3_uri: str, deploy_action: str, namespace: str, propeller_version: str, git_sha: str
 ):
     # Named steps/waits so the durable console shows each sub-operation per project.
     # ctx.wait() suspends without compute charges during polling.
@@ -115,7 +115,7 @@ def _make_step_branch(
 
             if deploy_action == "apply":
                 ctx.step(
-                    lambda _: _write_outputs(step, result["exportedVars"], build_id, propeller_version, namespace),
+                    lambda _: _write_outputs(step, result["exportedVars"], build_id, propeller_version, namespace, git_sha),
                     name=f"outputs:{project}",
                 )
             return {
@@ -224,7 +224,7 @@ def _check_build(build_id: str, config: dict) -> dict:
     }
 
 
-def _write_outputs(step: dict, exported_vars: list, build_id: str = "", propeller_version: str = "", namespace: str = "") -> dict:
+def _write_outputs(step: dict, exported_vars: list, build_id: str = "", propeller_version: str = "", namespace: str = "", git_sha: str = "") -> dict:
     output_defs = step.get("outputs", [])
 
     outputs_json = "{}"
@@ -280,6 +280,7 @@ def _write_outputs(step: dict, exported_vars: list, build_id: str = "", propelle
             "propeller_version": propeller_version,
             "deployed_at": datetime.now(timezone.utc).isoformat(),
             "build_id": build_id,
+            "git_sha": git_sha,
         },
     }
     ssm.put_parameter(
@@ -301,6 +302,7 @@ def run_stage(
     deploy_action: str,
     namespace: str,
     propeller_version: str,
+    git_sha: str,
 ) -> list[dict]:
     steps = stage["steps"]
     step_map = {s["project"]: s for s in steps}
@@ -320,7 +322,7 @@ def run_stage(
 
         # Run ready steps in parallel (or single)
         branches = [
-            _make_step_branch(step_map[p], bundle_s3_uri, deploy_action, namespace, propeller_version)
+            _make_step_branch(step_map[p], bundle_s3_uri, deploy_action, namespace, propeller_version, git_sha)
             for p in ready
         ]
 
@@ -377,6 +379,7 @@ def handler(event: dict, context: DurableContext):
     deploy_action = event.get("deploy_action", "apply")
     namespace = pipeline.get("namespace", "")
     propeller_version = pipeline.get("propeller_version", "unknown")
+    git_sha = event.get("git_sha", "")
     only = set(event.get("only", []))
 
     # Filter pipeline to only the specified projects (if set)
@@ -401,7 +404,7 @@ def handler(event: dict, context: DurableContext):
             continue
 
         stage_results = run_stage(
-            context, stage, bundle_s3_uri, deploy_action, namespace, propeller_version
+            context, stage, bundle_s3_uri, deploy_action, namespace, propeller_version, git_sha
         )
         all_results.extend(stage_results)
 
