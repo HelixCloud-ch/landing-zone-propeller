@@ -52,7 +52,7 @@ stages:
 
 **Input/Output (same fields for both):**
 - `name` - SSM path (dots become `/` separators)
-- `var` - project-local name (terraform variable or output)
+- `var` - project-local name (terraform variable or output). Defaults to `name` if omitted.
 
 ## Path resolution
 

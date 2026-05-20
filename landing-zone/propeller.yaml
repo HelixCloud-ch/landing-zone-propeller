@@ -20,15 +20,10 @@ stages:
           - name: /accounts.backup-central.id
             var: backup_central_account_id
           - name: security_ou_id
-            var: security_ou_id
           - name: control_tower_admin_role_arn
-            var: control_tower_admin_role_arn
           - name: control_tower_cloudtrail_role_arn
-            var: control_tower_cloudtrail_role_arn
           - name: control_tower_stackset_role_arn
-            var: control_tower_stackset_role_arn
           - name: control_tower_config_aggregator_role_arn
-            var: control_tower_config_aggregator_role_arn
 
   - name: operations
     steps:
@@ -36,7 +31,6 @@ stages:
         target: operations
         outputs:
           - name: message
-            var: message
 
   - name: management
     steps:
@@ -47,5 +41,3 @@ stages:
             var: operations_message
         outputs:
           - name: message
-            var: message
-

@@ -123,7 +123,9 @@ def _set_default_sources(pipeline: Pipeline, propeller_dir: str) -> None:
 SSM_PREFIX = "/propeller"
 
 
-def _expand_input(inp: dict, namespace: str | None, step_project: str | None = None) -> dict:
+def _expand_input(
+    inp: dict, namespace: str | None, step_project: str | None = None
+) -> dict:
     """Expand shorthand input format to resolved format.
 
     Inputs always reference another project's output:
@@ -161,7 +163,9 @@ def _expand_input(inp: dict, namespace: str | None, step_project: str | None = N
     return inp  # Already in resolved format
 
 
-def _expand_output(out: dict, namespace: str | None, step_project: str | None = None) -> dict:
+def _expand_output(
+    out: dict, namespace: str | None, step_project: str | None = None
+) -> dict:
     """Expand shorthand output format to resolved format.
 
     Outputs:
@@ -181,7 +185,7 @@ def _expand_output(out: dict, namespace: str | None, step_project: str | None = 
             path = name[1:].replace(".", "/")
             return {
                 "key": f"{SSM_PREFIX}/{path}",
-                "ref": out["var"],
+                "ref": out.get("var", name.rsplit(".", 1)[-1]),
             }
         else:
             # Bare name → blob output
@@ -194,7 +198,7 @@ def _expand_output(out: dict, namespace: str | None, step_project: str | None = 
             return {
                 "key": f"{SSM_PREFIX}/{path}",
                 "field": name,
-                "ref": out["var"],
+                "ref": out.get("var", name),
             }
     return out  # Already in resolved format
 
@@ -208,7 +212,9 @@ def _expand_step_io(pipeline: Pipeline) -> None:
                 expanded_inputs = []
                 for i in step.inputs:
                     raw = i.model_dump() if hasattr(i, "model_dump") else i
-                    expanded_inputs.append(ProjectInput(**_expand_input(raw, namespace, step.project)))
+                    expanded_inputs.append(
+                        ProjectInput(**_expand_input(raw, namespace, step.project))
+                    )
                 step.inputs = expanded_inputs
             if step.outputs:
                 expanded_outputs = []
