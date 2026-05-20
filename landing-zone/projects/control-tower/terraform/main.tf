@@ -13,14 +13,16 @@ locals {
     enabled = true
   }
 
-  backup = var.enable_backup ? {
-    enabled = true
-    configurations = {
-      backupAdmin   = { accountId = var.backup_admin_account_id }
-      centralBackup = { accountId = var.backup_central_account_id }
-      kmsKeyArn     = var.backup_kms_key_arn
-    }
-  } : { enabled = false }
+  backup = merge(
+    { enabled = var.enable_backup },
+    var.enable_backup ? {
+      configurations = {
+        backupAdmin   = { accountId = var.backup_admin_account_id }
+        centralBackup = { accountId = var.backup_central_account_id }
+        kmsKeyArn     = var.backup_kms_key_arn
+      }
+    } : {}
+  )
 
   manifest = {
     governedRegions       = var.governed_regions
