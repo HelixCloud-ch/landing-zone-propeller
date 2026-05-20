@@ -33,5 +33,4 @@ resource "aws_controltower_landing_zone" "this" {
   manifest_json     = jsonencode(local.manifest)
   version           = var.landing_zone_version
   remediation_types = var.enable_inheritance_drift_remediation ? ["INHERITANCE_DRIFT"] : []
-  tags              = var.tags
 }

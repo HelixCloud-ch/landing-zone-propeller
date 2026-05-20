@@ -37,7 +37,7 @@ Security OU, accounts, and IAM roles).
 | `enable_inheritance_drift_remediation` | `true` | Auto-remediate inheritance drift |
 | `logging_bucket_retention_days` | `365` | Retention for the centralized logging bucket |
 | `access_logging_bucket_retention_days` | `365` | Retention for the access logging bucket |
-| `tags` | `{}` | Tags applied to the landing zone resource |
+| `tags` | `{}` | Tags applied via provider `default_tags` to all resources |
 
 ## Notes
 
@@ -48,5 +48,6 @@ Security OU, accounts, and IAM roles).
   are required
 - The v4.0 manifest no longer includes `organizationStructure` — customers
   manage their own OU layout (done in `control-tower-prerequisites`)
-- `config` and `securityRoles` both use the Security Tooling account ID;
-  `securityRoles` requires `config` to be enabled
+- Tags are managed via the provider's `default_tags` block — they apply
+  automatically to all resources in the project without per-resource `tags`
+  arguments
