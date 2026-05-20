@@ -1,9 +1,4 @@
 locals {
-  organization_structure = merge(
-    { security = { name = var.security_ou_name } },
-    var.sandbox_ou_name != "" ? { sandbox = { name = var.sandbox_ou_name } } : {}
-  )
-
   centralized_logging = {
     accountId = var.log_archive_account_id
     configurations = {
@@ -25,12 +20,11 @@ locals {
   )
 
   manifest = {
-    governedRegions       = var.governed_regions
-    organizationStructure = local.organization_structure
-    centralizedLogging    = local.centralized_logging
-    securityRoles         = { accountId = var.security_tooling_account_id }
-    accessManagement      = { enabled = var.enable_access_management }
-    backup                = local.backup
+    governedRegions    = var.governed_regions
+    centralizedLogging = local.centralized_logging
+    securityRoles      = { accountId = var.security_tooling_account_id, enabled = true }
+    accessManagement   = { enabled = var.enable_access_management }
+    backup             = local.backup
   }
 }
 

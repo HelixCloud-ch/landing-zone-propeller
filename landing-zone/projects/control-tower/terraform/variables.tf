@@ -14,8 +14,8 @@ variable "landing_zone_version" {
   default     = "4.0"
 
   validation {
-    condition     = contains(["3.3", "4.0"], var.landing_zone_version)
-    error_message = "landing_zone_version must be \"3.3\" or \"4.0\"."
+    condition     = var.landing_zone_version == "4.0"
+    error_message = "Only landing zone version \"4.0\" is supported."
   }
 }
 
@@ -62,20 +62,6 @@ variable "security_tooling_account_id" {
     condition     = can(regex("^\\d{12}$", var.security_tooling_account_id))
     error_message = "security_tooling_account_id must be a 12-digit AWS account ID."
   }
-}
-
-# ── Organization structure ───────────────────────────────────────────────────
-
-variable "security_ou_name" {
-  type        = string
-  description = "Name of the Security OU in the CT manifest. CT matches an existing OU by name or creates one."
-  default     = "Security"
-}
-
-variable "sandbox_ou_name" {
-  type        = string
-  description = "Name of the Sandbox OU in the CT manifest. CT creates it if specified. Leave empty to skip."
-  default     = ""
 }
 
 # ── Logging configuration ────────────────────────────────────────────────────
