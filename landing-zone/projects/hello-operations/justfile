@@ -1,17 +1,21 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-region := env("AWS_REGION", "eu-central-1")
-security_ou_id := env("PROPELLER_INPUT_security_ou_id", "")
+# Inputs from propeller (PROPELLER_INPUT_* env vars).
+# env("VAR") without a default fails if the variable is not set (required).
+# env("VAR", "fallback") provides a default (optional).
+
+region := env("AWS_REGION")
+security_ou_id := env("PROPELLER_INPUT_security_ou_id")
+optional_value := env("PROPELLER_INPUT_optional_value", "")
 
 init:
-    @echo "nothing to initialize"
+    @echo "Input: security_ou_id={{ security_ou_id }}"
+    @echo "Input: optional_value={{ optional_value }}"
 
 plan:
-    @echo "Input: security_ou_id={{ security_ou_id }}"
-    @echo "Would write demo SSM parameter /demo/hello-operations"
+    @echo "Would write SSM parameter /demo/hello-operations"
 
 apply:
-    @echo "Input: security_ou_id={{ security_ou_id }}"
     aws ssm put-parameter \
         --name "/demo/hello-operations" \
         --type String \
