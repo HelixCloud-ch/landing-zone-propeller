@@ -81,5 +81,9 @@ jobs:
         run: |
           just pull
           just deploy
-      - run: cat dist/pipeline.lock.md >> $GITHUB_STEP_SUMMARY
+      - run: |
+          echo "**Propeller version:** $(jq -r '.propeller_version' dist/pipeline.lock.json)" >> $GITHUB_STEP_SUMMARY
+          echo "**Action:** ${{ inputs.action }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat dist/pipeline.lock.md >> $GITHUB_STEP_SUMMARY
 ```
