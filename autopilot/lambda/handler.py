@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
@@ -19,17 +21,36 @@ from aws_durable_execution_sdk_python.config import (
 ssm = boto3.client("ssm")
 sts = boto3.client("sts")
 
-ACCOUNT_SSM_PREFIX = "/propeller/accounts"
-POLL_INTERVAL_SECONDS = 15
-RUN_ROLE_NAME = "deploy-runner-run-role"
+ACCOUNTS_SSM_PREFIX = "/propeller/accounts"
+EMPTY_SENTINEL = "__EMPTY__"
+
 CODEBUILD_PROJECT_NAME = "deploy-runner"
+RUN_ROLE_NAME = "deploy-runner-run-role"
+
+POLL_INTERVAL_SECONDS = 15
 
 _BUILDSPEC_PATH = Path(__file__).parent / "buildspec.yml"
 BUILDSPEC = _BUILDSPEC_PATH.read_text()
 
 
+@dataclass
+class PipelineCtx:
+    bundle_s3_uri: str
+    deploy_action: str
+    namespace: str
+    propeller_version: str
+    git_sha: str
+
+
 def _get_parameter(name: str) -> str:
     return ssm.get_parameter(Name=name)["Parameter"]["Value"]
+
+
+def _get_parameter_optional(name: str) -> str | None:
+    try:
+        return ssm.get_parameter(Name=name)["Parameter"]["Value"]
+    except ssm.exceptions.ParameterNotFound:
+        return None
 
 
 # --- DAG execution ---
@@ -47,10 +68,7 @@ def _find_ready(
     dag: dict[str, set[str]], completed: set[str], failed: set[str], skipped: set[str]
 ) -> list[str]:
     done = completed | failed | skipped
-    running_or_done = done
-    return sorted(
-        p for p, deps in dag.items() if p not in running_or_done and deps <= completed
-    )
+    return sorted(p for p, deps in dag.items() if p not in done and deps <= completed)
 
 
 def _find_dependents(dag: dict[str, set[str]], project: str) -> set[str]:
@@ -65,20 +83,14 @@ def _find_dependents(dag: dict[str, set[str]], project: str) -> set[str]:
     return result
 
 
-def _make_step_branch(
-    step: dict, bundle_s3_uri: str, deploy_action: str, namespace: str
-):
-    # Named steps/waits so the durable console shows each sub-operation per project.
-    # ctx.wait() suspends without compute charges during polling.
+def _make_step_branch(step: dict, pctx: PipelineCtx):
     project = step["project"]
 
     def branch(ctx: DurableContext) -> dict:
         try:
             config = ctx.step(lambda _: _prepare(step), name=f"prepare:{project}")
             build_id = ctx.step(
-                lambda _: _start_build(
-                    step, config, bundle_s3_uri, deploy_action, namespace
-                ),
+                lambda _: _start_build(step, config, pctx),
                 name=f"start:{project}",
             )
 
@@ -109,10 +121,14 @@ def _make_step_branch(
                     "build_id": build_id,
                 }
 
-            ctx.step(
-                lambda _: _write_outputs(step, result["exportedVars"]),
-                name=f"outputs:{project}",
-            )
+            if pctx.deploy_action == "apply":
+                ctx.step(
+                    lambda _: _write_outputs(
+                        step, result["exportedVars"], build_id, pctx
+                    ),
+                    name=f"outputs:{project}",
+                )
+
             return {
                 "status": "succeeded",
                 "project": project,
@@ -142,16 +158,9 @@ def _get_codebuild_client(account_id: str, region: str) -> boto3.client:
     )
 
 
-def _get_parameter_optional(name: str) -> str | None:
-    try:
-        return ssm.get_parameter(Name=name)["Parameter"]["Value"]
-    except ssm.exceptions.ParameterNotFound:
-        return None
-
-
 def _prepare(step: dict) -> dict:
     target = step.get("target", "default")
-    prefix = f"{ACCOUNT_SSM_PREFIX}/{target}"
+    prefix = f"{ACCOUNTS_SSM_PREFIX}/{target}"
     account_id = _get_parameter(f"{prefix}/id")
     region = _get_parameter_optional(f"{prefix}/region") or os.environ["AWS_REGION"]
 
@@ -161,25 +170,31 @@ def _prepare(step: dict) -> dict:
         "codebuildProject": CODEBUILD_PROJECT_NAME,
     }
     inputs = {}
+    blob_cache: dict[str, dict] = {}
     for inp in step.get("inputs", []):
-        inputs[inp["var"]] = _get_parameter(inp["key"])
+        field = inp.get("field")
+        if field:
+            key = inp["key"]
+            if key not in blob_cache:
+                blob_cache[key] = json.loads(_get_parameter(key))["outputs"]
+            inputs[inp["var"]] = str(blob_cache[key].get(field, ""))
+        else:
+            raw = _get_parameter(inp["key"])
+            inputs[inp["var"]] = "" if raw == EMPTY_SENTINEL else raw
     config["inputs"] = inputs
     return config
 
 
-def _start_build(
-    step: dict, config: dict, bundle_s3_uri: str, deploy_action: str, namespace: str
-) -> str:
+def _start_build(step: dict, config: dict, pctx: PipelineCtx) -> str:
     cb = _get_codebuild_client(config["accountId"], config["region"])
 
-    # Parse s3://bucket/key from the URI
-    s3_parts = bundle_s3_uri.replace("s3://", "").split("/", 1)
+    s3_parts = pctx.bundle_s3_uri.replace("s3://", "").split("/", 1)
     s3_location = f"{s3_parts[0]}/{s3_parts[1]}"
 
     env_vars = [
         {"name": "PROJECT_NAME", "value": step["project"], "type": "PLAINTEXT"},
-        {"name": "PROPELLER_NAMESPACE", "value": namespace, "type": "PLAINTEXT"},
-        {"name": "DEPLOY_ACTION", "value": deploy_action, "type": "PLAINTEXT"},
+        {"name": "PROPELLER_NAMESPACE", "value": pctx.namespace, "type": "PLAINTEXT"},
+        {"name": "DEPLOY_ACTION", "value": pctx.deploy_action, "type": "PLAINTEXT"},
         {"name": "AWS_ACCOUNT_ID", "value": config["accountId"], "type": "PLAINTEXT"},
         {"name": "AWS_REGION", "value": config["region"], "type": "PLAINTEXT"},
     ]
@@ -208,10 +223,10 @@ def _check_build(build_id: str, config: dict) -> dict:
     }
 
 
-def _write_outputs(step: dict, exported_vars: list) -> dict:
+def _write_outputs(
+    step: dict, exported_vars: list, build_id: str, pctx: PipelineCtx
+) -> dict:
     output_defs = step.get("outputs", [])
-    if not output_defs:
-        return {"written": {}}
 
     outputs_json = "{}"
     for var in exported_vars:
@@ -226,31 +241,65 @@ def _write_outputs(step: dict, exported_vars: list) -> dict:
             f"expected outputs: {[o['ref'] for o in output_defs]}"
         )
 
+    blob_outputs = {}
     written = {}
+
     for out_def in output_defs:
         ref = out_def["ref"]
-        if ref in outputs:
-            ssm.put_parameter(
-                Name=out_def["key"],
-                Value=str(outputs[ref]),
-                Type="String",
-                Overwrite=True,
-            )
-            written[ref] = out_def["key"]
-        else:
+        field = out_def.get("field")
+        value = outputs.get(ref)
+
+        if value is None:
             print(
                 f"[propeller] Warning: output '{ref}' not found in build outputs for {step['project']}"
             )
+            continue
+
+        if field:
+            blob_outputs[field] = value
+        else:
+            str_value = str(value)
+            ssm_value = EMPTY_SENTINEL if str_value == "" else str_value
+            ssm.put_parameter(
+                Name=out_def["key"],
+                Value=ssm_value,
+                Type="String",
+                Overwrite=True,
+            )
+            if str_value == "":
+                print(
+                    f"[propeller] Output '{ref}' is empty for {step['project']}, stored as sentinel"
+                )
+            written[ref] = out_def["key"]
+
+    # Always write the project blob (outputs + meta)
+    blob_key = (
+        f"/propeller/{pctx.namespace}/{step['project']}"
+        if pctx.namespace
+        else f"/propeller/{step['project']}"
+    )
+    blob_value = {
+        "outputs": blob_outputs,
+        "meta": {
+            "propeller_version": pctx.propeller_version,
+            "deployed_at": datetime.now(timezone.utc).isoformat(),
+            "build_id": build_id,
+            "git_sha": pctx.git_sha,
+        },
+    }
+    ssm.put_parameter(
+        Name=blob_key,
+        Value=json.dumps(blob_value),
+        Type="String",
+        Overwrite=True,
+    )
+    for field in blob_outputs:
+        written[field] = f"{blob_key}[{field}]"
+
     return {"written": written}
 
 
-def run_stage(
-    context: DurableContext,
-    stage: dict,
-    bundle_s3_uri: str,
-    deploy_action: str,
-    namespace: str,
-) -> list[dict]:
+def run_stage(context: DurableContext, stage: dict, pctx: PipelineCtx) -> list[dict]:
     steps = stage["steps"]
     step_map = {s["project"]: s for s in steps}
     dag = _build_dag(steps)
@@ -267,11 +316,7 @@ def run_stage(
         if not ready:
             break
 
-        # Run ready steps in parallel (or single)
-        branches = [
-            _make_step_branch(step_map[p], bundle_s3_uri, deploy_action, namespace)
-            for p in ready
-        ]
+        branches = [_make_step_branch(step_map[p], pctx) for p in ready]
 
         # TODO: use named branches when supported — https://github.com/aws/aws-durable-execution-sdk-python/issues/303
         batch: BatchResult[dict] = context.parallel(
@@ -302,7 +347,6 @@ def run_stage(
                                 "error": f"dependency '{project}' failed",
                             }
             elif item.status.value == "FAILED":
-                # Branch itself threw — shouldn't happen since we catch exceptions
                 project = ready[item.index]
                 failed.add(project)
                 results[project] = {
@@ -323,9 +367,15 @@ def run_stage(
 def handler(event: dict, context: DurableContext):
     pipeline = event["pipeline"]
     bundle_s3_uri = event["bundle_s3_uri"]
-    deploy_action = event.get("deploy_action", "apply")
-    namespace = pipeline.get("namespace", "")
     only = set(event.get("only", []))
+
+    pctx = PipelineCtx(
+        bundle_s3_uri=bundle_s3_uri,
+        deploy_action=event.get("deploy_action", "apply"),
+        namespace=pipeline.get("namespace", ""),
+        propeller_version=pipeline.get("propeller_version", "unknown"),
+        git_sha=event.get("git_sha", ""),
+    )
 
     # Filter pipeline to only the specified projects (if set)
     if only:
@@ -348,9 +398,7 @@ def handler(event: dict, context: DurableContext):
                 )
             continue
 
-        stage_results = run_stage(
-            context, stage, bundle_s3_uri, deploy_action, namespace
-        )
+        stage_results = run_stage(context, stage, pctx)
         all_results.extend(stage_results)
 
         if any(r["status"] == "failed" for r in stage_results):

@@ -52,16 +52,24 @@ stages:
 
 **Input/Output (same fields for both):**
 - `name` - SSM path (dots become `/` separators)
-- `var` - project-local name (terraform variable or output)
+- `var` - project-local name (terraform variable or output). Defaults to `name` if omitted.
 
 ## Path resolution
 
-- No `/` prefix: namespace is prepended automatically.
-  `name: identity.admin_role_arn` → `/propeller/landing-zone/identity/admin_role_arn`
-- `/` prefix: absolute, no namespace.
+Outputs:
+- Bare name (no `/` prefix): stored as a field in the project's JSON blob parameter.
+  `name: org_id` → field `org_id` in `/propeller/landing-zone/control-tower-prerequisites`
+- `/` prefix: stored as an individual plain-string parameter.
   `name: /accounts.workload-acme.id` → `/propeller/accounts/workload-acme/id`
 
-Use absolute paths for shared cross-pipeline values.
+Inputs:
+- `project.field` format: reads from the project's JSON blob.
+  `name: control-tower-prerequisites.org_id` → reads field `org_id` from `/propeller/landing-zone/control-tower-prerequisites`
+- `/` prefix: reads an individual parameter.
+  `name: /accounts.workload-acme.id` → `/propeller/accounts/workload-acme/id`
+
+Use absolute paths (`/`) for shared values that should be individually readable
+(e.g. account IDs). Adopt a sound naming strategy for these paths.
 
 ## `propeller.overrides.yaml`
 

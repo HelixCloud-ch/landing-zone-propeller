@@ -123,51 +123,83 @@ def _set_default_sources(pipeline: Pipeline, propeller_dir: str) -> None:
 SSM_PREFIX = "/propeller"
 
 
-def _expand_input(inp: dict, namespace: str | None) -> dict:
+def _expand_input(
+    inp: dict, namespace: str | None, step_project: str | None = None
+) -> dict:
     """Expand shorthand input format to resolved format.
 
-    If 'name' starts with '/', it's absolute (no namespace prefix).
-    Otherwise, namespace is prepended.
+    Inputs always reference another project's output:
+    - name: "other-project.field_name" → blob read from /propeller/{namespace}/{project}, field=field_name
+    - name: "/absolute.path.here" → individual parameter read
 
-    Example: {name: "hello-operations.message", var: "msg"} with namespace "landing-zone"
-    Resolved: {key: "/propeller/landing-zone/hello-operations/message", var: "msg"}
+    Example: {name: "control-tower.org_id", var: "org_id"} with namespace "landing-zone"
+    Resolved: {key: "/propeller/landing-zone/control-tower", field: "org_id", var: "org_id"}
     """
     if "name" in inp and "key" not in inp:
         name = inp["name"]
         if name.startswith("/"):
+            # Absolute path → individual parameter
             path = name[1:].replace(".", "/")
-        elif namespace:
-            path = f"{namespace}/{name}".replace(".", "/")
+            return {
+                "key": f"{SSM_PREFIX}/{path}",
+                "var": inp.get("var", name.rsplit(".", 1)[-1]),
+            }
         else:
-            path = name.replace(".", "/")
-        return {
-            "key": f"{SSM_PREFIX}/{path}",
-            "var": inp.get("var", name.rsplit(".", 1)[-1]),
-        }
+            # project.field → blob read
+            parts = name.split(".", 1)
+            if len(parts) == 2:
+                project_name, field = parts
+            else:
+                project_name, field = name, name
+            if namespace:
+                path = f"{namespace}/{project_name}"
+            else:
+                path = project_name
+            return {
+                "key": f"{SSM_PREFIX}/{path}",
+                "field": field,
+                "var": inp.get("var", field),
+            }
     return inp  # Already in resolved format
 
 
-def _expand_output(out: dict, namespace: str | None) -> dict:
+def _expand_output(
+    out: dict, namespace: str | None, step_project: str | None = None
+) -> dict:
     """Expand shorthand output format to resolved format.
 
-    If 'name' starts with '/', it's absolute (no namespace prefix).
-    Otherwise, namespace is prepended.
+    Outputs:
+    - Bare name (no dots, no /): blob output → stored in project's JSON blob
+    - / prefix: individual parameter
 
-    Example: {name: "hello-operations.message", var: "message"} with namespace "landing-zone"
-    Resolved: {key: "/propeller/landing-zone/hello-operations/message", ref: "message"}
+    Example: {name: "org_id", var: "org_id"} with namespace "landing-zone", project "control-tower"
+    Resolved: {key: "/propeller/landing-zone/control-tower", field: "org_id", ref: "org_id"}
+
+    Absolute: {name: "/accounts.backup-admin.id", var: "account_id"}
+    Resolved: {key: "/propeller/accounts/backup-admin/id", ref: "account_id"}
     """
     if "name" in out and "key" not in out:
         name = out["name"]
         if name.startswith("/"):
+            # Absolute → individual parameter
             path = name[1:].replace(".", "/")
-        elif namespace:
-            path = f"{namespace}/{name}".replace(".", "/")
+            return {
+                "key": f"{SSM_PREFIX}/{path}",
+                "ref": out.get("var", name.rsplit(".", 1)[-1]),
+            }
         else:
-            path = name.replace(".", "/")
-        return {
-            "key": f"{SSM_PREFIX}/{path}",
-            "ref": out["var"],
-        }
+            # Bare name → blob output
+            if namespace and step_project:
+                path = f"{namespace}/{step_project}"
+            elif step_project:
+                path = step_project
+            else:
+                path = name.replace(".", "/")
+            return {
+                "key": f"{SSM_PREFIX}/{path}",
+                "field": name,
+                "ref": out.get("var", name),
+            }
     return out  # Already in resolved format
 
 
@@ -180,14 +212,16 @@ def _expand_step_io(pipeline: Pipeline) -> None:
                 expanded_inputs = []
                 for i in step.inputs:
                     raw = i.model_dump() if hasattr(i, "model_dump") else i
-                    expanded_inputs.append(ProjectInput(**_expand_input(raw, namespace)))
+                    expanded_inputs.append(
+                        ProjectInput(**_expand_input(raw, namespace, step.project))
+                    )
                 step.inputs = expanded_inputs
             if step.outputs:
                 expanded_outputs = []
                 for o in step.outputs:
                     raw = o.model_dump() if hasattr(o, "model_dump") else o
                     expanded_outputs.append(
-                        ProjectOutput(**_expand_output(raw, namespace))
+                        ProjectOutput(**_expand_output(raw, namespace, step.project))
                     )
                 step.outputs = expanded_outputs
 
@@ -234,9 +268,21 @@ def _step_to_dict(step: Step) -> dict:
     if step.depends_on:
         d["depends_on"] = step.depends_on
     if step.inputs:
-        d["inputs"] = [{"key": i.key, "var": i.var} for i in step.inputs]
+        inputs = []
+        for i in step.inputs:
+            entry = {"key": i.key, "var": i.var}
+            if i.field:
+                entry["field"] = i.field
+            inputs.append(entry)
+        d["inputs"] = inputs
     if step.outputs:
-        d["outputs"] = [{"key": o.key, "ref": o.ref} for o in step.outputs]
+        outputs = []
+        for o in step.outputs:
+            entry = {"key": o.key, "ref": o.ref}
+            if o.field:
+                entry["field"] = o.field
+            outputs.append(entry)
+        d["outputs"] = outputs
     return d
 
 
