@@ -8,8 +8,6 @@ from .runner import DeployRunner, run_cmd
 class ScriptRunner(DeployRunner):
     def _just(self, recipe: str) -> int:
         cmd = ["just", recipe]
-        for var_name, value in self.inputs.items():
-            cmd.append(f"{var_name}={value}")
         return run_cmd(cmd, cwd=self.project_dir)
 
     def init(self) -> int:
