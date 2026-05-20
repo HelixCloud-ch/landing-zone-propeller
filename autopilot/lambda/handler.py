@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
@@ -69,7 +70,7 @@ def _find_dependents(dag: dict[str, set[str]], project: str) -> set[str]:
 
 
 def _make_step_branch(
-    step: dict, bundle_s3_uri: str, deploy_action: str, namespace: str
+    step: dict, bundle_s3_uri: str, deploy_action: str, namespace: str, propeller_version: str
 ):
     # Named steps/waits so the durable console shows each sub-operation per project.
     # ctx.wait() suspends without compute charges during polling.
@@ -114,7 +115,7 @@ def _make_step_branch(
 
             if deploy_action == "apply":
                 ctx.step(
-                    lambda _: _write_outputs(step, result["exportedVars"]),
+                    lambda _: _write_outputs(step, result["exportedVars"], build_id, propeller_version, namespace),
                     name=f"outputs:{project}",
                 )
             return {
@@ -172,7 +173,7 @@ def _prepare(step: dict) -> dict:
             # Blob read: cache the blob to avoid repeated SSM calls
             key = inp["key"]
             if key not in blob_cache:
-                blob_cache[key] = json.loads(_get_parameter(key))
+                blob_cache[key] = json.loads(_get_parameter(key))["outputs"]
             inputs[inp["var"]] = str(blob_cache[key].get(field, ""))
         else:
             # Individual parameter read — decode sentinel
@@ -223,10 +224,8 @@ def _check_build(build_id: str, config: dict) -> dict:
     }
 
 
-def _write_outputs(step: dict, exported_vars: list) -> dict:
+def _write_outputs(step: dict, exported_vars: list, build_id: str = "", propeller_version: str = "", namespace: str = "") -> dict:
     output_defs = step.get("outputs", [])
-    if not output_defs:
-        return {"written": {}}
 
     outputs_json = "{}"
     for var in exported_vars:
@@ -273,18 +272,24 @@ def _write_outputs(step: dict, exported_vars: list) -> dict:
                 print(f"[propeller] Output '{ref}' is empty for {step['project']}, stored as sentinel")
             written[ref] = out_def["key"]
 
-    # Write blob outputs as a single JSON parameter
-    if blob_outputs:
-        # Find the blob key from the first output that has a field
-        blob_key = next(o["key"] for o in output_defs if o.get("field"))
-        ssm.put_parameter(
-            Name=blob_key,
-            Value=json.dumps(blob_outputs),
-            Type="String",
-            Overwrite=True,
-        )
-        for field in blob_outputs:
-            written[field] = f"{blob_key}[{field}]"
+    # Always write the project blob (outputs + meta)
+    blob_key = f"/propeller/{namespace}/{step['project']}" if namespace else f"/propeller/{step['project']}"
+    blob_value = {
+        "outputs": blob_outputs,
+        "meta": {
+            "propeller_version": propeller_version,
+            "deployed_at": datetime.now(timezone.utc).isoformat(),
+            "build_id": build_id,
+        },
+    }
+    ssm.put_parameter(
+        Name=blob_key,
+        Value=json.dumps(blob_value),
+        Type="String",
+        Overwrite=True,
+    )
+    for field in blob_outputs:
+        written[field] = f"{blob_key}[{field}]"
 
     return {"written": written}
 
@@ -295,6 +300,7 @@ def run_stage(
     bundle_s3_uri: str,
     deploy_action: str,
     namespace: str,
+    propeller_version: str,
 ) -> list[dict]:
     steps = stage["steps"]
     step_map = {s["project"]: s for s in steps}
@@ -314,7 +320,7 @@ def run_stage(
 
         # Run ready steps in parallel (or single)
         branches = [
-            _make_step_branch(step_map[p], bundle_s3_uri, deploy_action, namespace)
+            _make_step_branch(step_map[p], bundle_s3_uri, deploy_action, namespace, propeller_version)
             for p in ready
         ]
 
@@ -370,6 +376,7 @@ def handler(event: dict, context: DurableContext):
     bundle_s3_uri = event["bundle_s3_uri"]
     deploy_action = event.get("deploy_action", "apply")
     namespace = pipeline.get("namespace", "")
+    propeller_version = pipeline.get("propeller_version", "unknown")
     only = set(event.get("only", []))
 
     # Filter pipeline to only the specified projects (if set)
@@ -394,7 +401,7 @@ def handler(event: dict, context: DurableContext):
             continue
 
         stage_results = run_stage(
-            context, stage, bundle_s3_uri, deploy_action, namespace
+            context, stage, bundle_s3_uri, deploy_action, namespace, propeller_version
         )
         all_results.extend(stage_results)
 
