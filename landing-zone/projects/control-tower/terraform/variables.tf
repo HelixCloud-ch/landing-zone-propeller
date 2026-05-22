@@ -88,6 +88,33 @@ variable "access_logging_bucket_retention_days" {
   }
 }
 
+# ── AWS Config integration buckets ───────────────────────────────────────────
+# AWS auto-fills these defaults when omitted, then reports drift on every
+# subsequent plan because Terraform doesn't see them in the manifest.
+# Defaults match what AWS Control Tower applies server-side.
+
+variable "config_logging_bucket_retention_days" {
+  type        = number
+  description = "Retention in days for the AWS Config logging bucket."
+  default     = 365
+
+  validation {
+    condition     = var.config_logging_bucket_retention_days >= 1
+    error_message = "Retention must be at least 1 day."
+  }
+}
+
+variable "config_access_logging_bucket_retention_days" {
+  type        = number
+  description = "Retention in days for the AWS Config access logging bucket."
+  default     = 3650
+
+  validation {
+    condition     = var.config_access_logging_bucket_retention_days >= 1
+    error_message = "Retention must be at least 1 day."
+  }
+}
+
 # ── Access management ────────────────────────────────────────────────────────
 
 variable "enable_access_management" {
