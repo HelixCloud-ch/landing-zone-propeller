@@ -38,6 +38,19 @@ stages:
           - name: /accounts.backup-central.id
             var: backup_central_account_id
 
+  - name: foundation
+    steps:
+      - project: ou-infrastructure
+        target: management
+        inputs:
+          - name: /accounts.operations.id
+            var: operations_account_id
+        outputs:
+          - name: infrastructure_id
+            var: ou_id
+          - name: infrastructure_arn
+            var: ou_arn
+
   - name: operations
     steps:
       - project: hello-operations
