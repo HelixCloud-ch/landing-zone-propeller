@@ -20,7 +20,7 @@ locals {
   )
 
   manifest = {
-    governedRegions    = var.governed_regions
+    governedRegions    = sort(var.governed_regions)
     centralizedLogging = local.centralized_logging
     config             = { accountId = var.security_tooling_account_id, enabled = true }
     securityRoles      = { accountId = var.security_tooling_account_id, enabled = true }
