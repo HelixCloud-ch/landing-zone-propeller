@@ -22,10 +22,17 @@ locals {
   manifest = {
     governedRegions    = var.governed_regions
     centralizedLogging = local.centralized_logging
-    config             = { accountId = var.security_tooling_account_id, enabled = true }
-    securityRoles      = { accountId = var.security_tooling_account_id, enabled = true }
-    accessManagement   = { enabled = var.enable_access_management }
-    backup             = local.backup
+    config = {
+      accountId = var.security_tooling_account_id
+      enabled   = true
+      configurations = {
+        loggingBucket       = { retentionDays = var.config_logging_bucket_retention_days }
+        accessLoggingBucket = { retentionDays = var.config_access_logging_bucket_retention_days }
+      }
+    }
+    securityRoles    = { accountId = var.security_tooling_account_id, enabled = true }
+    accessManagement = { enabled = var.enable_access_management }
+    backup           = local.backup
   }
 }
 

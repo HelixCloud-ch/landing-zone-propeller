@@ -6,7 +6,7 @@ version: "1"
 namespace: landing-zone
 
 stages:
-  - name: control-tower
+  - name: foundation
     steps:
       - project: control-tower-prerequisites
         target: management
@@ -38,10 +38,9 @@ stages:
           - name: /accounts.backup-central.id
             var: backup_central_account_id
 
-  - name: foundation
-    steps:
       - project: ou-infrastructure
         target: management
+        depends_on: [control-tower]
         inputs:
           - name: /accounts.operations.id
             var: operations_account_id
