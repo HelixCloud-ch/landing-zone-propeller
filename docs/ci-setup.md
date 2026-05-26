@@ -77,14 +77,14 @@ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
 
 ## 2. GitHub Secrets
 
-Add to the consumer repo (Settings → Secrets and Variables → Actions → Secrets):
+Add to the consumer repo (Settings → Secrets and Variables → Actions → Secrets → Repository Secrets):
 
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 
 ## 3. GitHub Variables
 
-Add to the consumer repo (Settings → Secrets and Variables → Actions → Variables):
+Add to the consumer repo (Settings → Secrets and Variables → Actions → Variables → Repository Variables):
 
 - `AWS_REGION`
 - `PROPELLER_BUNDLE_BUCKET`
