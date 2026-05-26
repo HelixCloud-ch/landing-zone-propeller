@@ -30,9 +30,9 @@ export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r .SecretAccessKey)
 export AWS_SESSION_TOKEN=$(echo $CREDS | jq -r .SessionToken)
 
 # --- Create CI user ---
-aws iam create-user --user-name propeller-ci-deleteme
+aws iam create-user --user-name propeller-ci
 
-aws iam put-user-policy --user-name propeller-ci-deleteme --policy-name propeller-deploy --policy-document "$(cat <<EOF
+aws iam put-user-policy --user-name propeller-ci --policy-name propeller-deploy --policy-document "$(cat <<EOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -52,7 +52,7 @@ EOF
 )"
 
 # --- Generate access keys ---
-KEY_OUTPUT=$(aws iam create-access-key --user-name propeller-ci-deleteme)
+KEY_OUTPUT=$(aws iam create-access-key --user-name propeller-ci)
 CI_ACCESS_KEY_ID=$(echo $KEY_OUTPUT | jq -r '.AccessKey.AccessKeyId')
 CI_SECRET_ACCESS_KEY=$(echo $KEY_OUTPUT | jq -r '.AccessKey.SecretAccessKey')
 
