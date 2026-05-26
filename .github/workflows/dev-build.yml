@@ -54,6 +54,7 @@ jobs:
 
       - name: Summary
         run: |
+          mkdir -p dist
           uv run --project engine propeller-resolve \
             --base landing-zone/propeller.yaml \
             --output dist/pipeline.lock.yaml \
