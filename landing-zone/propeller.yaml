@@ -51,6 +51,9 @@ stages:
           - name: infrastructure_arn
             var: ou_arn
 
+      - project: base-sso
+        target: management
+
   - name: operations
     steps:
       - project: hello-operations

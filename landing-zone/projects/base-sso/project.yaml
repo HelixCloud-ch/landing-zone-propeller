@@ -1,0 +1,10 @@
+name: base-sso
+description: Base IAM Identity Center permission sets and groups (ReadOnly, PowerUser, Admin, IdentityOperators)
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
