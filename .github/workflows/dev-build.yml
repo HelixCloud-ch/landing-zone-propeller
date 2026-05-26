@@ -49,3 +49,16 @@ jobs:
             --title "Dev: ${{ steps.version.outputs.version }}" \
             --notes "Dev build from \`${{ github.ref_name }}\` at ${{ github.sha }}" \
             --prerelease
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Summary
+        run: |
+          mkdir -p dist
+          uv run --project engine propeller-resolve \
+            --base landing-zone/propeller.yaml \
+            --output dist/pipeline.lock.yaml \
+            --propeller-dir landing-zone
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat dist/pipeline.lock.md >> $GITHUB_STEP_SUMMARY
