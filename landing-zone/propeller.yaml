@@ -52,23 +52,3 @@ stages:
 
       - project: base-sso
         target: management
-
-  - name: operations
-    steps:
-      - project: hello-operations
-        target: operations
-        inputs:
-          - name: control-tower-prerequisites.security_ou_id
-        outputs:
-          - name: message
-          - name: color
-
-  - name: management
-    steps:
-      - project: hello-management
-        target: management
-        inputs:
-          - name: hello-operations.message
-            var: operations_message
-        outputs:
-          - name: message
