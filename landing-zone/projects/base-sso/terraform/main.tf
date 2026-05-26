@@ -124,6 +124,12 @@ resource "aws_ssoadmin_permission_set_inline_policy" "identity_operator" {
           }
         }
       },
+      {
+        Sid    = "ReadSAMLProvider"
+        Effect = "Allow"
+        Action = "iam:GetSAMLProvider"
+        Resource = "arn:aws:iam::*:saml-provider/AWSSSO_*_DO_NOT_DELETE"
+      },
     ]
   })
 }
