@@ -1,7 +1,5 @@
 # ── Permission sets ──────────────────────────────────────────────────────────
-# Created in singular form. Only IdentityOperator carries the SelfProtected
-# tag — IdentityOperators members cannot assign it (or modify their own
-# group) but they can manage the other three freely.
+# Permission set names are singular. Groups are plural.
 
 resource "aws_ssoadmin_permission_set" "readonly" {
   instance_arn     = local.instance_arn
@@ -99,6 +97,8 @@ resource "aws_ssoadmin_permission_set_inline_policy" "identity_operator" {
       },
       {
         # IC creates these IAM roles in target accounts on assignment.
+        # Two ARN patterns: member accounts use the /aws-reserved/sso.amazonaws.com/
+        # path; the management account (where IC lives) uses the flat AWSReservedSSO_ prefix.
         Sid    = "ManageSSOReservedRoles"
         Effect = "Allow"
         Action = [
@@ -107,11 +107,17 @@ resource "aws_ssoadmin_permission_set_inline_policy" "identity_operator" {
           "iam:DeleteRole",
           "iam:DeleteRolePolicy",
           "iam:DetachRolePolicy",
+          "iam:GetRole",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListRolePolicies",
           "iam:PutRolePolicy",
           "iam:UpdateRole",
           "iam:UpdateRoleDescription",
         ]
-        Resource = "arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*"
+        Resource = [
+          "arn:aws:iam::*:role/aws-reserved/sso.amazonaws.com/*",
+          "arn:aws:iam::*:role/AWSReservedSSO_*",
+        ]
       },
       {
         Sid      = "PassRoleForSso"
