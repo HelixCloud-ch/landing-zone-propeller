@@ -4,13 +4,13 @@
 #
 # Usage (via run.sh):
 #   $RUN deploy-autopilot.sh
-#   $RUN deploy-autopilot.sh OPERATIONS_ACCOUNT_NAME=operations
+#   $RUN deploy-autopilot.sh OPERATIONS_ACCOUNT_NAME=Operations
 
 set -euo pipefail
 set -x
 
 : "${AWS_REGION:=${AWS_DEFAULT_REGION:?AWS_REGION or AWS_DEFAULT_REGION is required}}"
-: "${OPERATIONS_ACCOUNT_NAME:=operations}"
+: "${OPERATIONS_ACCOUNT_NAME:=Operations}"
 : "${OPERATIONS_ROLE_NAME:=AWSControlTowerExecution}"
 : "${STS_REGION:=us-east-1}"
 : "${TF_DIR:=autopilot/terraform}"

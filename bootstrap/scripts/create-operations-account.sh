@@ -2,7 +2,7 @@
 set -euo pipefail
 set -x
 
-: "${OPERATIONS_ACCOUNT_NAME:=operations}"
+: "${OPERATIONS_ACCOUNT_NAME:=Operations}"
 : "${OPERATIONS_EMAIL:?OPERATIONS_EMAIL is required}"
 : "${OPERATIONS_ROLE_NAME:=AWSControlTowerExecution}"
 : "${AWS_REGION:=${AWS_DEFAULT_REGION:-eu-central-2}}"
