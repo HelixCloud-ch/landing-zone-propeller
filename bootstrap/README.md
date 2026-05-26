@@ -195,12 +195,9 @@ is stored in the `state-iac-{account_id}-{region}` bucket created in step 9.
 $RUN deploy-autopilot.sh
 ```
 
-Deploys the `propeller-autopilot` Lambda in the Operations account. This is the
-production orchestrator that executes the deployment pipeline DAG — stages run
-sequentially, steps within a stage run in parallel based on their dependencies.
-
-The Lambda uses the AWS Durable Execution SDK for long-running orchestration
-(up to 24h) without idle compute charges.
+Deploys the `propeller-autopilot` Durable Lambda in the Operations account.
+This is the orchestrator that receives pipeline invocations from CI and
+coordinates CodeBuild executions across accounts.
 
 ---
 
