@@ -18,7 +18,7 @@ done
 
 if [[ -z "$VERSION" ]]; then
     echo "Fetching latest release..."
-    VERSION=$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/${REPO}/releases/latest" | grep -o '[^/]*$')
+    VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases?per_page=1" | grep -m1 '"tag_name"' | cut -d'"' -f4)
     if [[ -z "$VERSION" ]]; then
         echo "Error: could not determine latest version." >&2
         exit 1
