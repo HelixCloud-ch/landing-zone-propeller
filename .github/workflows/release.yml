@@ -28,3 +28,15 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: propeller-${{ github.ref_name }}.zip
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Summary
+        run: |
+          uv run --project engine propeller-resolve \
+            --base landing-zone/propeller.yaml \
+            --output dist/pipeline.lock.yaml \
+            --propeller-dir landing-zone
+          echo "**Version:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat dist/pipeline.lock.md >> $GITHUB_STEP_SUMMARY
