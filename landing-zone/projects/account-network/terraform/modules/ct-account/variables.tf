@@ -40,12 +40,6 @@ variable "ou_id" {
   }
 }
 
-# ── SSO user (required by Account Factory) ───────────────────────────────────
-# The Account Factory product creates an SSO user with AdministratorAccess on
-# the new account. These fields are required by the product even if the
-# resulting SSO user is not actively used (e.g. when the team uses group-based
-# SSO assignments via base-sso).
-
 variable "sso_user_email" {
   type        = string
   description = "Email for the SSO user that Account Factory creates with AdministratorAccess on the new account."
@@ -76,10 +70,6 @@ variable "sso_user_last_name" {
     error_message = "sso_user_last_name must not be empty."
   }
 }
-
-# ── Service Catalog product identifiers ──────────────────────────────────────
-# Defaults match the Control Tower-managed Account Factory product. Override
-# only if the customer has renamed or duplicated the product.
 
 variable "product_name" {
   type        = string
