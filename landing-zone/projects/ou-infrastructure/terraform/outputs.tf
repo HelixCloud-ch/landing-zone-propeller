@@ -8,6 +8,11 @@ output "ou_arn" {
   value       = aws_organizations_organizational_unit.this.arn
 }
 
+output "ou_name" {
+  description = "Name of the Infrastructure OU."
+  value       = aws_organizations_organizational_unit.this.name
+}
+
 output "enabled_baseline_arn" {
   description = "ARN of the enabled AWSControlTowerBaseline on this OU."
   value       = aws_controltower_baseline.this.arn

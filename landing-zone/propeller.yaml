@@ -49,6 +49,8 @@ stages:
             var: ou_id
           - name: infrastructure_arn
             var: ou_arn
+          - name: infrastructure_name
+            var: ou_name
 
       - project: base-sso
         target: management
