@@ -1,0 +1,12 @@
+name: account-network
+description: >-
+  Vend the Network account via Service Catalog Account Factory and place it
+  into the Infrastructure OU.
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
