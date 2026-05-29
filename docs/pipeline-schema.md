@@ -39,11 +39,14 @@ stages:
 ## Fields
 
 **Top-level:**
+
 - `version` - schema version (currently `"1"`)
-- `namespace` - pipeline identifier, used as prefix for SSM paths, state keys, and other scoped resources
+- `namespace` - pipeline identifier, used as prefix for SSM paths, state keys,
+  and other scoped resources
 - `stages` - ordered list; stages run sequentially
 
 **Step:**
+
 - `project` - project name (matches `name` in `project.yaml`)
 - `target` - logical account to deploy into
 - `depends_on` - projects that must complete first (within the same stage)
@@ -51,22 +54,28 @@ stages:
 - `outputs` - values to write to SSM after deploy
 
 **Input/Output (same fields for both):**
+
 - `name` - SSM path (dots become `/` separators)
-- `var` - project-local name (terraform variable or output). Defaults to `name` if omitted.
+- `var` - project-local name (terraform variable or output). Defaults to `name`
+  if omitted.
 
 ## Path resolution
 
 Outputs:
-- Bare name (no `/` prefix): stored as a field in the project's JSON blob parameter.
-  `name: org_id` → field `org_id` in `/propeller/landing-zone/control-tower-prerequisites`
+
+- Bare name (no `/` prefix): stored as a field in the project's JSON blob
+  parameter. `name: org_id` → field `org_id` in
+  `/propeller/landing-zone/control-tower-prerequisites`
 - `/` prefix: stored as an individual plain-string parameter.
   `name: /accounts.workload-acme.id` → `/propeller/accounts/workload-acme/id`
 
 Inputs:
+
 - `project.field` format: reads from the project's JSON blob.
-  `name: control-tower-prerequisites.org_id` → reads field `org_id` from `/propeller/landing-zone/control-tower-prerequisites`
-- `/` prefix: reads an individual parameter.
-  `name: /accounts.workload-acme.id` → `/propeller/accounts/workload-acme/id`
+  `name: control-tower-prerequisites.org_id` → reads field `org_id` from
+  `/propeller/landing-zone/control-tower-prerequisites`
+- `/` prefix: reads an individual parameter. `name: /accounts.workload-acme.id`
+  → `/propeller/accounts/workload-acme/id`
 
 Use absolute paths (`/`) for shared values that should be individually readable
 (e.g. account IDs). Adopt a sound naming strategy for these paths.
@@ -99,6 +108,15 @@ pipeline:
           - name: custom-logging.endpoint
             var: endpoint
 
+  # Insert a new stage after an existing one
+  additions:
+    - stage: governance
+      after: baseline
+      steps:
+        - project: scp-baseline
+          source: "./landing-zone/projects/scp-baseline"
+          target: management
+
   # Remove a project
   removals:
     - project: security-hub
@@ -110,10 +128,12 @@ pipeline:
 ```
 
 **`propeller` section:**
+
 - `version` - framework version to pull
 - `repo` - GitHub repo (default: `HelixCloud-ch/landing-zone-propeller`)
 
 **`pipeline` section:**
+
 - `targets` - remap project targets to different accounts
 - `overrides` - replace project sources with local versions
 - `additions` - add steps to stages, or new stages (with `after:`)
