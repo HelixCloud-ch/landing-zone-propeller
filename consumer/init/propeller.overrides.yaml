@@ -2,7 +2,7 @@ propeller:
   version: "PROPELLER_VERSION_PLACEHOLDER"
   repo: "HelixCloud-ch/landing-zone-propeller"
 
-pipeline:
+pipeline: {}
   # Remap targets to different accounts
   # targets:
   #   operations-baseline: sandbox
