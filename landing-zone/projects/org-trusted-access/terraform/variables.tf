@@ -1,3 +1,9 @@
+variable "enable_ram_org_sharing" {
+  type        = bool
+  description = "Enable RAM sharing with AWS Organizations. Required before any RAM share can target OU ARNs without per-account invitations."
+  default     = true
+}
+
 variable "region" {
   type        = string
   description = "AWS region for the management account provider."
