@@ -53,7 +53,7 @@ contract (which moved `outputs:` from `project.yaml` to the pipeline step).
 ### Script
 
 ```
-landing-zone/projects/hello-operations/
+landing-zone/projects/example-script/
 ├── project.yaml
 ├── README.md
 └── justfile
@@ -102,7 +102,7 @@ deploy:
 ### Script
 
 ```yaml
-name: hello-operations
+name: example-script
 description: Example script-based project
 
 deploy:
@@ -197,4 +197,6 @@ overlay against.
   inputs, outputs, dependencies).
 - [Customization](customization.md) - common patterns for adding, removing, and
   overriding projects.
+- [Examples](examples/) - working reference projects to copy as starting
+  points.
 - [Glossary](glossary.md) - canonical terminology.
