@@ -1,0 +1,21 @@
+# Tiny example pipeline used for documentation and runner tests.
+# Demonstrates cross-project wiring: example-script writes a message,
+# example-terraform reads it and stores it in a different SSM key.
+
+version: "1"
+namespace: example
+
+stages:
+  - name: messaging
+    steps:
+      - project: example-script
+        target: sandbox
+        outputs:
+          - name: message
+
+      - project: example-terraform
+        target: sandbox
+        depends_on: [example-script]
+        inputs:
+          - name: example-script.message
+            var: upstream_message

@@ -30,6 +30,8 @@ Schemas, conventions, and lookups.
   `propeller.overrides.yaml` field reference.
 - [Project structure](project-structure.md) - `project.yaml`, consumer overlays,
   project layout.
+- [Examples](examples/) - working reference projects to copy as starting
+  points.
 - [Glossary](glossary.md) - terminology used throughout.
 
 ## Internals
