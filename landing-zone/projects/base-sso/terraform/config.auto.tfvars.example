@@ -1,0 +1,24 @@
+# base-sso — IAM Identity Center baseline configuration
+# Copy this file to config.auto.tfvars and fill in your values.
+
+# AWS region (must match the IAM Identity Center home region).
+region = "eu-central-2"
+
+# Set to true if Identity Center is fed by an external IdP (e.g. Entra ID
+# via SCIM). When true, the IdentityOperators group is looked up by name
+# instead of being created locally.
+external_idp = false
+
+# Name of the IdentityOperators group in the identity store.
+# When external_idp = true, a group with this exact name must exist in the
+# external IdP (e.g. synced via SCIM from Entra ID).
+# identity_operators_group_name = "aws-identity-operators"
+
+# Session duration for all permission sets (ISO 8601).
+# session_duration = "PT1H"
+
+# Tags applied via provider default_tags to all resources.
+# tags = {
+#   cost-center = "platform"
+#   project     = "landing-zone"
+# }
