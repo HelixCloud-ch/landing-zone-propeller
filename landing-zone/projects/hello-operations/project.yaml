@@ -1,5 +1,0 @@
-name: hello-operations
-description: Hello world for the operations account (script-based)
-
-deploy:
-  type: script
