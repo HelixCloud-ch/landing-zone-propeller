@@ -15,8 +15,7 @@ from a GitHub release — no git clone required.
 ## Open CloudShell
 
 CloudShell is not available in every Region. If your target Region does not
-support CloudShell (e.g. `eu-central-2`), open it in a nearby default Region
-such as `eu-central-1`.
+support CloudShell, open it in a nearby default Region such as `eu-central-1`.
 
 All CLI commands in this guide include an explicit `--region` flag so they
 work regardless of which Region CloudShell is running in.
