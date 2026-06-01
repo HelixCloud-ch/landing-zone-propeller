@@ -36,5 +36,4 @@ Schemas, conventions, and lookups.
 
 For framework contributors and the curious.
 
-- [Architecture](architecture.md) - how the engine, Lambda, CodeBuild, and SSM
-  fit together.
+- [Architecture](architecture.md) - TODO
