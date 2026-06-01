@@ -1,0 +1,30 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Inputs from propeller. env() with no default fails if missing (required input);
+# env() with a default is optional. Wiring is declared in the pipeline step.
+region := env("AWS_REGION")
+upstream_id := env("PROPELLER_INPUT_upstream_id", "none")
+log_level := env("PROPELLER_INPUT_log_level", "info")
+
+init:
+    @echo "example-script ready in {{ region }} (upstream_id={{ upstream_id }}, log_level={{ log_level }})"
+
+plan:
+    @echo "example-script would write message, color, and count to .propeller-outputs.json"
+
+apply:
+    # Multiple keys can be written; the pipeline picks which ones become
+    # persisted outputs by declaring them in `outputs:` on the step.
+    cat <<EOF > .propeller-outputs.json
+    {
+      "message": "hello from example-script",
+      "color": "blue",
+      "count": "42"
+    }
+    EOF
+
+destroy:
+    @echo "example-script has nothing to destroy"
+
+outputs:
+    @cat .propeller-outputs.json 2>/dev/null || echo '{}'
