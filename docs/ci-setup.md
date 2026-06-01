@@ -1,25 +1,29 @@
-# CI Setup
+# CI setup
 
-One-time setup for deploying from GitHub Actions. The CI user only needs
-permissions to upload the bundle to S3 and invoke the autopilot Lambda.
+Configure GitHub Actions to run plans and applies from the consumer repo. Once
+it's in place the pipeline can be triggered through the workflow UI.
 
-## 1. Create CI User (from management account CloudShell)
+The CI user only needs permissions to upload the bundle to S3 and invoke the
+Autopilot Lambda. No broad admin access.
 
-Run this entire block. It resolves the Operations account, assumes into it,
-creates the CI user, and outputs everything you need for GitHub.
+## 1. Create the CI user
+
+Run this entire block from CloudShell in the management account. It resolves the
+Operations account, assumes into it, creates the CI user, and prints all values
+needed for GitHub.
 
 ```bash
 # --- Configuration (edit this) ---
 REGION="eu-central-2"
 
-# --- Resolve operations account ---
+# --- Resolve Operations account ---
 OPS_ACCOUNT_ID=$(aws organizations list-accounts \
   --query "Accounts[?Name=='Operations' && Status=='ACTIVE'].Id | [0]" \
   --output text)
 BUNDLE_BUCKET="source-${OPS_ACCOUNT_ID}-${REGION}-an"
 LAMBDA_ARN="arn:aws:lambda:${REGION}:${OPS_ACCOUNT_ID}:function:propeller-autopilot"
 
-# --- Assume role into operations ---
+# --- Assume role into Operations ---
 CREDS=$(aws sts assume-role \
   --role-arn "arn:aws:iam::${OPS_ACCOUNT_ID}:role/AWSControlTowerExecution" \
   --role-session-name "propeller-ci-setup" \
@@ -29,7 +33,7 @@ export AWS_ACCESS_KEY_ID=$(echo $CREDS | jq -r .AccessKeyId)
 export AWS_SECRET_ACCESS_KEY=$(echo $CREDS | jq -r .SecretAccessKey)
 export AWS_SESSION_TOKEN=$(echo $CREDS | jq -r .SessionToken)
 
-# --- Create CI user ---
+# --- Create the CI user ---
 aws iam create-user --user-name propeller-ci
 
 aws iam put-user-policy --user-name propeller-ci --policy-name propeller-deploy --policy-document "$(cat <<EOF
@@ -75,24 +79,25 @@ EOF
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
 ```
 
-## 2. GitHub Secrets
+## 2. Add GitHub secrets
 
-Add to the consumer repo (Settings → Secrets and Variables → Actions → Secrets → Repository Secrets):
+In the consumer repo, go to **Settings → Secrets and Variables → Actions →
+Secrets (tab) → Repository Secrets (section)** and add:
 
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 
-## 3. GitHub Variables
+## 3. Add GitHub variables
 
-Add to the consumer repo (Settings → Secrets and Variables → Actions → Variables → Repository Variables):
+In the same UI, **Variables (tab) → Repository Variables (section)**:
 
 - `AWS_REGION`
 - `PROPELLER_BUNDLE_BUCKET`
 - `PROPELLER_LAMBDA_ARN`
 
-All values are printed at the end of the script above.
+All values were printed at the end of step 1.
 
-## 4. Deploy Workflow
+## 4. Add the deploy workflow
 
 Create `.github/workflows/deploy.yml`:
 
@@ -102,7 +107,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'Deploy action'
+        description: "Deploy action"
         required: true
         type: choice
         options:
@@ -133,3 +138,29 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           cat dist/pipeline.lock.md >> $GITHUB_STEP_SUMMARY
 ```
+
+The `action` input controls what the workflow does: `plan` shows what would
+change without applying; `apply` runs the actual deployment. The `DEPLOY_ACTION`
+environment variable is read by `just deploy` to decide which mode to invoke.
+
+Commit and push the workflow file.
+
+## 5. First deploy
+
+In the consumer repo, go to **Actions → Deploy → Run workflow**.
+
+Start with a `plan` run to confirm the wiring. The job summary shows the
+resolved propeller version, the action, and a Mermaid graph of the pipeline.
+
+## What this step produces
+
+- A dedicated CI user in the Operations account with minimal permissions
+- GitHub secrets and variables configured in the consumer repo
+- A `.github/workflows/deploy.yml` workflow that runs plan or apply
+- A successful first plan of the first step
+
+## What's next
+
+- Customize the pipeline as needs evolve: [customization](customization.md).
+- Look up reference details: [pipeline schema](pipeline-schema.md),
+  [project structure](project-structure.md).
