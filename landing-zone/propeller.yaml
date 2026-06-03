@@ -25,6 +25,9 @@ stages:
           - name: control_tower_stackset_role_arn
           - name: control_tower_config_aggregator_role_arn
 
+      - project: org-trusted-access
+        target: management
+
       - project: control-tower
         target: management
         depends_on: [control-tower-prerequisites]

@@ -1,0 +1,14 @@
+name: org-trusted-access
+description: >-
+  Enables AWS service trusted access with AWS Organizations and RAM org-sharing
+  in the management account. Must run before any project that shares resources
+  via RAM with OU/org-level principals, or that delegates administration of an
+  AWS service to a member account.
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
