@@ -24,7 +24,7 @@ apply:
       --argjson f "$PROPELLER_FRAMEWORK_TAGS_JSON" \
       '$c * $f')
 
-    # Realistic example: tag an SSM parameter created by this project.
+    # Example: tag an SSM parameter created by this project.
     aws_tags=$(jq -c '[to_entries[] | {Key: .key, Value: .value}]' <<<"$tags")
     aws ssm put-parameter \
         --region "{{ region }}" \
