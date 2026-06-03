@@ -1,0 +1,49 @@
+# control-tower — Control Tower landing zone deployment
+# Copy this file to config.auto.tfvars and fill in your values.
+
+# AWS region where Control Tower will be deployed (must match Identity Center region).
+region = "eu-central-2"
+
+# List of AWS regions to be governed by Control Tower.
+# Order matters: declare us-east-1 first, then the CT home region (if
+# different), then any additional regions. The CT API returns governedRegions
+# in this order; mismatches cause perpetual Terraform drift (provider bug
+# hashicorp/terraform-provider-aws#35763, unfixed as of provider v6).
+governed_regions = ["us-east-1", "eu-central-2"]
+
+# ── Account IDs (from control-tower-prerequisites outputs) ────────────────────
+
+# 12-digit AWS account ID of the Log Archive account.
+# log_archive_account_id = "123456789012"
+
+# 12-digit AWS account ID of the Security Tooling (Audit) account.
+# security_tooling_account_id = "123456789012"
+
+# ── Logging configuration ────────────────────────────────────────────────────
+
+# Retention in days for the centralized logging bucket.
+# logging_bucket_retention_days = 365
+
+# Retention in days for the access logging bucket.
+# access_logging_bucket_retention_days = 365
+
+# ── Access management ────────────────────────────────────────────────────────
+
+# Whether CT manages IAM Identity Center access. Set to false if Identity
+# Center is managed independently (e.g. by base-sso).
+# enable_access_management = false
+
+# ── Backup (optional) ────────────────────────────────────────────────────────
+# Set enable_backup = true and provide all three values to activate.
+
+# enable_backup            = false
+# backup_admin_account_id  = "123456789012"
+# backup_central_account_id = "123456789012"
+# backup_kms_key_arn       = "arn:aws:kms:eu-central-2:123456789012:key/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# ── Tags ─────────────────────────────────────────────────────────────────────
+
+# tags = {
+#   cost-center = "platform"
+#   project     = "landing-zone"
+# }
