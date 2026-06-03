@@ -37,14 +37,13 @@ The two variables that decide the setup path:
 
 Pick the matching section below.
 
-## Case 1 — Identity Center directory (local, `external_idp = false`)
+### Case 1 — Identity Center directory (local, `external_idp = false`)
 
 This is the default. Terraform **creates** the IdentityOperators group in the
 Identity Center directory and IdentityOperators get full directory admin
-(`AWSSSODirectoryAdministrator`), so they can create the other base groups
-(`aws-admins`, `aws-powerusers`, `aws-readonly-users`) at runtime.
+(`AWSSSODirectoryAdministrator`), so they can create the other base groups at runtime.
 
-### Evaluate the group name
+#### Evaluate the group name
 
 The group is created with the default display name `aws-identity-operators`.
 Change it only if a different naming convention has been agreed for the landing
@@ -62,14 +61,14 @@ apply replaces the group (destroy + create) and drops its memberships and the
 account assignment, which are then re-created on apply. Decide the name up
 front to avoid re-onboarding operators.
 
-### Create the first user and add them to the group
+#### Create the first user and add them to the group
 
 Terraform creates the group and the `IdentityOperator` assignment but
 intentionally does **not** add any member. Add the first operator (typically
 the platform admin) manually after the first apply, then they manage everyone
 else from the console.
 
-Console:
+**Option A — Console**
 
 1. Open the [IAM Identity Center console](https://console.aws.amazon.com/singlesignon)
    in the home Region.
@@ -84,9 +83,11 @@ Console:
    console, the **Dashboard** shows the **AWS access portal URL** (also under
    **Settings**). It looks like `https://d-xxxxxxxxxx.awsapps.com/start`.
 
-CLI (equivalent). First set the identity store and group IDs. You can read them
-from the project outputs (`identity_store_id`, `identity_operators_group_id`),
-or resolve them with the CLI as shown below:
+**Option B — CLI**
+
+First, set the identity store and group IDs. You can read them from the project
+outputs (`identity_store_id`, `identity_operators_group_id`), or resolve them
+with the CLI:
 
 ```bash
 # Identity Center home Region (must match base-sso's `region`)
@@ -123,8 +124,7 @@ aws identitystore create-group-membership \
   --member-id "UserId=$USER_ID"
 ```
 
-Finally, print the default sign-in URL to hand to the operator (this is the
-default form:
+Print the sign-in URL to hand to the operator:
 
 ```bash
 echo "https://${IDENTITY_STORE_ID}.awsapps.com/start"
@@ -133,7 +133,7 @@ echo "https://${IDENTITY_STORE_ID}.awsapps.com/start"
 Once the user is a member, they can sign in and start operating — see
 [First operator: signing in and operating](#first-operator-signing-in-and-operating).
 
-## Case 2 — External identity provider (`external_idp = true`)
+### Case 2 — External identity provider (`external_idp = true`)
 
 Set this when Identity Center is fed by an external IdP (e.g. Microsoft Entra
 ID, Okta) over SCIM. In this mode Terraform does **not** create the group — it
@@ -141,7 +141,7 @@ looks it up via a data source — and IdentityOperators get directory read-only
 (`AWSSSODirectoryReadOnly`), because any local write would be overwritten by the
 next SCIM sync.
 
-### Connect the IdP and provision the group first
+#### Connect the IdP and provision the group first
 
 The IdP connection (SAML metadata exchange, SCIM endpoint and bearer token) is
 configured manually — see the external IdP note in bootstrap
@@ -154,7 +154,7 @@ at plan time by design if the group is not present. Note that
 application in the IdP](https://docs.aws.amazon.com/singlesignon/latest/userguide/provision-automatically.html),
 so make sure the operators group is in scope of the sync.
 
-### Match the agreed group name
+#### Match the agreed group name
 
 `identity_operators_group_name` must match, **exactly**, the display name of the
 group as it is synced from the IdP. The default `aws-identity-operators` rarely
@@ -171,7 +171,7 @@ A mismatch (including case or whitespace) causes the lookup to fail at plan
 time. The name is the contract between the IdP and this project — agree on it
 with whoever owns the IdP before applying.
 
-### First user and membership
+#### First user and membership
 
 Do **not** create users or manage memberships in the Identity Center console in
 this mode — after SCIM is enabled, the console no longer allows it and any
@@ -207,7 +207,7 @@ See [Signing in to the AWS access portal](https://docs.aws.amazon.com/singlesign
 
 `base-sso` deliberately creates only the IdentityOperators group. As a
 recommended baseline, create the other base groups — `aws-admins`,
-`aws-powerusers`, `aws-readonly-users` — to mirror the three non-operator
+`aws-powerusers`, `aws-viewers` — to mirror the three non-operator
 permission sets. This is only a suggestion: the operator has full freedom to
 name the groups differently or create whatever group structure fits the
 organization. Create them where they belong for the chosen identity source:
