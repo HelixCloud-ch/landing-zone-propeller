@@ -44,6 +44,6 @@ governed_regions = ["us-east-1", "eu-central-2"]
 # ── Tags ─────────────────────────────────────────────────────────────────────
 
 # tags = {
-#   cost-center = "platform"
-#   project     = "landing-zone"
+#   org:cost-center = "platform"
+#   org:project     = "landing-zone"
 # }

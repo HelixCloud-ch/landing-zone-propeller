@@ -19,6 +19,6 @@ external_idp = false
 
 # Tags applied via provider default_tags to all resources.
 # tags = {
-#   cost-center = "platform"
-#   project     = "landing-zone"
+#   org:cost-center = "platform"
+#   org:project     = "landing-zone"
 # }

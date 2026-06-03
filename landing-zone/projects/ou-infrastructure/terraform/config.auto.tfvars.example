@@ -17,6 +17,6 @@ operations_account_id = "123456789012"
 # ── Tags ─────────────────────────────────────────────────────────────────────
 
 # tags = {
-#   cost-center = "platform"
-#   project     = "landing-zone"
+#   org:cost-center = "platform"
+#   org:project     = "landing-zone"
 # }
