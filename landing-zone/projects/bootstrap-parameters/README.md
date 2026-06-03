@@ -2,7 +2,7 @@
 
 Runs in the **management account**, `foundation` stage (no `depends_on` — runs in parallel with `control-tower-prerequisites` etc.).
 
-Resolves bootstrap-time values that are needed by downstream projects but are not produced as Terraform outputs by the pipeline itself:
+Resolves bootstrap-time values that are needed by downstream projects but are not produced by bootstrap scripts:
 
 | Output | Description |
 |--------|-------------|
