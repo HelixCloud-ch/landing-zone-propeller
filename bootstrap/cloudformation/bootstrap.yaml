@@ -32,6 +32,16 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "${ResourcesNamePrefix}-role"
+        - Key: "propeller:pipeline"
+          Value: "bootstrap"
+        - Key: "propeller:project"
+          Value: "bootstrap"
+        - Key: "propeller:cost-center"
+          Value: "propeller"
+        - Key: "propeller:deploy-type"
+          Value: "cloudformation"
+        - Key: "propeller:framework-required"
+          Value: "true"
 
   BootstrapLogGroup:
     Type: AWS::Logs::LogGroup
@@ -73,6 +83,16 @@ Resources:
       Tags:
         - Key: Name
           Value: !Ref ResourcesNamePrefix
+        - Key: "propeller:pipeline"
+          Value: "bootstrap"
+        - Key: "propeller:project"
+          Value: "bootstrap"
+        - Key: "propeller:cost-center"
+          Value: "propeller"
+        - Key: "propeller:deploy-type"
+          Value: "cloudformation"
+        - Key: "propeller:framework-required"
+          Value: "true"
 
 Outputs:
   CodeBuildProjectName:

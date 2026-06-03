@@ -90,6 +90,16 @@ Resources:
               - UseDefaultBucketName
               - !Sub "state-iac-${AWS::AccountId}-${AWS::Region}"
               - !Ref BucketName
+        - Key: "propeller:pipeline"
+          Value: "autopilot"
+        - Key: "propeller:project"
+          Value: "deploy-runner"
+        - Key: "propeller:cost-center"
+          Value: "propeller"
+        - Key: "propeller:deploy-type"
+          Value: "cloudformation"
+        - Key: "propeller:framework-required"
+          Value: "true"
 
   CodeBuildRole:
     Type: AWS::IAM::Role
@@ -104,6 +114,17 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/AdministratorAccess"
+      Tags:
+        - Key: "propeller:pipeline"
+          Value: "autopilot"
+        - Key: "propeller:project"
+          Value: "deploy-runner"
+        - Key: "propeller:cost-center"
+          Value: "propeller"
+        - Key: "propeller:deploy-type"
+          Value: "cloudformation"
+        - Key: "propeller:framework-required"
+          Value: "true"
 
   'Fn::ForEach::ReadBucketPolicies':
     - S3RBucketName
@@ -167,6 +188,17 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/codebuild/${ProjectName}"
       RetentionInDays: 90
+      Tags:
+        - Key: "propeller:pipeline"
+          Value: "autopilot"
+        - Key: "propeller:project"
+          Value: "deploy-runner"
+        - Key: "propeller:cost-center"
+          Value: "propeller"
+        - Key: "propeller:deploy-type"
+          Value: "cloudformation"
+        - Key: "propeller:framework-required"
+          Value: "true"
 
   DeployRunnerProject:
     Type: AWS::CodeBuild::Project
@@ -208,6 +240,17 @@ Resources:
               build:
                 commands:
                   - echo "No buildspec override provided"
+      Tags:
+        - Key: "propeller:pipeline"
+          Value: "autopilot"
+        - Key: "propeller:project"
+          Value: "deploy-runner"
+        - Key: "propeller:cost-center"
+          Value: "propeller"
+        - Key: "propeller:deploy-type"
+          Value: "cloudformation"
+        - Key: "propeller:framework-required"
+          Value: "true"
   CodeBuildRunRole:
     Type: AWS::IAM::Role
     Condition: CreateCBCallerPolicy
@@ -225,4 +268,15 @@ Resources:
                 aws:PrincipalArn: !Ref CallerARN
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess"
+      Tags:
+        - Key: "propeller:pipeline"
+          Value: "autopilot"
+        - Key: "propeller:project"
+          Value: "deploy-runner"
+        - Key: "propeller:cost-center"
+          Value: "propeller"
+        - Key: "propeller:deploy-type"
+          Value: "cloudformation"
+        - Key: "propeller:framework-required"
+          Value: "true"
 
