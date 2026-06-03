@@ -92,7 +92,12 @@ apply:
       "autopilot_role_arn": "$AUTOPILOT_ROLE_ARN"
     }
     EOF
-    echo "Outputs written."
+    echo "bootstrap-parameters apply — outputs written:"
+    echo "  portfolio_id:       $PORTFOLIO_ID"
+    echo "  product_id:         $PRODUCT_ID"
+    echo "  artifact_id:        $ARTIFACT_ID"
+    echo "  s3_source_bucket:   $S3_SOURCE_BUCKET"
+    echo "  autopilot_role_arn: $AUTOPILOT_ROLE_ARN"
 
 destroy:
     @echo "bootstrap-parameters has nothing to destroy"
