@@ -24,16 +24,21 @@ MANAGEMENT_ACCOUNT_ID=$(aws sts get-caller-identity --region "$STS_REGION" --que
 echo "Management account ID: ${MANAGEMENT_ACCOUNT_ID}"
 
 if [ -z "${OPERATIONS_ACCOUNT_ID:-}" ]; then
-  echo "--- Resolving operations account '${OPERATIONS_ACCOUNT_NAME}' from org root ---"
-  ORG_ROOT_ID=$(aws organizations list-roots --query 'Roots[0].Id' --output text)
-  OPERATIONS_ACCOUNT_ID=$(aws organizations list-accounts-for-parent \
-    --parent-id "$ORG_ROOT_ID" \
-    --query "Accounts[?Name=='${OPERATIONS_ACCOUNT_NAME}' && Status=='ACTIVE'].Id | [0]" \
+  echo "--- Resolving operations account '${OPERATIONS_ACCOUNT_NAME}' from organization ---"
+  MATCHING_IDS=$(aws organizations list-accounts \
+    --query "Accounts[?Name=='${OPERATIONS_ACCOUNT_NAME}' && Status=='ACTIVE'].Id" \
     --output text)
-  if [ "$OPERATIONS_ACCOUNT_ID" = "None" ] || [ -z "$OPERATIONS_ACCOUNT_ID" ]; then
-    echo "Account '${OPERATIONS_ACCOUNT_NAME}' not found. Run create-operation-account first." >&2
+  MATCH_COUNT=$(echo "$MATCHING_IDS" | wc -w | tr -d ' ')
+  if [ "$MATCH_COUNT" -eq 0 ]; then
+    echo "Account '${OPERATIONS_ACCOUNT_NAME}' not found in the organization." >&2
+    echo "Run create-operations-account.sh first or pass OPERATIONS_ACCOUNT_ID directly." >&2
+    exit 1
+  elif [ "$MATCH_COUNT" -gt 1 ]; then
+    echo "Multiple accounts named '${OPERATIONS_ACCOUNT_NAME}' found: ${MATCHING_IDS}" >&2
+    echo "Pass OPERATIONS_ACCOUNT_ID=<id> to disambiguate." >&2
     exit 1
   fi
+  OPERATIONS_ACCOUNT_ID="$MATCHING_IDS"
 fi
 echo "Operations account ID: ${OPERATIONS_ACCOUNT_ID}"
 

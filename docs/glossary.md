@@ -23,6 +23,9 @@ framework version independently.
 **Framework** - this repository. Ships the engine, the Autopilot Lambda, the
 consumer tooling, and a default landing-zone pipeline with its set of projects.
 
+**Framework tags** - the `propeller:*` tags injected by the engine on every
+resource.
+
 **Landing zone** - the org-wide foundation: the AWS Organization, OU structure,
 governance accounts (log archive, audit, etc.), Control Tower configuration,
 identity, and shared baselines. Everything that needs to exist before workload

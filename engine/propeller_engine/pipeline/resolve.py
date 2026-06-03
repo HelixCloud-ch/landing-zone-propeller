@@ -97,27 +97,78 @@ def _apply_stage_order(pipeline: Pipeline, overrides: PipelineOverrides) -> None
     pipeline.stages = [stage_map[name] for name in overrides.stage_order]
 
 
-def _discover_projects(propeller_dir: str) -> dict[str, str]:
+def _discover_projects(propeller_dir: str) -> dict[str, dict]:
+    """Return a map of project_name → {path, project_yaml}."""
     projects_root = Path(propeller_dir) / "projects"
-    result = {}
+    result: dict[str, dict] = {}
     if not projects_root.is_dir():
         return result
     for project_yaml in projects_root.rglob("project.yaml"):
         data = yaml.safe_load(project_yaml.read_text())
         name = data.get("name")
         if name:
-            result[name] = str(project_yaml.parent)
+            result[name] = {"path": str(project_yaml.parent), "yaml": data}
     return result
 
 
-def _set_default_sources(pipeline: Pipeline, propeller_dir: str) -> None:
-    project_paths = _discover_projects(propeller_dir)
+def _set_default_sources(
+    pipeline: Pipeline, project_index: dict[str, dict], propeller_dir: str
+) -> None:
     for stage in pipeline.stages:
         for step in stage.steps:
             if step.source is None:
-                step.source = project_paths.get(
-                    step.project, f"{propeller_dir}/projects/{step.project}"
+                entry = project_index.get(step.project)
+                step.source = (
+                    entry["path"]
+                    if entry
+                    else f"{propeller_dir}/projects/{step.project}"
                 )
+
+
+def _load_project_yaml_for_step(step: Step, project_index: dict[str, dict]) -> dict:
+    """Load project.yaml for a step, looking up by project name first then by source path."""
+    entry = project_index.get(step.project)
+    if entry:
+        return entry["yaml"]
+    if step.source:
+        path = Path(step.source) / "project.yaml"
+        if path.exists():
+            return yaml.safe_load(path.read_text())
+    return {}
+
+
+def _propeller_tags_for_step(
+    step: Step, pipeline: Pipeline, project_yaml: dict
+) -> dict[str, str]:
+    """Compute framework-managed tags for a step.
+
+    Tags are emitted only when their source value is set; missing values
+    produce no tag (rather than an empty-string tag).
+    """
+    tags: dict[str, str] = {}
+    if pipeline.namespace:
+        tags["propeller:pipeline"] = pipeline.namespace
+    tags["propeller:project"] = step.project
+
+    deploy_type = (project_yaml.get("deploy") or {}).get("type")
+    if deploy_type:
+        tags["propeller:deploy-type"] = deploy_type
+
+    metadata = project_yaml.get("metadata") or {}
+    cost_center = metadata.get("cost-center")
+    if cost_center:
+        tags["propeller:cost-center"] = str(cost_center)
+    if metadata.get("framework-required") is True:
+        tags["propeller:framework-required"] = "true"
+
+    return tags
+
+
+def _attach_propeller_tags(pipeline: Pipeline, project_index: dict[str, dict]) -> None:
+    for stage in pipeline.stages:
+        for step in stage.steps:
+            project_yaml = _load_project_yaml_for_step(step, project_index)
+            step.propeller_tags = _propeller_tags_for_step(step, pipeline, project_yaml)
 
 
 SSM_PREFIX = "/propeller"
@@ -248,15 +299,20 @@ def resolve(
         _apply_stage_order(pipeline, config.pipeline)
         propeller_version = config.propeller.get("version", "unknown")
         targets = config.pipeline.targets
+        consumer_tags = dict(config.tags or {})
     else:
         propeller_version = "dev"
         targets = {}
+        consumer_tags = {}
 
-    _set_default_sources(pipeline, propeller_dir)
+    project_index = _discover_projects(propeller_dir)
+    _set_default_sources(pipeline, project_index, propeller_dir)
     _expand_step_io(pipeline)
     _apply_targets(pipeline, targets)
 
     pipeline.propeller_version = propeller_version
+    pipeline.consumer_tags = consumer_tags
+    _attach_propeller_tags(pipeline, project_index)
     pipeline.resolved_at = datetime.now(timezone.utc).isoformat()
     return pipeline
 
@@ -283,6 +339,8 @@ def _step_to_dict(step: Step) -> dict:
                 entry["field"] = o.field
             outputs.append(entry)
         d["outputs"] = outputs
+    if step.propeller_tags:
+        d["propeller_tags"] = dict(step.propeller_tags)
     return d
 
 
@@ -294,6 +352,8 @@ def pipeline_to_dict(pipeline: Pipeline) -> dict:
         "resolved_at": pipeline.resolved_at,
         "stages": [],
     }
+    if pipeline.consumer_tags:
+        data["consumer_tags"] = dict(pipeline.consumer_tags)
     for stage in pipeline.stages:
         data["stages"].append(
             {

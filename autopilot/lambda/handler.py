@@ -40,6 +40,7 @@ class PipelineCtx:
     namespace: str
     propeller_version: str
     git_sha: str
+    consumer_tags: dict
 
 
 def _get_parameter(name: str) -> str:
@@ -197,6 +198,16 @@ def _start_build(step: dict, config: dict, pctx: PipelineCtx) -> str:
         {"name": "DEPLOY_ACTION", "value": pctx.deploy_action, "type": "PLAINTEXT"},
         {"name": "AWS_ACCOUNT_ID", "value": config["accountId"], "type": "PLAINTEXT"},
         {"name": "AWS_REGION", "value": config["region"], "type": "PLAINTEXT"},
+        {
+            "name": "PROPELLER_FRAMEWORK_TAGS_JSON",
+            "value": json.dumps(step.get("propeller_tags") or {}),
+            "type": "PLAINTEXT",
+        },
+        {
+            "name": "PROPELLER_CONSUMER_TAGS_JSON",
+            "value": json.dumps(pctx.consumer_tags),
+            "type": "PLAINTEXT",
+        },
     ]
     for var_name, value in config.get("inputs", {}).items():
         env_vars.append(
@@ -375,6 +386,7 @@ def handler(event: dict, context: DurableContext):
         namespace=pipeline.get("namespace", ""),
         propeller_version=pipeline.get("propeller_version", "unknown"),
         git_sha=event.get("git_sha", ""),
+        consumer_tags=pipeline.get("consumer_tags") or {},
     )
 
     # Filter pipeline to only the specified projects (if set)

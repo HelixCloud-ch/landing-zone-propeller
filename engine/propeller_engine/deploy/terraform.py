@@ -18,6 +18,10 @@ class TerraformRunner(DeployRunner):
         args = []
         for var_name, value in self.inputs.items():
             args.extend(["-var", f"{var_name}={value}"])
+        # Tag maps are passed as JSON. CLI -var beats *.auto.tfvars, so the
+        # consumer cannot override these via tfvars.
+        args.extend(["-var", f"propeller_tags={json.dumps(self.propeller_tags)}"])
+        args.extend(["-var", f"consumer_tags={json.dumps(self.consumer_tags)}"])
         return args
 
     def init(self) -> int:

@@ -1,6 +1,9 @@
 name: control-tower-prerequisites
 description: Control Tower Prerequisites
 
+metadata:
+  cost-center: landing-zone
+
 deploy:
   type: terraform
   terraform:

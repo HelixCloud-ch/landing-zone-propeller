@@ -14,6 +14,8 @@ import yaml
 ENV_VAR_RE = re.compile(r"\$\{(\w+)\}")
 INPUT_PREFIX = "PROPELLER_INPUT_"
 OUTPUTS_FILE = ".propeller-outputs.json"
+PROPELLER_TAGS_ENV = "PROPELLER_FRAMEWORK_TAGS_JSON"
+CONSUMER_TAGS_ENV = "PROPELLER_CONSUMER_TAGS_JSON"
 
 
 def log(msg: str) -> None:
@@ -48,9 +50,29 @@ def collect_inputs() -> dict[str, str]:
     }
 
 
-def run_cmd(cmd: list[str], cwd: Path | None = None) -> int:
+def collect_tags() -> tuple[dict[str, str], dict[str, str]]:
+    """Return (propeller_tags, consumer_tags) parsed from the environment."""
+
+    def _parse(name: str) -> dict[str, str]:
+        raw = os.environ.get(name, "").strip()
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise click.ClickException(f"{name} is not valid JSON: {exc}") from exc
+        if not isinstance(data, dict):
+            raise click.ClickException(f"{name} must decode to a JSON object")
+        return {str(k): str(v) for k, v in data.items()}
+
+    return _parse(PROPELLER_TAGS_ENV), _parse(CONSUMER_TAGS_ENV)
+
+
+def run_cmd(
+    cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
+) -> int:
     log(f"Running: {' '.join(cmd)}")
-    return subprocess.run(cmd, cwd=cwd).returncode
+    return subprocess.run(cmd, cwd=cwd, env=env).returncode
 
 
 def write_outputs_file(outputs: dict, project_dir: Path) -> None:
@@ -67,10 +89,14 @@ class DeployRunner:
         project: dict,
         project_dir: Path,
         inputs: dict[str, str],
+        propeller_tags: dict[str, str] | None = None,
+        consumer_tags: dict[str, str] | None = None,
     ):
         self.project = project
         self.project_dir = project_dir
         self.inputs = inputs
+        self.propeller_tags = propeller_tags or {}
+        self.consumer_tags = consumer_tags or {}
 
     def init(self) -> int:
         raise NotImplementedError
@@ -89,21 +115,31 @@ class DeployRunner:
 
 
 def get_runner(
-    project: dict, project_dir: Path, inputs: dict[str, str]
+    project: dict,
+    project_dir: Path,
+    inputs: dict[str, str],
+    propeller_tags: dict[str, str] | None = None,
+    consumer_tags: dict[str, str] | None = None,
 ) -> DeployRunner:
     deploy_type = project.get("deploy", {}).get("type", "")
 
     if deploy_type == "terraform":
         from .terraform import TerraformRunner
 
-        return TerraformRunner(project, project_dir, inputs)
+        return TerraformRunner(
+            project, project_dir, inputs, propeller_tags, consumer_tags
+        )
     elif deploy_type == "cloudformation":
         from .cloudformation import CloudFormationRunner
 
-        return CloudFormationRunner(project, project_dir, inputs)
+        return CloudFormationRunner(
+            project, project_dir, inputs, propeller_tags, consumer_tags
+        )
     elif deploy_type == "script":
         from .script import ScriptRunner
 
-        return ScriptRunner(project, project_dir, inputs)
+        return ScriptRunner(
+            project, project_dir, inputs, propeller_tags, consumer_tags
+        )
     else:
         raise click.ClickException(f"Unknown deploy type: {deploy_type}")

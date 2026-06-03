@@ -1,6 +1,9 @@
 name: example-terraform
 description: Minimal Terraform project illustrating the propeller contract
 
+metadata:
+  cost-center: example
+
 deploy:
   type: terraform
   terraform:

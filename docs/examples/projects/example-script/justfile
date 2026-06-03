@@ -2,6 +2,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 # Inputs from propeller. env() with no default fails if missing (required input);
 # env() with a default is optional. Wiring is declared in the pipeline step.
+
 region := env("AWS_REGION")
 upstream_id := env("PROPELLER_INPUT_upstream_id", "none")
 log_level := env("PROPELLER_INPUT_log_level", "info")
@@ -13,6 +14,26 @@ plan:
     @echo "example-script would write message, color, and count to .propeller-outputs.json"
 
 apply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Tags. Framework tags win on key collisions.
+    # Both env vars default to "{}" in the buildspec, so no fallback needed.
+    tags=$(jq -nc \
+      --argjson c "$PROPELLER_CONSUMER_TAGS_JSON" \
+      --argjson f "$PROPELLER_FRAMEWORK_TAGS_JSON" \
+      '$c * $f')
+
+    # Example: tag an SSM parameter created by this project.
+    aws_tags=$(jq -c '[to_entries[] | {Key: .key, Value: .value}]' <<<"$tags")
+    aws ssm put-parameter \
+        --region "{{ region }}" \
+        --name "/example-script/message" \
+        --type String \
+        --value "hello from example-script" \
+        --tags "$aws_tags" \
+        --overwrite
+
     # Multiple keys can be written; the pipeline picks which ones become
     # persisted outputs by declaring them in `outputs:` on the step.
     cat <<EOF > .propeller-outputs.json

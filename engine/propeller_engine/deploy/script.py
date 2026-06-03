@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import json
+import os
+
 from .runner import DeployRunner, run_cmd
 
 
 class ScriptRunner(DeployRunner):
+    def _env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        env["PROPELLER_FRAMEWORK_TAGS_JSON"] = json.dumps(self.propeller_tags)
+        env["PROPELLER_CONSUMER_TAGS_JSON"] = json.dumps(self.consumer_tags)
+        return env
+
     def _just(self, recipe: str) -> int:
         cmd = ["just", recipe]
-        return run_cmd(cmd, cwd=self.project_dir)
+        return run_cmd(cmd, cwd=self.project_dir, env=self._env())
 
     def init(self) -> int:
         return self._just("init")

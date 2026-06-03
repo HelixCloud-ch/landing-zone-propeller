@@ -28,6 +28,7 @@ class Step(BaseModel):
     depends_on: list[str] = Field(default_factory=list)
     inputs: list[dict | ProjectInput] = Field(default_factory=list)
     outputs: list[dict | ProjectOutput] = Field(default_factory=list)
+    propeller_tags: dict[str, str] = Field(default_factory=dict)
 
 
 class Stage(BaseModel):
@@ -41,3 +42,4 @@ class Pipeline(BaseModel):
     propeller_version: str | None = None
     resolved_at: str | None = None
     stages: list[Stage]
+    consumer_tags: dict[str, str] = Field(default_factory=dict)

@@ -5,6 +5,9 @@ description: >-
   via RAM with OU/org-level principals, or that delegates administration of an
   AWS service to a member account.
 
+metadata:
+  cost-center: landing-zone
+
 deploy:
   type: terraform
   terraform:

@@ -1,6 +1,9 @@
 name: control-tower
 description: Enable AWS Control Tower via the CreateLandingZone API
 
+metadata:
+  cost-center: landing-zone
+
 deploy:
   type: terraform
   terraform:
