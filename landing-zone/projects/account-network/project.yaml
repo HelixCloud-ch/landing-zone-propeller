@@ -3,6 +3,9 @@ description: >-
   Vend the Network account via Service Catalog Account Factory and place it
   into the Infrastructure OU.
 
+metadata:
+  cost-center: landing-zone
+
 deploy:
   type: terraform
   terraform:

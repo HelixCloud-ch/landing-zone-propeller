@@ -1,5 +1,8 @@
 name: example-script
 description: Minimal script project illustrating the propeller contract
 
+metadata:
+  cost-center: example
+
 deploy:
   type: script

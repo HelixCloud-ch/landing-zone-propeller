@@ -14,9 +14,9 @@ operations_account_id = "123456789012"
 # See https://docs.aws.amazon.com/controltower/latest/userguide/table-of-baselines.html
 # baseline_version = "5.0"
 
-# ── Tags ─────────────────────────────────────────────────────────────────────
+# ── Tags ──────────────────────────────────────────────────────────────────────
 
+# Tags applied to all resources created by this project.
 # tags = {
-#   org:cost-center = "platform"
-#   org:project     = "landing-zone"
+#   "acme:custom-tag" = "value"
 # }

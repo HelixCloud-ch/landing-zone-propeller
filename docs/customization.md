@@ -7,7 +7,7 @@ environment, without forking. Pair with the schema reference in
 All customization happens in two places:
 
 - `landing-zone/propeller.overrides.yaml` - pipeline-level changes (target
-  remapping, additions, removals, stage reordering).
+  remapping, additions, removals, stage reordering, pipeline-wide tags).
 - `landing-zone/projects/<name>/terraform/config.auto.tfvars` - per-project
   Terraform variable values. Mirrors the framework project structure;
   auto-loaded by Terraform at apply time.
@@ -15,6 +15,27 @@ All customization happens in two places:
 Run `just resolve` after any change to see the resolved pipeline at
 `dist/pipeline.lock.yaml` and the Mermaid graph at `dist/pipeline.lock.md`. Use
 this to verify the result before committing.
+
+## Set tags pipeline-wide
+
+Common tags applied to every project's resources go in
+`propeller.overrides.yaml`:
+
+```yaml
+tags:
+  "acme:cost-center": "platform"
+  "acme:environment": "dev"
+```
+
+These are merged into provider `default_tags` for all framework projects.
+Per-project tag overrides go in that project's `config.auto.tfvars`:
+
+```hcl
+tags = { "acme:project" = "eks" }
+```
+
+Per-project values take precedence over pipeline-wide ones. Framework tags
+(`propeller:*`) always win over both.
 
 ## Set Terraform variables for a framework project
 

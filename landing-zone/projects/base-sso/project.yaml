@@ -1,6 +1,9 @@
 name: base-sso
 description: Base IAM Identity Center permission sets and groups (ReadOnly, PowerUser, Admin, IdentityOperators)
 
+metadata:
+  cost-center: landing-zone
+
 deploy:
   type: terraform
   terraform:

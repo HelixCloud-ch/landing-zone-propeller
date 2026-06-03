@@ -76,6 +76,9 @@ outputs, dependencies) lives in the pipeline step, not here.
 name: control-tower-prerequisites
 description: Control Tower prerequisites
 
+metadata:
+  cost-center: landing-zone
+
 deploy:
   type: terraform
   terraform:
@@ -91,6 +94,9 @@ deploy:
 name: some-cfn-project
 description: Example CloudFormation project
 
+metadata:
+  cost-center: landing-zone
+
 deploy:
   type: cloudformation
   cloudformation:
@@ -105,6 +111,9 @@ deploy:
 name: example-script
 description: Example script-based project
 
+metadata:
+  cost-center: landing-zone
+
 deploy:
   type: script
 ```
@@ -113,6 +122,12 @@ deploy:
 
 - `name` - unique identifier within the pipeline. Must match the folder name.
 - `description` - human-readable summary. Surfaces in tooling.
+- `metadata.cost-center` - optional, becomes the `propeller:cost-center` tag on
+  resources created by this project. Omit to skip the tag.
+- `metadata.framework-required` - optional, set to `true` to emit
+  `propeller:framework-required = true` on every resource (use only for
+  resources that exist solely to run the framework, like CodeBuild projects and
+  Lambda runners).
 - `deploy.type` - `terraform`, `cloudformation`, or `script`.
 - `deploy.terraform.backend` - S3 backend config, env-var substituted at deploy
   time.
@@ -135,6 +150,40 @@ source can deploy into different accounts and namespaces without edits.
 
 A missing variable causes the deploy to fail with an explicit error rather than
 silently expanding to an empty string.
+
+## Tags
+
+The framework injects a small set of tags on every resource it deploys.
+Terraform projects expose three variables that the engine wires automatically:
+
+```hcl
+variable "tags"           { type = map(string)  default = {} }   # per-project
+variable "consumer_tags"  { type = map(string)  default = {} }   # pipeline-wide
+variable "propeller_tags" { type = map(string)  default = {} }   # framework
+
+# providers.tf
+default_tags {
+  tags = merge(var.consumer_tags, var.tags, var.propeller_tags)
+}
+```
+
+Precedence (lowest to highest): `consumer_tags` → `tags` → `propeller_tags`.
+Framework tags always win on key collisions; consumer per-project tags override
+pipeline-wide ones.
+
+Framework tags emitted automatically per project:
+
+- `propeller:pipeline` - the pipeline's `namespace`
+- `propeller:project` - the project name
+- `propeller:deploy-type` - `terraform`, `cloudformation`, or `script`
+- `propeller:cost-center` - from `metadata.cost-center` (only when set)
+- `propeller:framework-required` - from `metadata.framework-required: true`
+  (only when set to true)
+
+CloudFormation projects receive the same tags via
+`aws cloudformation deploy --tags`. Script projects receive them as
+`PROPELLER_FRAMEWORK_TAGS_JSON` and `PROPELLER_CONSUMER_TAGS_JSON` environment
+variables.
 
 ## Consumer overlays
 
@@ -197,6 +246,5 @@ overlay against.
   inputs, outputs, dependencies).
 - [Customization](customization.md) - common patterns for adding, removing, and
   overriding projects.
-- [Examples](examples/) - working reference projects to copy as starting
-  points.
+- [Examples](examples/) - working reference projects to copy as starting points.
 - [Glossary](glossary.md) - canonical terminology.

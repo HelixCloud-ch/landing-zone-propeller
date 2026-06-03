@@ -124,3 +124,23 @@ variable "create_iam_roles" {
   description = "Whether to create the four CT IAM service roles. Set to false if the roles already exist (e.g. a previous CT installation)."
   default     = true
 }
+
+# ── Tags ─────────────────────────────────────────────────────────────────────
+
+variable "tags" {
+  type        = map(string)
+  description = "Per-project tags applied to all resources via provider default_tags."
+  default     = {}
+}
+
+variable "consumer_tags" {
+  type        = map(string)
+  description = "Pipeline-wide tags applied to all resources via provider default_tags."
+  default     = {}
+}
+
+variable "propeller_tags" {
+  type        = map(string)
+  description = "Framework-managed tags applied to all resources via provider default_tags."
+  default     = {}
+}

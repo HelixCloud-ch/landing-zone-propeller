@@ -7,7 +7,13 @@ from pathlib import Path
 
 import click
 
-from ..deploy.runner import collect_inputs, get_runner, load_project_yaml, log
+from ..deploy.runner import (
+    collect_inputs,
+    collect_tags,
+    get_runner,
+    load_project_yaml,
+    log,
+)
 
 
 @click.group()
@@ -24,12 +30,19 @@ def main(ctx: click.Context, project_dir: str) -> None:
     project_dir_path = Path(project_dir).resolve()
     project = load_project_yaml(project_dir_path)
     inputs = collect_inputs()
+    propeller_tags, consumer_tags = collect_tags()
 
     log(f"Project: {project['name']}")
     for var_name, value in inputs.items():
         log(f"Input: {var_name} = {value}")
+    for k, v in propeller_tags.items():
+        log(f"Tag (framework): {k} = {v}")
+    for k, v in consumer_tags.items():
+        log(f"Tag (consumer):  {k} = {v}")
 
-    ctx.obj["runner"] = get_runner(project, project_dir_path, inputs)
+    ctx.obj["runner"] = get_runner(
+        project, project_dir_path, inputs, propeller_tags, consumer_tags
+    )
 
 
 @main.command()

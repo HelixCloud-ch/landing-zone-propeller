@@ -188,6 +188,18 @@ variable "backup_kms_key_arn" {
 
 variable "tags" {
   type        = map(string)
-  description = "Tags to apply to the Control Tower landing zone resource."
+  description = "Per-project tags applied to all resources via provider default_tags."
+  default     = {}
+}
+
+variable "consumer_tags" {
+  type        = map(string)
+  description = "Pipeline-wide tags applied to all resources via provider default_tags."
+  default     = {}
+}
+
+variable "propeller_tags" {
+  type        = map(string)
+  description = "Framework-managed tags applied to all resources via provider default_tags."
   default     = {}
 }

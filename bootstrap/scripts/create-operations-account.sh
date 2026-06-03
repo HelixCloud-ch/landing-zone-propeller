@@ -14,15 +14,18 @@ if ! echo "$OPERATIONS_EMAIL" | grep -qE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-
   exit 1
 fi
 
-# ── Resolve org root ─────────────────────────────────────────────────────────
-ORG_ROOT_ID=$(aws organizations list-roots --query 'Roots[0].Id' --output text)
-echo "Org root: ${ORG_ROOT_ID}"
-
-# ── Check if account already exists in the org root ──────────────────────────
-OPERATIONS_ACCOUNT_ID=$(aws organizations list-accounts-for-parent \
-  --parent-id "$ORG_ROOT_ID" \
-  --query "Accounts[?Name=='${OPERATIONS_ACCOUNT_NAME}' && Status=='ACTIVE'].Id | [0]" \
+# ── Check if account already exists anywhere in the org ─────────────────────
+MATCHING_IDS=$(aws organizations list-accounts \
+  --query "Accounts[?Name=='${OPERATIONS_ACCOUNT_NAME}' && Status=='ACTIVE'].Id" \
   --output text)
+MATCH_COUNT=$(echo "$MATCHING_IDS" | wc -w | tr -d ' ')
+
+if [ "$MATCH_COUNT" -gt 1 ]; then
+  echo "Multiple accounts named '${OPERATIONS_ACCOUNT_NAME}' found: ${MATCHING_IDS}" >&2
+  echo "Refusing to proceed. Rename the duplicates or use a different OPERATIONS_ACCOUNT_NAME." >&2
+  exit 1
+fi
+OPERATIONS_ACCOUNT_ID="$MATCHING_IDS"
 
 # ── Create account if it does not exist ──────────────────────────────────────
 if [ "$OPERATIONS_ACCOUNT_ID" != "None" ] && [ -n "$OPERATIONS_ACCOUNT_ID" ]; then
