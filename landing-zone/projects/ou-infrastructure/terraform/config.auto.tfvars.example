@@ -1,0 +1,22 @@
+# ou-infrastructure — Infrastructure OU and baseline enrollment
+# Copy this file to config.auto.tfvars and fill in your values.
+
+# AWS region for Control Tower operations (must match landing zone home region).
+region = "eu-central-2"
+
+# 12-digit AWS account ID of the operations account to move into this OU.
+operations_account_id = "123456789012"
+
+# Name of the Infrastructure OU.
+# ou_name = "Infrastructure"
+
+# Initial version of AWSControlTowerBaseline to enable.
+# See https://docs.aws.amazon.com/controltower/latest/userguide/table-of-baselines.html
+# baseline_version = "5.0"
+
+# ── Tags ─────────────────────────────────────────────────────────────────────
+
+# tags = {
+#   cost-center = "platform"
+#   project     = "landing-zone"
+# }
