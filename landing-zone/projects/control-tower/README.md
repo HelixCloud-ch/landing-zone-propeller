@@ -44,6 +44,18 @@ Security OU, accounts, and IAM roles).
 - CT deployment takes ~60 minutes on first apply
 - The `governed_regions` list should almost always include `us-east-1`
   (global services like IAM and Organizations operate there)
+- **Region ordering matters to avoid perpetual Terraform drift.** The CT API
+  returns `governedRegions` in the order it stored them at creation time. If
+  the list in `config.auto.tfvars` differs from that order, Terraform detects a
+  change on every plan and proposes a ~45-minute in-place update even though
+  nothing actually changed. This is a known provider bug
+  ([hashicorp/terraform-provider-aws#35763](https://github.com/hashicorp/terraform-provider-aws/issues/35763))
+  that is not yet fixed. To avoid it, declare the regions in the exact order the
+  API uses: `us-east-1` first, then the CT home region (if different), then any
+  additional regions. This matches the order observed in the API response across
+  multiple reported cases. Once the bug is fixed (PR
+  [#44902](https://github.com/hashicorp/terraform-provider-aws/pull/44902)), the
+  provider will normalise the order automatically.
 - When `enable_backup = true`, both backup account IDs and the KMS key ARN
   are required
 - The v4.0 manifest no longer includes `organizationStructure` — customers

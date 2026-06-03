@@ -1,0 +1,36 @@
+# control-tower-prerequisites — Accounts and roles required before Control Tower
+# Copy this file to config.auto.tfvars and fill in your values.
+
+# AWS region where Control Tower will be deployed.
+region = "eu-central-2"
+
+# ── Core accounts ────────────────────────────────────────────────────────────
+
+# Root email for the Log Archive account. Must be globally unique.
+log_archive_account_email = "aws+log-archive@example.com"
+
+# Root email for the Security Tooling (Audit) account. Must be globally unique.
+audit_account_email = "aws+audit@example.com"
+
+# Friendly names for the core accounts.
+# log_archive_account_name = "Log Archive"
+# audit_account_name       = "Security Tooling"
+
+# ── Security OU ──────────────────────────────────────────────────────────────
+
+# Name of the Security OU that will contain the service integration accounts.
+# security_ou_name = "Security"
+
+# ── Backup accounts (optional) ───────────────────────────────────────────────
+# Provide both emails to create the backup accounts, or leave empty to skip.
+
+# backup_admin_account_email   = "aws+backup-admin@example.com"
+# backup_admin_account_name    = "Backup Admin"
+# backup_central_account_email = "aws+backup-central@example.com"
+# backup_central_account_name  = "Central Backup"
+
+# ── IAM roles ────────────────────────────────────────────────────────────────
+
+# Set to false if the four CT IAM service roles already exist (e.g. from a
+# previous Control Tower installation).
+# create_iam_roles = true
