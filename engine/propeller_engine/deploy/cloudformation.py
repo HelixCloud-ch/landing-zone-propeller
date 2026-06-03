@@ -43,6 +43,18 @@ class CloudFormationRunner(DeployRunner):
                     params.append(f"{key.strip()}={val.strip().strip('"')}")
         return params
 
+    def _tag_args(self) -> list[str]:
+        # Consumer tags first, framework tags last so framework wins.
+        merged: dict[str, str] = {}
+        merged.update(self.consumer_tags)
+        merged.update(self.propeller_tags)
+        if not merged:
+            return []
+        args = ["--tags"]
+        for k, v in merged.items():
+            args.append(f"{k}={v}")
+        return args
+
     def _deploy_cmd(self, no_execute: bool = False) -> list[str]:
         cmd = [
             "aws",
@@ -61,6 +73,7 @@ class CloudFormationRunner(DeployRunner):
         params = self._param_overrides()
         if params:
             cmd.extend(["--parameter-overrides"] + params)
+        cmd.extend(self._tag_args())
         if no_execute:
             cmd.append("--no-execute-changeset")
         return cmd
