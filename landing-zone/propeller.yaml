@@ -84,5 +84,24 @@ stages:
           - name: /accounts.network.id
             var: account_id
 
+      - project: network-deploy-runner
+        target: management
+        depends_on: [account-network, bootstrap-parameters]
+        inputs:
+          - name: account-network.account_id
+            var: network_account_id
+          - name: bootstrap-parameters.portfolio_id
+            var: portfolio_id
+          - name: bootstrap-parameters.product_id
+            var: product_id
+          - name: bootstrap-parameters.artifact_id
+            var: provisioning_artifact_id
+          - name: bootstrap-parameters.s3_source_bucket
+            var: s3_source_bucket
+          - name: /accounts.operations.id
+            var: caller_account_id
+          - name: bootstrap-parameters.autopilot_role_arn
+            var: caller_arn
+
       - project: base-sso
         target: management
