@@ -87,6 +87,11 @@ propeller:
   version: "v1.0.0"
   repo: "HelixCloud-ch/landing-zone-propeller"
 
+# Pipeline-wide tags applied via provider default_tags on every project
+tags:
+  "acme:cost-center": "platform"
+  "acme:environment": "dev"
+
 pipeline:
   # Remap targets
   targets:
@@ -132,6 +137,12 @@ pipeline:
 - `version` - framework version to pull
 - `repo` - GitHub repo (default: `HelixCloud-ch/landing-zone-propeller`)
 
+**`tags` section:**
+
+- map of tags applied to every project's resources via provider `default_tags`.
+  Per-project tags (in tfvars) override these; framework `propeller:*` tags
+  override both.
+
 **`pipeline` section:**
 
 - `targets` - remap project targets to different accounts
@@ -139,3 +150,9 @@ pipeline:
 - `additions` - add steps to stages, or new stages (with `after:`)
 - `removals` - remove projects from the pipeline
 - `stage_order` - reorder stages
+
+## Framework tags
+
+The engine reads each project's `project.yaml` and emits a small set of tags on
+every resource. See [project-structure.md](project-structure.md#tags) for the
+full list and merge rules.

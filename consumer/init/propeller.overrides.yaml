@@ -2,6 +2,12 @@ propeller:
   version: "PROPELLER_VERSION_PLACEHOLDER"
   repo: "HelixCloud-ch/landing-zone-propeller"
 
+# Pipeline-wide tags applied to every project's resources.
+# Per-project tags (or overrides) belong in each project's tfvars instead.
+# tags:
+#   "acme:cost-center": "platform"
+#   "acme:environment": "dev"
+
 pipeline: {}
   # Remap targets to different accounts
   # targets:
