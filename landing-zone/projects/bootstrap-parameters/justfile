@@ -1,0 +1,87 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# ── Inputs ────────────────────────────────────────────────────────────────────
+region                := env("AWS_REGION")
+# Seeded into SSM by bootstrap/scripts/deploy-autopilot.sh.
+operations_account_id := env("PROPELLER_INPUT_operations_account_id")
+# Overridable if changed at bootstrap time.
+portfolio_name        := env("PROPELLER_INPUT_portfolio_display_name", "landing-zone-propeller")
+product_name          := env("PROPELLER_INPUT_product_name", "deploy-runner")
+source_bucket_prefix  := env("PROPELLER_INPUT_source_bucket_prefix", "source")
+autopilot_role_name   := env("PROPELLER_INPUT_autopilot_role_name", "propeller-autopilot-role")
+
+# ── Private: resolve all values and print as KEY=VALUE lines ─────────────────
+# Called by both plan and apply to avoid duplicating AWS lookup logic.
+[private]
+_resolve:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    PORTFOLIO_ID=$(aws servicecatalog list-accepted-portfolio-shares \
+        --region "{{ region }}" \
+        --portfolio-share-type AWS_ORGANIZATIONS \
+        --query "PortfolioDetails[?DisplayName=='{{ portfolio_name }}'].Id | [0]" \
+        --output text)
+    [ "$PORTFOLIO_ID" = "None" ] || [ -z "$PORTFOLIO_ID" ] && {
+        echo "Portfolio '{{ portfolio_name }}' not found. Run share-portfolio.sh first." >&2; exit 1; }
+
+    PRODUCT_ID=$(aws servicecatalog search-products \
+        --region "{{ region }}" \
+        --query "ProductViewSummaries[?Name=='{{ product_name }}'].ProductId | [0]" \
+        --output text)
+    [ "$PRODUCT_ID" = "None" ] || [ -z "$PRODUCT_ID" ] && {
+        echo "Product '{{ product_name }}' not found in accepted portfolios." >&2; exit 1; }
+
+    ARTIFACT_ID=$(aws servicecatalog list-provisioning-artifacts \
+        --region "{{ region }}" \
+        --product-id "$PRODUCT_ID" \
+        --query "ProvisioningArtifactDetails[?Active==\`true\` && Guidance=='DEFAULT'] | sort_by(@, &CreatedTime) | [-1].Id" \
+        --output text)
+    [ "$ARTIFACT_ID" = "None" ] || [ -z "$ARTIFACT_ID" ] && {
+        echo "No active DEFAULT artifact found for product '$PRODUCT_ID'." >&2; exit 1; }
+
+    S3_SOURCE_BUCKET="{{ source_bucket_prefix }}-{{ operations_account_id }}-{{ region }}"
+    AUTOPILOT_ROLE_ARN="arn:aws:iam::{{ operations_account_id }}:role/{{ autopilot_role_name }}"
+
+    echo "PORTFOLIO_ID=$PORTFOLIO_ID"
+    echo "PRODUCT_ID=$PRODUCT_ID"
+    echo "ARTIFACT_ID=$ARTIFACT_ID"
+    echo "S3_SOURCE_BUCKET=$S3_SOURCE_BUCKET"
+    echo "AUTOPILOT_ROLE_ARN=$AUTOPILOT_ROLE_ARN"
+
+# ── Recipes ───────────────────────────────────────────────────────────────────
+
+init:
+    @echo "bootstrap-parameters: region={{ region }}, operations={{ operations_account_id }}"
+
+plan:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(just _resolve)"
+    echo "bootstrap-parameters plan — resolved outputs:"
+    echo "  portfolio_id:       $PORTFOLIO_ID"
+    echo "  product_id:         $PRODUCT_ID"
+    echo "  artifact_id:        $ARTIFACT_ID"
+    echo "  s3_source_bucket:   $S3_SOURCE_BUCKET"
+    echo "  autopilot_role_arn: $AUTOPILOT_ROLE_ARN"
+
+apply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(just _resolve)"
+    cat > .propeller-outputs.json <<EOF
+    {
+      "portfolio_id":       "$PORTFOLIO_ID",
+      "product_id":         "$PRODUCT_ID",
+      "artifact_id":        "$ARTIFACT_ID",
+      "s3_source_bucket":   "$S3_SOURCE_BUCKET",
+      "autopilot_role_arn": "$AUTOPILOT_ROLE_ARN"
+    }
+    EOF
+    echo "Outputs written."
+
+destroy:
+    @echo "bootstrap-parameters has nothing to destroy"
+
+outputs:
+    @cat .propeller-outputs.json 2>/dev/null || echo '{}'
