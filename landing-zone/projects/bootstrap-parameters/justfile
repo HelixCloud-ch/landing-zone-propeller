@@ -17,28 +17,40 @@ _resolve:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    PORTFOLIO_ID=$(aws servicecatalog list-accepted-portfolio-shares \
+    # The portfolio is owned by the management account (created by
+    # bootstrap/scripts/create-portfolio.sh). This project always runs in the
+    # management account (target: management), so list-portfolios is correct.
+    PORTFOLIO_ID=$(aws servicecatalog list-portfolios \
         --region "{{ region }}" \
-        --portfolio-share-type AWS_ORGANIZATIONS \
         --query "PortfolioDetails[?DisplayName=='{{ portfolio_name }}'].Id | [0]" \
         --output text)
-    [ "$PORTFOLIO_ID" = "None" ] || [ -z "$PORTFOLIO_ID" ] && {
-        echo "Portfolio '{{ portfolio_name }}' not found. Run share-portfolio.sh first." >&2; exit 1; }
 
-    PRODUCT_ID=$(aws servicecatalog search-products \
+    if [ "$PORTFOLIO_ID" = "None" ] || [ -z "$PORTFOLIO_ID" ]; then
+        echo "Portfolio '{{ portfolio_name }}' not found." >&2
+        echo "Ensure bootstrap/scripts/create-portfolio.sh has run." >&2
+        exit 1
+    fi
+
+    PRODUCT_ID=$(aws servicecatalog search-products-as-admin \
         --region "{{ region }}" \
-        --query "ProductViewSummaries[?Name=='{{ product_name }}'].ProductId | [0]" \
+        --query "ProductViewDetails[?ProductViewSummary.Name=='{{ product_name }}'].ProductViewSummary.ProductId | [0]" \
         --output text)
-    [ "$PRODUCT_ID" = "None" ] || [ -z "$PRODUCT_ID" ] && {
-        echo "Product '{{ product_name }}' not found in accepted portfolios." >&2; exit 1; }
+
+    if [ "$PRODUCT_ID" = "None" ] || [ -z "$PRODUCT_ID" ]; then
+        echo "Product '{{ product_name }}' not found in portfolio '{{ portfolio_name }}'." >&2
+        exit 1
+    fi
 
     ARTIFACT_ID=$(aws servicecatalog list-provisioning-artifacts \
         --region "{{ region }}" \
         --product-id "$PRODUCT_ID" \
         --query "ProvisioningArtifactDetails[?Active==\`true\` && Guidance=='DEFAULT'] | sort_by(@, &CreatedTime) | [-1].Id" \
         --output text)
-    [ "$ARTIFACT_ID" = "None" ] || [ -z "$ARTIFACT_ID" ] && {
-        echo "No active DEFAULT artifact found for product '$PRODUCT_ID'." >&2; exit 1; }
+
+    if [ "$ARTIFACT_ID" = "None" ] || [ -z "$ARTIFACT_ID" ]; then
+        echo "No active DEFAULT artifact found for product '$PRODUCT_ID'." >&2
+        exit 1
+    fi
 
     S3_SOURCE_BUCKET="{{ source_bucket_prefix }}-{{ operations_account_id }}-{{ region }}"
     AUTOPILOT_ROLE_ARN="arn:aws:iam::{{ operations_account_id }}:role/{{ autopilot_role_name }}"
@@ -57,7 +69,8 @@ init:
 plan:
     #!/usr/bin/env bash
     set -euo pipefail
-    eval "$(just _resolve)"
+    resolved=$(just _resolve)
+    eval "$resolved"
     echo "bootstrap-parameters plan — resolved outputs:"
     echo "  portfolio_id:       $PORTFOLIO_ID"
     echo "  product_id:         $PRODUCT_ID"
@@ -68,7 +81,8 @@ plan:
 apply:
     #!/usr/bin/env bash
     set -euo pipefail
-    eval "$(just _resolve)"
+    resolved=$(just _resolve)
+    eval "$resolved"
     cat > .propeller-outputs.json <<EOF
     {
       "portfolio_id":       "$PORTFOLIO_ID",
