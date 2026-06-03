@@ -49,6 +49,20 @@ stages:
             var: ou_id
           - name: infrastructure_arn
             var: ou_arn
+          - name: infrastructure_name
+            var: ou_name
+
+      - project: account-network
+        target: management
+        depends_on: [ou-infrastructure]
+        inputs:
+          - name: ou-infrastructure.infrastructure_id
+            var: ou_id
+          - name: ou-infrastructure.infrastructure_name
+            var: ou_name
+        outputs:
+          - name: /accounts.network.id
+            var: account_id
 
       - project: base-sso
         target: management
