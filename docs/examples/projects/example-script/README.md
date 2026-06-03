@@ -6,6 +6,9 @@ Minimal script project. Demonstrates:
   `outputs`).
 - Reading multiple inputs from `PROPELLER_INPUT_*` environment variables, with
   optional defaults via `env("VAR", "fallback")`.
+- Reading framework and consumer tags from `PROPELLER_FRAMEWORK_TAGS_JSON` and
+  `PROPELLER_CONSUMER_TAGS_JSON` (JSON maps), merging them with `jq`, and
+  applying via `aws ... --tags`.
 - Writing multiple outputs to `.propeller-outputs.json`. The pipeline step's
   `outputs:` declaration decides which of these keys get persisted to SSM; the
   project itself can write more than the pipeline consumes.
