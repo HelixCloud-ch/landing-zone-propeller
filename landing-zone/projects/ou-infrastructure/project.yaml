@@ -1,6 +1,9 @@
 name: ou-infrastructure
 description: Create the Infrastructure OU and enroll it in Control Tower
 
+metadata:
+  cost-center: landing-zone
+
 deploy:
   type: terraform
   terraform:

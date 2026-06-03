@@ -14,12 +14,6 @@ variable "region" {
   }
 }
 
-variable "tags" {
-  type        = map(string)
-  description = "Tags applied via provider default_tags."
-  default     = {}
-}
-
 variable "trusted_service_principals" {
   type        = list(string)
   description = <<-EOT
@@ -33,4 +27,24 @@ variable "trusted_service_principals" {
     https://docs.aws.amazon.com/organizations/latest/userguide/orgs_integrate_services_list.html
   EOT
   default     = []
+}
+
+# ── Tags ─────────────────────────────────────────────────────────────────────
+
+variable "tags" {
+  type        = map(string)
+  description = "Per-project tags applied to all resources via provider default_tags."
+  default     = {}
+}
+
+variable "consumer_tags" {
+  type        = map(string)
+  description = "Pipeline-wide tags applied to all resources via provider default_tags."
+  default     = {}
+}
+
+variable "propeller_tags" {
+  type        = map(string)
+  description = "Framework-managed tags applied to all resources via provider default_tags."
+  default     = {}
 }

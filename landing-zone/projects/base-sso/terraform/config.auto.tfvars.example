@@ -17,8 +17,9 @@ external_idp = false
 # Session duration for all permission sets (ISO 8601).
 # session_duration = "PT1H"
 
-# Tags applied via provider default_tags to all resources.
+# ── Tags ──────────────────────────────────────────────────────────────────────
+
+# Tags applied to all resources created by this project.
 # tags = {
-#   org:cost-center = "platform"
-#   org:project     = "landing-zone"
+#   "acme:custom-tag" = "value"
 # }
