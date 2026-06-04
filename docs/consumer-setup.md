@@ -69,8 +69,8 @@ read-only, useful for inspection and debugging only.
 ## 3. Review what the framework deploys
 
 Run `just resolve` to produce a Mermaid graph of the resolved pipeline at
-`dist/pipeline.lock.md`. Open it in any Markdown previewer (VS Code, GitHub,
-etc.) for a visual map of stages, steps, and dependencies.
+`dist/landing-zone/pipeline.lock.md`. Open it in any Markdown previewer (VS
+Code, GitHub, etc.) for a visual map of stages, steps, and dependencies.
 
 For deeper detail on individual projects, read each project's README under
 `.propeller/landing-zone/projects/<name>/README.md`.
