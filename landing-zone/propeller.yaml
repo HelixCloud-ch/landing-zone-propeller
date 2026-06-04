@@ -86,3 +86,18 @@ stages:
 
       - project: base-sso
         target: management
+
+  - name: workloads
+    steps:
+      - project: workload-ous
+        target: management
+        outputs:
+          - name: ou_ids
+            var: ou_ids
+
+      - project: workload-accounts
+        target: management
+        depends_on: [workload-ous]
+        inputs:
+          - name: workload-ous.ou_ids
+            var: ou_ids
