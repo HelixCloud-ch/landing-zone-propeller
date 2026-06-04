@@ -88,7 +88,7 @@ stages:
         target: management
         depends_on: [account-network, bootstrap-parameters]
         inputs:
-          - name: account-network.account_id
+          - name: /accounts.network.id
             var: network_account_id
           - name: bootstrap-parameters.portfolio_id
             var: portfolio_id
