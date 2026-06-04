@@ -27,6 +27,7 @@ phases:
   build:
     commands:
       - cd bundle
-      - uv run --project engine propeller-deploy --project-dir "projects/$PROJECT_NAME" init
-      - uv run --project engine propeller-deploy --project-dir "projects/$PROJECT_NAME" $DEPLOY_ACTION
-      - export PROPELLER_OUTPUTS_JSON=$(cat "projects/$PROJECT_NAME/.propeller-outputs.json" 2>/dev/null || echo '{}')
+      - uv run --project engine propeller-deploy --pipeline pipeline.lock.yaml --project "$PROJECT_NAME" init
+      - uv run --project engine propeller-deploy --pipeline pipeline.lock.yaml --project "$PROJECT_NAME" $DEPLOY_ACTION
+      - PROJECT_DIR=$(uv run --project engine propeller-deploy --pipeline pipeline.lock.yaml --project "$PROJECT_NAME" project-dir)
+      - export PROPELLER_OUTPUTS_JSON=$(cat "$PROJECT_DIR/.propeller-outputs.json" 2>/dev/null || echo '{}')
