@@ -80,7 +80,7 @@ variable "create_bucket" {
 
 variable "s3_source_bucket" {
   type        = string
-  description = "Name of the source S3 bucket in the operations account (CBS3SourceBucket parameter). Wired from bootstrap-parameters outputs via the propeller pipeline."
+  description = "Name of the source S3 bucket in the operations account. Passed as the S3ReadBuckets parameter (read access for the deploy bundle, not a fixed CodeBuild source). Wired from bootstrap-parameters outputs via the propeller pipeline."
   default     = ""
 }
 

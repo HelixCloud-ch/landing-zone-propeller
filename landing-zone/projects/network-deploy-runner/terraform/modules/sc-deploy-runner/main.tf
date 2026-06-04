@@ -1,6 +1,6 @@
 locals {
-  s3_source_bucket_param = var.s3_source_bucket != "" ? [{
-    key   = "CBS3SourceBucket"
+  s3_read_buckets_param = var.s3_source_bucket != "" ? [{
+    key   = "S3ReadBuckets"
     value = var.s3_source_bucket
   }] : []
 
@@ -33,7 +33,7 @@ resource "aws_servicecatalog_provisioned_product" "this" {
   }
 
   dynamic "provisioning_parameters" {
-    for_each = local.s3_source_bucket_param
+    for_each = local.s3_read_buckets_param
     content {
       key   = provisioning_parameters.value.key
       value = provisioning_parameters.value.value

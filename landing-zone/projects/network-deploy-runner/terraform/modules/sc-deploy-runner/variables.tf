@@ -57,7 +57,7 @@ variable "create_bucket" {
 
 variable "s3_source_bucket" {
   type        = string
-  description = "Name of the source S3 bucket in the operations account (CBS3SourceBucket parameter). Grants the CodeBuild role read access to the deploy bundle."
+  description = "Name of the source S3 bucket in the operations account. Passed as the S3ReadBuckets parameter to grant the CodeBuild role read access to the deploy bundle. The autopilot injects the actual source at build time via sourceLocationOverride; the project itself uses NO_SOURCE."
   default     = ""
 }
 

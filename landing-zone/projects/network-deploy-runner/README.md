@@ -112,7 +112,7 @@ No resources.
 | <a name="input_provisioned_product_name"></a> [provisioned\_product\_name](#input\_provisioned\_product\_name) | Name for the provisioned product in the Network account. Defaults to the name used in all other accounts. | `string` | `"deploy-runner"` | no |
 | <a name="input_provisioning_artifact_id"></a> [provisioning\_artifact\_id](#input\_provisioning\_artifact\_id) | ID of the provisioning artifact (product version) to deploy (e.g. pa-xxxx). Wired from bootstrap-parameters, which resolves the latest active DEFAULT artifact. Changing this value triggers an in-place update of the provisioned product. | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | AWS region for the Service Catalog API call (must match the landing zone home region). | `string` | n/a | yes |
-| <a name="input_s3_source_bucket"></a> [s3\_source\_bucket](#input\_s3\_source\_bucket) | Name of the source S3 bucket in the operations account (CBS3SourceBucket parameter). Wired from bootstrap-parameters outputs via the propeller pipeline. | `string` | `""` | no |
+| <a name="input_s3_source_bucket"></a> [s3\_source\_bucket](#input\_s3\_source\_bucket) | Name of the source S3 bucket in the operations account. Passed as the S3ReadBuckets parameter (read access for the deploy bundle, not a fixed CodeBuild source). Wired from bootstrap-parameters outputs via the propeller pipeline. | `string` | `""` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Per-project tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
 
 ## Outputs
