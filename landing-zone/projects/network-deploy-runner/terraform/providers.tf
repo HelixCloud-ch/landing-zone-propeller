@@ -9,6 +9,6 @@ provider "aws" {
   }
 
   default_tags {
-    tags = var.tags
+    tags = merge(var.consumer_tags, var.tags, var.propeller_tags)
   }
 }

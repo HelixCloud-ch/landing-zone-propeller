@@ -103,15 +103,17 @@ No resources.
 | <a name="input_caller_account_id"></a> [caller\_account\_id](#input\_caller\_account\_id) | AWS account ID of the operations account (CallerAccountId parameter). Wired from SSM /accounts.operations.id via the propeller pipeline. | `string` | `""` | no |
 | <a name="input_caller_arn"></a> [caller\_arn](#input\_caller\_arn) | ARN of the autopilot role that will assume deploy-runner-run-role in the Network account (CallerARN parameter). Wired from bootstrap-parameters outputs via the propeller pipeline. | `string` | `""` | no |
 | <a name="input_cb_project_name"></a> [cb\_project\_name](#input\_cb\_project\_name) | Name of the CodeBuild project (ProjectName parameter). | `string` | `"deploy-runner"` | no |
+| <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | Pipeline-wide tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_create_bucket"></a> [create\_bucket](#input\_create\_bucket) | Whether to create the IaC state S3 bucket. Set to false if it already exists. | `bool` | `true` | no |
 | <a name="input_network_account_id"></a> [network\_account\_id](#input\_network\_account\_id) | AWS account ID of the Network account. Wired from account-network outputs via the propeller pipeline. | `string` | n/a | yes |
 | <a name="input_portfolio_id"></a> [portfolio\_id](#input\_portfolio\_id) | ID of the Service Catalog portfolio (e.g. port-xxxx). Wired from bootstrap-parameters outputs via the propeller pipeline. Used both for the principal association and as path\_id when provisioning. | `string` | n/a | yes |
 | <a name="input_product_id"></a> [product\_id](#input\_product\_id) | ID of the Service Catalog product (e.g. prod-xxxx). Wired from bootstrap-parameters outputs via the propeller pipeline. | `string` | n/a | yes |
+| <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | Framework-managed tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_provisioned_product_name"></a> [provisioned\_product\_name](#input\_provisioned\_product\_name) | Name for the provisioned product in the Network account. Defaults to the name used in all other accounts. | `string` | `"deploy-runner"` | no |
 | <a name="input_provisioning_artifact_id"></a> [provisioning\_artifact\_id](#input\_provisioning\_artifact\_id) | ID of the provisioning artifact (product version) to deploy (e.g. pa-xxxx). Wired from bootstrap-parameters, which resolves the latest active DEFAULT artifact. Changing this value triggers an in-place update of the provisioned product. | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | AWS region for the Service Catalog API call (must match the landing zone home region). | `string` | n/a | yes |
 | <a name="input_s3_source_bucket"></a> [s3\_source\_bucket](#input\_s3\_source\_bucket) | Name of the source S3 bucket in the operations account (CBS3SourceBucket parameter). Wired from bootstrap-parameters outputs via the propeller pipeline. | `string` | `""` | no |
-| <a name="input_tags"></a> [tags](#input\_tags) | Tags applied via provider default\_tags. | `map(string)` | `{}` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Per-project tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
 
 ## Outputs
 

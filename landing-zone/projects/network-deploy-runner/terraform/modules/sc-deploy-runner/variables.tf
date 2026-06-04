@@ -72,3 +72,9 @@ variable "caller_account_id" {
   description = "AWS account ID of the caller (CallerAccountId parameter). Required together with caller_arn to create the cross-account run role."
   default     = ""
 }
+
+variable "tags" {
+  type        = map(string)
+  description = "Tags applied to the provisioned product and propagated by Service Catalog to all CloudFormation resources created in the Network account."
+  default     = {}
+}

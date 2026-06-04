@@ -16,4 +16,6 @@ module "deploy_runner" {
   s3_source_bucket  = var.s3_source_bucket
   caller_arn        = var.caller_arn
   caller_account_id = var.caller_account_id
+
+  tags = merge(var.consumer_tags, var.tags, var.propeller_tags)
 }

@@ -31,6 +31,10 @@ resource "aws_servicecatalog_provisioned_product" "this" {
   path_id                  = var.portfolio_id
   provisioning_artifact_id = var.provisioning_artifact_id
 
+  # Tags are propagated by Service Catalog to all CloudFormation resources
+  # created in the Network account (S3 bucket, CodeBuild project, IAM roles).
+  tags = var.tags
+
   # No lifecycle.ignore_changes on provisioning_artifact_id: the artifact ID is
   # an explicit pipeline input resolved by bootstrap-parameters. Updating to a
   # new product version is triggered by re-running the pipeline after a new
