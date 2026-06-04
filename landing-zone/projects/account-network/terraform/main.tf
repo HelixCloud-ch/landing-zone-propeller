@@ -3,7 +3,7 @@ locals {
 }
 
 module "account" {
-  source = "./modules/ct-account"
+  source = "../../../shared/modules/ct-account"
 
   account_name  = var.account_name
   account_email = var.account_email
