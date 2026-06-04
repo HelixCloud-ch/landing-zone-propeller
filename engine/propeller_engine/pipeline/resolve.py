@@ -288,6 +288,7 @@ def resolve(
     base_path: Path,
     overrides_path: Path | None,
     propeller_dir: str = ".propeller",
+    version: str | None = None,
 ) -> Pipeline:
     pipeline = copy.deepcopy(load_base_pipeline(base_path))
 
@@ -297,13 +298,16 @@ def resolve(
         _apply_overrides(pipeline, config.pipeline)
         _apply_additions(pipeline, config.pipeline)
         _apply_stage_order(pipeline, config.pipeline)
-        propeller_version = config.propeller.get("version", "unknown")
         targets = config.pipeline.targets
         consumer_tags = dict(config.tags or {})
     else:
-        propeller_version = "dev"
         targets = {}
         consumer_tags = {}
+
+    # The version is supplied by the consumer tooling (read from the version
+    # pin file and passed via --version). Defaults to "dev" for framework-local
+    # runs with no version.
+    propeller_version = version or "dev"
 
     project_index = _discover_projects(propeller_dir)
     _set_default_sources(pipeline, project_index, propeller_dir)
