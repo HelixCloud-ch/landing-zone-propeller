@@ -1,0 +1,41 @@
+# workload-accounts — Workload account creation
+# Copy this file to config.auto.tfvars and fill in your values.
+
+# AWS region (must match the Control Tower home region).
+region = "eu-central-2"
+
+# ── SSO defaults ──────────────────────────────────────────────────────────────
+# Default SSO user for new accounts. Per-account overrides via the accounts map.
+
+default_sso_user_email = "aws+admin@example.com"
+
+# default_sso_user_first_name = "Admin"
+# default_sso_user_last_name  = "Account"
+
+# ── Accounts ──────────────────────────────────────────────────────────────────
+# Keys become target names for platform pipelines (e.g. target: acme-prod).
+# The `ou` field references a path from workload-ous.
+
+accounts = {
+  acme-prod = { email = "aws+acme-prod@example.com", ou = "Workloads/Prod" }
+  acme-test = { email = "aws+acme-test@example.com", ou = "Workloads/Test" }
+}
+
+# Per-account SSO override example:
+# accounts = {
+#   acme-prod = {
+#     email               = "aws+acme-prod@example.com"
+#     ou                  = "Workloads/Prod"
+#     sso_user_email      = "ops-lead@example.com"
+#     sso_user_first_name = "Ops"
+#     sso_user_last_name  = "Lead"
+#   }
+# }
+
+# ── Tags ──────────────────────────────────────────────────────────────────────
+# Per-project tags applied to all resources created by this project.
+
+# tags = {
+#   "acme:env"     = "prod"
+#   "acme:project" = "landing-zone"
+# }
