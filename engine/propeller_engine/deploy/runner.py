@@ -29,6 +29,25 @@ def load_project_yaml(project_dir: Path) -> dict:
     return yaml.safe_load(path.read_text())
 
 
+def resolve_project_dir(pipeline_path: Path, project: str) -> Path:
+    """Return the project's directory, looked up by name in a resolved pipeline.
+
+    The resolved lock stores each step's bundle-relative ``source``. Paths are
+    resolved relative to the lock file's directory (the bundle root).
+    """
+    data = yaml.safe_load(pipeline_path.read_text())
+    for stage in data.get("stages", []):
+        for step in stage.get("steps", []):
+            if step.get("project") == project:
+                source = step.get("source")
+                if not source:
+                    raise click.ClickException(
+                        f"Project '{project}' has no source in {pipeline_path}"
+                    )
+                return (pipeline_path.parent / source).resolve()
+    raise click.ClickException(f"Project '{project}' not found in {pipeline_path}")
+
+
 def substitute_env(value: str) -> str:
     def replacer(match: re.Match) -> str:
         var_name = match.group(1)
@@ -138,8 +157,6 @@ def get_runner(
     elif deploy_type == "script":
         from .script import ScriptRunner
 
-        return ScriptRunner(
-            project, project_dir, inputs, propeller_tags, consumer_tags
-        )
+        return ScriptRunner(project, project_dir, inputs, propeller_tags, consumer_tags)
     else:
         raise click.ClickException(f"Unknown deploy type: {deploy_type}")
