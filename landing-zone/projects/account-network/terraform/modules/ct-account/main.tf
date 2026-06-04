@@ -44,6 +44,13 @@ resource "aws_servicecatalog_provisioned_product" "this" {
       name,
       provisioning_artifact_name,
       provisioning_artifact_id,
+      # The CT Account Factory blocks all tag mutations after provisioning
+      # (Resource Update Constraint). Existing provisioned products carry tags
+      # baked in at their original provision that can never be removed. Ignore
+      # tag drift so Terraform never attempts an UpdateProvisionedProduct for
+      # tags, which would fail with a ValidationException.
+      tags,
+      tags_all,
     ]
   }
 }

@@ -8,7 +8,7 @@ Vends the Network account via the **Service Catalog Account Factory** and places
 
 Calls the `ct-account` module which provisions an `aws_servicecatalog_provisioned_product` against the `AWS Control Tower Account Factory` product. Service Catalog creates the AWS account directly into the target OU and synchronously waits for full CT enrollment (all baseline StackSets deployed) before returning.
 
-Tags are intentionally not passed to the provisioned product. The CT Account Factory has a Resource Update Constraint that blocks tag updates via `UpdateProvisionedProduct` — any attempt causes a `ValidationException`. The `ct-account` module uses the `aws.notags` provider alias (no `default_tags`) to ensure no tags are ever sent to the SC API.
+Tags are intentionally not passed to the provisioned product. AWS guidance is explicit that the `AWS Control Tower Account Factory` product must not receive tags — per [Provision accounts in the Service Catalog console](https://docs.aws.amazon.com/controltower/latest/userguide/provision-as-end-user.html): "Don't define TagOptions and don't enable Notifications, otherwise the account can fail to be provisioned." On top of that, the product has a Resource Update Constraint that rejects any tag update after provisioning with a `ValidationException`. The `ct-account` module therefore uses the `aws.notags` provider alias (no `default_tags`) so no tags are ever sent to the SC API, and sets `lifecycle.ignore_changes = [tags, tags_all]` so Terraform never tries to reconcile tags on products that already carry them. There is no supported way to tag the underlying account resources through this product.
 
 ## Operational notes
 
