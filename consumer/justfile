@@ -4,57 +4,128 @@
 #
 # The root justfile should define the `pull` recipe (bootstrap/update).
 # All other recipes are provided here and stay in sync with the framework.
-
+#
+# Build artifacts are written under dist/<pipeline>/ — the landing-zone
+# pipeline uses dist/landing-zone/, each platform uses dist/<platform>/.
 # Requirements: uv, yq, jq, aws-cli
 
 bundle_s3_bucket := env("PROPELLER_BUNDLE_BUCKET", "")
 lambda_function := env("PROPELLER_LAMBDA_ARN", "")
 
-# Resolve the pipeline (merge base + overrides)
+# Repo-wide framework version pin.
+
+propeller_version := shell("yq '.propeller.version' landing-zone/propeller.overrides.yaml")
+
+# ── Landing zone ──────────────────────────────────────────────────────────────
+
+# Resolve the landing-zone pipeline (framework base + consumer overrides)
 resolve:
-    mkdir -p dist
+    mkdir -p dist/landing-zone
     uv run --project .propeller/engine propeller-resolve \
         --base .propeller/landing-zone/propeller.yaml \
         --overrides landing-zone/propeller.overrides.yaml \
-        --output dist/pipeline.lock.yaml \
+        --version "{{ propeller_version }}" \
+        --output dist/landing-zone/pipeline.lock.yaml \
         --propeller-dir .propeller/landing-zone
 
-# Validate the resolved pipeline
+# Validate the resolved landing-zone pipeline
 validate:
     uv run --project .propeller/engine propeller-validate \
-        --pipeline dist/pipeline.lock.yaml \
+        --pipeline dist/landing-zone/pipeline.lock.yaml \
         --no-check-sources
 
-# Bundle everything into a single deployable zip
+# Bundle the landing-zone pipeline into a deployable zip
 bundle:
     uv run --project .propeller/engine propeller-bundle \
-        --pipeline dist/pipeline.lock.yaml \
+        --pipeline dist/landing-zone/pipeline.lock.yaml \
         --propeller-dir .propeller/landing-zone \
         --overlay-dir landing-zone/projects \
-        --output dist/bundle.zip
+        --output dist/landing-zone/bundle.zip
 
-# Upload the bundle to S3
-upload:
-    aws s3 cp dist/bundle.zip "s3://{{bundle_s3_bucket}}/bundle.zip"
+# Upload the landing-zone bundle to S3
+upload: (_upload "landing-zone")
 
-# Invoke the autopilot Lambda to run the pipeline
-trigger:
+# Invoke the autopilot Lambda to run the landing-zone pipeline
+trigger: (_trigger "landing-zone")
+
+# Build the landing zone locally (resolve + validate + bundle)
+build: resolve validate bundle
+
+# Deploy the landing zone to AWS (build + upload + trigger)
+deploy: build upload trigger
+
+# ── Platforms ─────────────────────────────────────────────────────────────────
+
+# Resolve a platform pipeline (consumer-authored, framework platform projects)
+platform-resolve name:
+    mkdir -p dist/{{ name }}
+    uv run --project .propeller/engine propeller-resolve \
+        --base platforms/{{ name }}/pipeline.yaml \
+        --version "{{ propeller_version }}" \
+        --output dist/{{ name }}/pipeline.lock.yaml \
+        --propeller-dir .propeller/platform
+
+# Validate a resolved platform pipeline
+platform-validate name:
+    uv run --project .propeller/engine propeller-validate \
+        --pipeline dist/{{ name }}/pipeline.lock.yaml \
+        --no-check-sources
+
+# Bundle a platform pipeline into a deployable zip
+platform-bundle name:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    overlay_args=()
+    if [[ -d "platforms/{{ name }}/projects" ]]; then
+        overlay_args+=(--overlay-dir "platforms/{{ name }}/projects")
+    fi
+    uv run --project .propeller/engine propeller-bundle \
+        --pipeline "dist/{{ name }}/pipeline.lock.yaml" \
+        --propeller-dir .propeller/platform \
+        ${overlay_args[@]+"${overlay_args[@]}"} \
+        --output "dist/{{ name }}/bundle.zip"
+
+# Build a platform locally (resolve + validate + bundle)
+platform-build name: (platform-resolve name) (platform-validate name) (platform-bundle name)
+
+# Deploy a platform to AWS (build + upload + trigger)
+platform-deploy name: (platform-build name) (_upload name) (_trigger name)
+
+# Deploy every platform under platforms/
+platform-deploy-all:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    shopt -s nullglob
+    for d in platforms/*/; do
+        name=$(basename "$d")
+        echo "=== Deploying platform: ${name} ==="
+        just platform-deploy "$name"
+    done
+
+# ── Shared (private) ──────────────────────────────────────────────────────────
+
+# Upload a built bundle to S3 under the pipeline's key
+_upload pipeline:
+    aws s3 cp "dist/{{ pipeline }}/bundle.zip" "s3://{{ bundle_s3_bucket }}/{{ pipeline }}/bundle.zip"
+
+# Invoke the autopilot Lambda for a built pipeline
+_trigger pipeline:
     #!/usr/bin/env bash
     set -euo pipefail
     DEPLOY_ACTION="${DEPLOY_ACTION:-apply}"
-    FUNCTION_ARN="{{lambda_function}}:\$LATEST"
+    FUNCTION_ARN="{{ lambda_function }}:\$LATEST"
     ONLY_ARGS=""
     if [[ -n "${ONLY:-}" ]]; then
         ONLY_ARGS=$(jq -n --arg only "$ONLY" '{only: [$only]}')
     fi
     PAYLOAD=$(jq -n \
-        --argjson pipeline "$(jq '{namespace: .namespace, propeller_version: .propeller_version, stages: .stages}' dist/pipeline.lock.json)" \
-        --arg bundle_s3_uri "s3://{{bundle_s3_bucket}}/bundle.zip" \
+        --argjson pipeline "$(jq '{namespace: .namespace, propeller_version: .propeller_version, consumer_tags: .consumer_tags, stages: .stages}' dist/{{ pipeline }}/pipeline.lock.json)" \
+        --arg bundle_s3_uri "s3://{{ bundle_s3_bucket }}/{{ pipeline }}/bundle.zip" \
         --arg deploy_action "$DEPLOY_ACTION" \
         --arg git_sha "$(git rev-parse --short HEAD 2>/dev/null || echo '')" \
         --argjson only_filter "${ONLY_ARGS:-null}" \
         '{pipeline: $pipeline, bundle_s3_uri: $bundle_s3_uri, deploy_action: $deploy_action, git_sha: $git_sha} + (if $only_filter then $only_filter else {} end)')
-    echo "Invoking ${FUNCTION_ARN} (${DEPLOY_ACTION})${ONLY:+ [only: $ONLY]}..."
+    echo "Invoking ${FUNCTION_ARN} ({{ pipeline }}, ${DEPLOY_ACTION})${ONLY:+ [only: $ONLY]}..."
     aws lambda invoke \
         --function-name "$FUNCTION_ARN" \
         --invocation-type Event \
@@ -62,12 +133,6 @@ trigger:
         --cli-binary-format raw-in-base64-out \
         /dev/null
     echo "Triggered"
-
-# Build locally (resolve + validate + bundle)
-build: resolve validate bundle
-
-# Deploy to AWS (build + upload + trigger)
-deploy: build upload trigger
 
 # Remove generated files
 clean:
