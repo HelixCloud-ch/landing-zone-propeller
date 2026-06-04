@@ -97,12 +97,12 @@ In the same UI, **Variables (tab) → Repository Variables (section)**:
 
 All values were printed at the end of step 1.
 
-## 4. Add the deploy workflow
+## 4. Add the landing-zone deploy workflow
 
-Create `.github/workflows/deploy.yml`:
+Create `.github/workflows/deploy-landing-zone.yml`:
 
 ```yaml
-name: Deploy
+name: Deploy Landing Zone
 on:
   workflow_dispatch:
     inputs:
@@ -133,10 +133,10 @@ jobs:
           just pull
           just deploy
       - run: |
-          echo "**Propeller version:** $(jq -r '.propeller_version' dist/pipeline.lock.json)" >> $GITHUB_STEP_SUMMARY
+          echo "**Propeller version:** $(jq -r '.propeller_version' dist/landing-zone/pipeline.lock.json)" >> $GITHUB_STEP_SUMMARY
           echo "**Action:** ${{ inputs.action }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          cat dist/pipeline.lock.md >> $GITHUB_STEP_SUMMARY
+          cat dist/landing-zone/pipeline.lock.md >> $GITHUB_STEP_SUMMARY
 ```
 
 The `action` input controls what the workflow does: `plan` shows what would
@@ -147,7 +147,7 @@ Commit and push the workflow file.
 
 ## 5. First deploy
 
-In the consumer repo, go to **Actions → Deploy → Run workflow**.
+In the consumer repo, go to **Actions → Deploy Landing Zone → Run workflow**.
 
 Start with a `plan` run to confirm the wiring. The job summary shows the
 resolved propeller version, the action, and a Mermaid graph of the pipeline.
@@ -156,7 +156,7 @@ resolved propeller version, the action, and a Mermaid graph of the pipeline.
 
 - A dedicated CI user in the Operations account with minimal permissions
 - GitHub secrets and variables configured in the consumer repo
-- A `.github/workflows/deploy.yml` workflow that runs plan or apply
+- A `.github/workflows/deploy-landing-zone.yml` workflow that runs plan or apply
 - A successful first plan of the first step
 
 ## What's next
