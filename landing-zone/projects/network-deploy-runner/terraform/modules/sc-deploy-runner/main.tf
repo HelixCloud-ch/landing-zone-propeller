@@ -10,12 +10,6 @@ locals {
   ] : []
 }
 
-# Associate the Terraform execution role with the portfolio so it can call
-# provision-product. The ORGANIZATION-level share is auto-imported into every
-# account; no explicit accept-portfolio-share step is needed.
-# Equivalent to associate-principal-with-portfolio in provision-product-operations.sh,
-# where $BOOTSTRAP_CALLER_ARN is the role the script is running as after assuming
-# AWSControlTowerExecution.
 resource "aws_servicecatalog_principal_portfolio_association" "caller" {
   portfolio_id   = var.portfolio_id
   principal_arn  = var.terraform_role_arn
@@ -23,23 +17,10 @@ resource "aws_servicecatalog_principal_portfolio_association" "caller" {
 }
 
 resource "aws_servicecatalog_provisioned_product" "this" {
-  name = var.provisioned_product_name
-
-  # Use IDs rather than display names — stable, unambiguous, and resolved once
-  # by bootstrap-parameters at pipeline run time.
+  name                     = var.provisioned_product_name
   product_id               = var.product_id
-  path_id                  = var.portfolio_id
   provisioning_artifact_id = var.provisioning_artifact_id
-
-  # Tags are propagated by Service Catalog to all CloudFormation resources
-  # created in the Network account (S3 bucket, CodeBuild project, IAM roles).
-  tags = var.tags
-
-  # No lifecycle.ignore_changes on provisioning_artifact_id: the artifact ID is
-  # an explicit pipeline input resolved by bootstrap-parameters. Updating to a
-  # new product version is triggered by re-running the pipeline after a new
-  # artifact is published — bootstrap-parameters picks up the latest DEFAULT
-  # artifact and the changed ID causes Terraform to call update-provisioned-product.
+  tags                     = var.tags
 
   provisioning_parameters {
     key   = "ProjectName"
@@ -67,7 +48,5 @@ resource "aws_servicecatalog_provisioned_product" "this" {
     }
   }
 
-  depends_on = [
-    aws_servicecatalog_principal_portfolio_association.caller,
-  ]
+  depends_on = [aws_servicecatalog_principal_portfolio_association.caller]
 }

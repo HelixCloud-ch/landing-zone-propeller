@@ -30,7 +30,7 @@ variable "assume_role_name" {
 
 variable "portfolio_id" {
   type        = string
-  description = "ID of the Service Catalog portfolio (e.g. port-xxxx). Wired from bootstrap-parameters outputs via the propeller pipeline. Used both for the principal association and as path_id when provisioning."
+  description = "ID of the Service Catalog portfolio (e.g. port-xxxx). Wired from bootstrap-parameters outputs via the propeller pipeline. Used for the principal association."
 
   validation {
     condition     = can(regex("^port-[0-9a-z]+$", var.portfolio_id))
