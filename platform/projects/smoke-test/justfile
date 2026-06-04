@@ -1,0 +1,21 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+region := env("AWS_REGION")
+
+init:
+    @echo "smoke-test ready in {{ region }}"
+
+plan:
+    @echo "smoke-test plan: would write a greeting to outputs"
+
+apply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    printf '%s\n' '{"greeting": "hello from the platform layer"}' > .propeller-outputs.json
+    echo "smoke-test: outputs written"
+
+destroy:
+    @echo "smoke-test has nothing to destroy"
+
+outputs:
+    @cat .propeller-outputs.json 2>/dev/null || echo '{}'
