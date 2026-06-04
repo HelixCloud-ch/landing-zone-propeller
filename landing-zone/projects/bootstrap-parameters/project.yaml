@@ -1,0 +1,8 @@
+name: bootstrap-parameters
+description: >-
+  Reads bootstrap-time values from the operations account (portfolio ID,
+  operations account ID, source bucket name) and writes them as pipeline
+  outputs so downstream projects can consume them without hardcoding.
+
+deploy:
+  type: script

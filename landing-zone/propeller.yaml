@@ -8,6 +8,23 @@ namespace: landing-zone
 stages:
   - name: foundation
     steps:
+      - project: bootstrap-parameters
+        target: management
+        inputs:
+          - name: /accounts.operations.id
+            var: operations_account_id
+        outputs:
+          - name: portfolio_id
+            var: portfolio_id
+          - name: product_id
+            var: product_id
+          - name: artifact_id
+            var: artifact_id
+          - name: s3_source_bucket
+            var: s3_source_bucket
+          - name: autopilot_role_arn
+            var: autopilot_role_arn
+
       - project: control-tower-prerequisites
         target: management
         outputs:
