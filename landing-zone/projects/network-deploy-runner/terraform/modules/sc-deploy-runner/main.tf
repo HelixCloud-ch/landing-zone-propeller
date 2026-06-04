@@ -23,7 +23,7 @@ resource "aws_servicecatalog_principal_portfolio_association" "caller" {
 }
 
 resource "aws_servicecatalog_provisioned_product" "this" {
-  name    = var.provisioned_product_name
+  name = var.provisioned_product_name
 
   # Use IDs rather than display names — stable, unambiguous, and resolved once
   # by bootstrap-parameters at pipeline run time.
