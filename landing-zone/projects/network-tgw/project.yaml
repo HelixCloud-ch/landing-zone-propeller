@@ -1,0 +1,16 @@
+name: network-tgw
+description: >-
+  Foundational Transit Gateway for the network plane. Creates the TGW with
+  default association/propagation disabled, the Spokes and Hub TGW route
+  tables, the pl-spokes customer-managed prefix list, and the (opt-in)
+  RAM shares for the TGW (cross-account VPC attachments) and pl-spokes
+  (cross-account prefix list reference). All other network projects depend
+  on this one.
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
