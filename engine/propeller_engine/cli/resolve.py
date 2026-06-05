@@ -60,15 +60,32 @@ def _generate_mermaid(pipeline: Pipeline) -> str:
     "--propeller-dir", default=".propeller", help="Path to propeller framework"
 )
 @click.option(
+    "--version",
+    "version",
+    default=None,
+    help="Framework version to stamp into the lock. Overrides the version from "
+    "--overrides; required for pipelines without an overrides file.",
+)
+@click.option(
     "--graph/--no-graph",
     default=True,
     help="Generate Mermaid graph alongside lock file",
 )
 def main(
-    base: str, overrides: str | None, output: str, propeller_dir: str, graph: bool
+    base: str,
+    overrides: str | None,
+    output: str,
+    propeller_dir: str,
+    version: str | None,
+    graph: bool,
 ) -> None:
     """Resolve a base pipeline with optional overrides."""
-    pipeline = resolve(Path(base), Path(overrides) if overrides else None, propeller_dir)
+    pipeline = resolve(
+        Path(base),
+        Path(overrides) if overrides else None,
+        propeller_dir,
+        version=version,
+    )
     out = Path(output)
     data = pipeline_to_dict(pipeline)
 

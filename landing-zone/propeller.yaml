@@ -84,6 +84,25 @@ stages:
           - name: /accounts.network.id
             var: account_id
 
+      - project: network-deploy-runner
+        target: management
+        depends_on: [account-network, bootstrap-parameters]
+        inputs:
+          - name: /accounts.network.id
+            var: network_account_id
+          - name: bootstrap-parameters.portfolio_id
+            var: portfolio_id
+          - name: bootstrap-parameters.product_id
+            var: product_id
+          - name: bootstrap-parameters.artifact_id
+            var: provisioning_artifact_id
+          - name: bootstrap-parameters.s3_source_bucket
+            var: s3_source_bucket
+          - name: /accounts.operations.id
+            var: caller_account_id
+          - name: bootstrap-parameters.autopilot_role_arn
+            var: caller_arn
+
       - project: base-sso
         target: management
 
@@ -101,3 +120,16 @@ stages:
         inputs:
           - name: workload-ous.ou_ids
             var: ou_ids
+
+  - name: network
+    steps:
+      - project: network-tgw
+        target: network
+        depends_on: []
+        outputs:
+          - name: /network.tgw.id
+            var: tgw_id
+          - name: /network.tgw.arn
+            var: tgw_arn
+          - name: /network.tgw.share_arn
+            var: tgw_share_arn

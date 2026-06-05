@@ -13,8 +13,9 @@ All customization happens in two places:
   auto-loaded by Terraform at apply time.
 
 Run `just resolve` after any change to see the resolved pipeline at
-`dist/pipeline.lock.yaml` and the Mermaid graph at `dist/pipeline.lock.md`. Use
-this to verify the result before committing.
+`dist/landing-zone/pipeline.lock.yaml` and the Mermaid graph at
+`dist/landing-zone/pipeline.lock.md`. Use this to verify the result before
+committing.
 
 ## Set tags pipeline-wide
 
@@ -160,11 +161,11 @@ you'll need to manually keep it current with framework changes.
 After any override edit, the typical loop:
 
 ```bash
-just resolve     # produces dist/pipeline.lock.yaml + .md
+just resolve     # produces dist/landing-zone/pipeline.lock.yaml + .md
 ```
 
-Then open `dist/pipeline.lock.md` for the Mermaid graph view, or inspect
-`dist/pipeline.lock.yaml` for the full resolved pipeline.
+Then open `dist/landing-zone/pipeline.lock.md` for the Mermaid graph view, or
+inspect `dist/landing-zone/pipeline.lock.yaml` for the full resolved pipeline.
 
 A plan from CI (or `DEPLOY_ACTION=plan` from a maintainer's machine) is the
 final check before applying.

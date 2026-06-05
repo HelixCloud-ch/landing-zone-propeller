@@ -5,6 +5,10 @@ locals {
 module "account" {
   source = "../../../shared/modules/ct-account"
 
+  providers = {
+    aws = aws.notags
+  }
+
   account_name  = var.account_name
   account_email = var.account_email
 

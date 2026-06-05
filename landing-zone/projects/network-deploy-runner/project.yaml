@@ -1,0 +1,15 @@
+name: network-deploy-runner
+description: >-
+  Provisions the deploy-runner Service Catalog product in the Network account,
+  installing the CodeBuild project and cross-account run role that the autopilot
+  uses to execute infrastructure changes in that account. Runs in the management
+  account and assumes AWSControlTowerExecution in the Network account — the
+  deploy-runner itself does not exist there yet at this point.
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
