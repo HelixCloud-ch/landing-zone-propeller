@@ -105,3 +105,16 @@ stages:
 
       - project: base-sso
         target: management
+
+  - name: network
+    steps:
+      - project: network-tgw
+        target: network
+        depends_on: []
+        outputs:
+          - name: /network.tgw.id
+            var: tgw_id
+          - name: /network.tgw.arn
+            var: tgw_arn
+          - name: /network.tgw.share_arn
+            var: tgw_share_arn
