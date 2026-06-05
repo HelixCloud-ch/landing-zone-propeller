@@ -17,8 +17,8 @@ project sources + consumer overlays, uploaded to S3 and consumed by the
 Autopilot Lambda.
 
 **Consumer** - the user-facing repository that customizes the framework via
-`propeller.overrides.yaml` and project overlays. Each pipeline can pin its own
-framework version independently.
+`propeller.overrides.yaml` and project overlays. Pins one framework version for
+the whole repository.
 
 **Framework** - this repository. Ships the engine, the Autopilot Lambda, the
 consumer tooling, and a default landing-zone pipeline with its set of projects.
@@ -50,9 +50,10 @@ Durable Lambda invocation. Examples: the landing-zone pipeline, or a per-account
 platform pipeline.
 
 **Platform** - the infrastructure (e.g. EKS, RDS, networking) deployed into one
-or more accounts to support a workload. Each platform has its own pipeline; that
-pipeline can target a single account or span several related accounts (e.g. prod
-plus a dedicated DR account).
+or more workload accounts to support a workload. A platform is composed by one
+pipeline; that pipeline can target a single account or span several related
+accounts (e.g. prod plus a dedicated DR account). A single building block (an
+EKS project, an RDS project) is a _platform project_.
 
 **Project** - a deployable unit on disk: a Terraform module, CloudFormation
 template, or script. Lives at `<pipeline>/projects/<name>/`. Described by
@@ -65,3 +66,12 @@ sequentially.
 parallel unless data dependencies serialize them.
 
 **Target** - the AWS account a step runs against.
+
+**Workload** - a set of applications and the resources they need, treated as a
+unit. Runs on top of a platform. Matches AWS's use of the term.
+
+**Workload account** - an AWS account that hosts a workload. Platforms are
+deployed into workload accounts. A workload may span more than one account.
+
+**Workloads OU** - the organizational unit (and any nested OUs beneath it) that
+contains workload accounts.

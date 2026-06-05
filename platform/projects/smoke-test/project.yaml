@@ -1,0 +1,8 @@
+name: smoke-test
+description: Minimal platform project for testing the platform pipeline flow.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: script

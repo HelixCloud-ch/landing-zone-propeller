@@ -1,8 +1,14 @@
-"""Assemble a self-contained deployment bundle from a resolved pipeline."""
+"""Assemble a self-contained deployment bundle from a resolved pipeline.
+
+The bundle mirrors the source tree 1:1: a pipeline directory like
+``landing-zone/`` lands at ``bundle/landing-zone/`` with its internal
+structure (``projects/``, ``modules/``, ...) preserved. Any relative path
+that resolves in the source resolves the same way in the bundle.
+"""
 
 from __future__ import annotations
 
-import re
+import json
 import shutil
 import subprocess
 import tempfile
@@ -13,17 +19,7 @@ import yaml
 
 from ..models import Pipeline
 
-MODULE_SOURCE_RE = re.compile(r'(source\s*=\s*")(.*?/\.propeller/modules/)([^"]+)(")')
-
-
-def rewrite_module_paths(project_dir: Path) -> None:
-    # In the bundle, tf files live at projects/<name>/terraform/*.tf and modules
-    # at modules/<name>/, so .propeller/modules/ refs become ../../../modules/.
-    for tf_file in project_dir.rglob("*.tf"):
-        content = tf_file.read_text()
-        new_content = MODULE_SOURCE_RE.sub(r"\g<1>../../../modules/\3\4", content)
-        if new_content != content:
-            tf_file.write_text(new_content)
+_IGNORE = shutil.ignore_patterns(".venv", "__pycache__", "*.pyc", ".terraform")
 
 
 def _get_git_sha() -> str:
@@ -39,34 +35,44 @@ def _get_git_sha() -> str:
         return "unknown"
 
 
-def _overlay_project(dest: Path, overlay_dir: Path, project_name: str) -> None:
-    """Overlay consumer files on top of a framework project."""
-    # Find the overlay by project name (supports nested grouping)
-    overlay_project = None
+def _find_overlay(overlay_dir: Path, project_name: str) -> Path | None:
+    """Locate a consumer overlay directory for a project by name."""
     for candidate in overlay_dir.rglob("project.yaml"):
         data = yaml.safe_load(candidate.read_text())
         if data.get("name") == project_name:
-            overlay_project = candidate.parent
-            break
-    # Also check direct name match (for overlays without project.yaml)
-    if overlay_project is None:
-        direct = overlay_dir / project_name
-        if direct.is_dir():
-            overlay_project = direct
-    if overlay_project is None:
-        # Try recursive directory name match
-        for d in overlay_dir.rglob(project_name):
-            if d.is_dir():
-                overlay_project = d
-                break
-    if overlay_project is None:
-        return
+            return candidate.parent
+    direct = overlay_dir / project_name
+    if direct.is_dir():
+        return direct
+    for d in overlay_dir.rglob(project_name):
+        if d.is_dir():
+            return d
+    return None
+
+
+def _overlay_onto(dest: Path, overlay_project: Path) -> None:
+    """Copy consumer overlay files on top of a project in the bundle."""
     for src_file in overlay_project.rglob("*"):
         if src_file.is_file():
             rel = src_file.relative_to(overlay_project)
             target = dest / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src_file, target)
+
+
+def _bundle_rel(source: Path, propeller_dir: Path, project: str) -> Path:
+    """Bundle-relative path for a project source.
+
+    Framework projects keep their location within the mirrored pipeline tree.
+    Consumer-only projects (sources outside the framework tree) are placed
+    alongside framework projects so relative module references still resolve.
+    """
+    src = source.resolve()
+    pdir = propeller_dir.resolve()
+    try:
+        return Path(propeller_dir.name) / src.relative_to(pdir)
+    except ValueError:
+        return Path(propeller_dir.name) / "projects" / project
 
 
 def create_bundle(
@@ -83,40 +89,60 @@ def create_bundle(
         build = Path(tmp) / "bundle"
         build.mkdir()
 
-        # Projects
-        projects_out = build / "projects"
-        projects_out.mkdir()
+        # Mirror the framework pipeline tree (projects/, modules/, ...) into
+        # the bundle under its directory name.
+        pipeline_root = build / propeller_dir.name
+        if propeller_dir.is_dir():
+            shutil.copytree(propeller_dir, pipeline_root, ignore=_IGNORE)
+
+        # Place each step's project at its bundle-relative path, overlay
+        # consumer files, and record the bundle-relative source for the runner.
+        step_dirs: dict[int, str] = {}
+        idx = 0
         for stage in pipeline.stages:
             for step in stage.steps:
                 src = Path(step.source) if step.source else None
-                if src and src.is_dir():
-                    dest = projects_out / step.project
-                    shutil.copytree(src, dest)
-                    rewrite_module_paths(dest)
-                    # Overlay consumer files on top
-                    if overlay_dir:
-                        _overlay_project(dest, overlay_dir, step.project)
+                rel = _bundle_rel(
+                    src if src else propeller_dir / "projects" / step.project,
+                    propeller_dir,
+                    step.project,
+                )
+                dest = build / rel
+                # Consumer-only project not already inside the mirrored tree.
+                if src and src.is_dir() and not dest.exists():
+                    shutil.copytree(src, dest, ignore=_IGNORE)
+                if overlay_dir:
+                    overlay_project = _find_overlay(overlay_dir, step.project)
+                    if overlay_project is not None:
+                        _overlay_onto(dest, overlay_project)
+                step_dirs[idx] = str(rel)
+                idx += 1
 
-        # Modules
-        modules_src = propeller_dir / "modules"
-        if modules_src.is_dir():
-            shutil.copytree(modules_src, build / "modules")
-
-        # Engine (for propeller-deploy in CodeBuild)
-        # Engine lives at the framework root, not inside the pipeline directory
-        engine_src = propeller_dir.parent / "engine" if (propeller_dir.parent / "engine").is_dir() else propeller_dir / "engine"
+        # Engine (for propeller-deploy in CodeBuild). Lives at the framework
+        # root, not inside the pipeline directory.
+        engine_src = (
+            propeller_dir.parent / "engine"
+            if (propeller_dir.parent / "engine").is_dir()
+            else propeller_dir / "engine"
+        )
         if engine_src.is_dir():
-            shutil.copytree(
-                engine_src,
-                build / "engine",
-                ignore=shutil.ignore_patterns(".venv", "__pycache__", "*.pyc"),
-            )
+            shutil.copytree(engine_src, build / "engine", ignore=_IGNORE)
 
-        # Resolved pipeline files (copy from dist/)
-        shutil.copy2(pipeline_path, build / pipeline_path.name)
+        # Rewrite step sources to bundle-relative paths so the runner can
+        # locate each project by source path inside the bundle. Both the YAML
+        # and JSON lock files carry the rewritten sources.
+        idx = 0
+        for stage in data.get("stages", []):
+            for step in stage.get("steps", []):
+                step["source"] = step_dirs[idx]
+                idx += 1
+        (build / pipeline_path.name).write_text(
+            yaml.dump(data, default_flow_style=False, sort_keys=False)
+        )
+
         json_path = pipeline_path.with_suffix(".json")
         if json_path.exists():
-            shutil.copy2(json_path, build / json_path.name)
+            (build / json_path.name).write_text(json.dumps(data, indent=2) + "\n")
         graph_path = pipeline_path.with_suffix(".md")
         if graph_path.exists():
             shutil.copy2(graph_path, build / graph_path.name)
