@@ -63,15 +63,45 @@ locals {
     { for k, v in aws_organizations_organizational_unit.level_3 : k => v.arn },
   )
 
-  baseline_ous = { for path, ou in local.all_ous : path => ou if ou.enroll_baseline }
+  baseline_ous_l1 = { for path, ou in local.level_1 : path => ou if ou.enroll_baseline }
+  baseline_ous_l2 = { for path, ou in local.level_2 : path => ou if ou.enroll_baseline }
+  baseline_ous_l3 = { for path, ou in local.level_3 : path => ou if ou.enroll_baseline }
 }
 
-resource "aws_controltower_baseline" "ous" {
-  for_each = local.baseline_ous
+resource "aws_controltower_baseline" "level_1" {
+  for_each = local.baseline_ous_l1
 
   baseline_identifier = local.baseline_arn
   baseline_version    = each.value.baseline_version
-  target_identifier   = local.all_ou_arns[each.key]
+  target_identifier   = aws_organizations_organizational_unit.level_1[each.key].arn
+
+  lifecycle {
+    ignore_changes = [baseline_version]
+  }
+}
+
+resource "aws_controltower_baseline" "level_2" {
+  for_each = local.baseline_ous_l2
+
+  baseline_identifier = local.baseline_arn
+  baseline_version    = each.value.baseline_version
+  target_identifier   = aws_organizations_organizational_unit.level_2[each.key].arn
+
+  depends_on = [aws_controltower_baseline.level_1]
+
+  lifecycle {
+    ignore_changes = [baseline_version]
+  }
+}
+
+resource "aws_controltower_baseline" "level_3" {
+  for_each = local.baseline_ous_l3
+
+  baseline_identifier = local.baseline_arn
+  baseline_version    = each.value.baseline_version
+  target_identifier   = aws_organizations_organizational_unit.level_3[each.key].arn
+
+  depends_on = [aws_controltower_baseline.level_2]
 
   lifecycle {
     ignore_changes = [baseline_version]
