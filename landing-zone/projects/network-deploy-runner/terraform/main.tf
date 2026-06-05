@@ -3,7 +3,7 @@ locals {
 }
 
 module "deploy_runner" {
-  source = "./modules/sc-deploy-runner"
+  source = "../../../shared/modules/sc-deploy-runner"
 
   portfolio_id             = var.portfolio_id
   product_id               = var.product_id
