@@ -1,7 +1,4 @@
-data "aws_organizations_organization" "current" {}
-
 locals {
-  org_root_id = data.aws_organizations_organization.current.roots[0].id
 
   # Enrich each entry with computed name, parent path, and depth
   all_ous = { for path, ou in var.ous : path => merge(ou, {
@@ -72,7 +69,7 @@ locals {
 resource "aws_controltower_baseline" "ous" {
   for_each = local.baseline_ous
 
-  baseline_identifier = "arn:aws:controltower:::baseline/AWSControlTowerBaseline"
+  baseline_identifier = local.baseline_arn
   baseline_version    = each.value.baseline_version
   target_identifier   = local.all_ou_arns[each.key]
 
