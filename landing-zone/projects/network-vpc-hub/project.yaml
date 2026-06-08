@@ -1,0 +1,17 @@
+name: network-vpc-hub
+description: >-
+  Build the hub VPC of the network plane in the Network account: a multi-AZ VPC
+  with selectable subnet tiers, centralized regional NAT egress, an internet
+  gateway, and intra-VPC routing. The Transit Gateway attachment is deliberately
+  out of scope and is owned by the separate network-vpc-hub-attach project.
+
+metadata:
+  cost-center: landing-zone
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
