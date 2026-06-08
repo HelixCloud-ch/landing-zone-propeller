@@ -133,6 +133,7 @@ stages:
           - name: private_subnet_ids
           - name: tgw_subnet_ids
           - name: resolver_subnet_ids
+          - name: route_table_ids
           
       - project: network-s2s
         target: network
