@@ -119,6 +119,33 @@ stages:
           - name: /network.tgw.share_arn
             var: tgw_share_arn
 
+      - project: network-vpc-hub
+        target: network
+        depends_on: []
+        outputs:
+          - name: /network.vpc.id
+            var: vpc_id
+          - name: /network.vpc.cidr
+            var: vpc_cidr
+          - name: /network.nat.regional_id
+            var: regional_nat_gateway_id
+          - name: public_subnet_ids
+          - name: private_subnet_ids
+          - name: tgw_subnet_ids
+          - name: resolver_subnet_ids
+          
+      - project: network-s2s
+        target: network
+        depends_on: [network-tgw]
+        inputs:
+          - name: /network.tgw.id
+            var: tgw_id
+        outputs:
+          - name: /network.s2s.attachment_ids
+            var: vpn_attachment_ids
+          - name: /network.s2s.connection_ids
+            var: vpn_connection_ids
+
   - name: workloads
     steps:
       - project: workload-ous
