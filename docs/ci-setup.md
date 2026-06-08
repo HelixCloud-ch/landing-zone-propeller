@@ -43,7 +43,7 @@ aws iam put-user-policy --user-name propeller-ci --policy-name propeller-deploy 
     {
       "Effect": "Allow",
       "Action": "s3:PutObject",
-      "Resource": "arn:aws:s3:::${BUNDLE_BUCKET}/bundle.zip"
+      "Resource": "arn:aws:s3:::${BUNDLE_BUCKET}/*"
     },
     {
       "Effect": "Allow",
