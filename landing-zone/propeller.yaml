@@ -145,6 +145,27 @@ stages:
           - name: vpn_attachment_ids
           - name: vpn_connection_ids
 
+      - project: network-routing
+        target: network
+        depends_on: [network-tgw, network-vpc-hub, network-s2s]
+        inputs:
+          - name: /network.tgw.id
+            var: tgw_id
+          - name: /network.vpc.id
+            var: hub_vpc_id
+          - name: /network.vpc.cidr
+            var: hub_vpc_cidr
+          - name: network-vpc-hub.tgw_subnet_ids
+            var: hub_tgw_subnet_ids
+          - name: network-vpc-hub.route_table_ids
+            var: hub_route_table_ids
+          - name: network-s2s.vpn_attachment_ids
+            var: vpn_attachment_ids
+        outputs:
+          - name: tgw_route_table_id
+          - name: hub_attachment_id
+          - name: onprem_cidrs
+
   - name: workloads
     steps:
       - project: workload-ous
