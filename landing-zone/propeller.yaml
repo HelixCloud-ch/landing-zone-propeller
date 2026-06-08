@@ -142,10 +142,8 @@ stages:
           - name: /network.tgw.id
             var: tgw_id
         outputs:
-          - name: /network.s2s.attachment_ids
-            var: vpn_attachment_ids
-          - name: /network.s2s.connection_ids
-            var: vpn_connection_ids
+          - name: vpn_attachment_ids
+          - name: vpn_connection_ids
 
   - name: workloads
     steps:
