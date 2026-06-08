@@ -32,12 +32,14 @@ class PropellerConfig(BaseModel):
     """Top-level config schema for `propeller.overrides.yaml`.
 
     Sections:
-      - `propeller`: framework metadata (version, repo).
       - `tags`: pipeline-wide tags applied to every project's resources.
       - `pipeline`: optional pipeline-level overrides; defaults to empty.
+
+    The framework version pin lives in the version file read by the consumer
+    tooling, not here; the engine receives it via `--version`.
     """
 
-    propeller: dict
+    propeller: dict = Field(default_factory=dict)
     pipeline: PipelineOverrides | None = Field(default_factory=PipelineOverrides)
     tags: dict[str, str] = Field(default_factory=dict)
 

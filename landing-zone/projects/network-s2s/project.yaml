@@ -1,0 +1,15 @@
+name: network-s2s
+description: >-
+  Site-to-Site VPN connections from on-premises networks to the Transit Gateway
+  with static routing. Supports single or dual customer gateway topologies.
+
+metadata:
+  cost-center: landing-zone
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"

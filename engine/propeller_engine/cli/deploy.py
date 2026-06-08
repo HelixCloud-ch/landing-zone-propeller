@@ -13,21 +13,53 @@ from ..deploy.runner import (
     get_runner,
     load_project_yaml,
     log,
+    resolve_project_dir,
 )
 
 
 @click.group()
 @click.option(
     "--project-dir",
-    default=".",
+    default=None,
     type=click.Path(exists=True),
-    help="Project directory containing project.yaml",
+    help="Project directory containing project.yaml. "
+    "Alternative to --pipeline/--project.",
+)
+@click.option(
+    "--pipeline",
+    default=None,
+    type=click.Path(exists=True),
+    help="Resolved pipeline lock file. Use with --project to locate the project.",
+)
+@click.option(
+    "--project",
+    "project_name",
+    default=None,
+    help="Project name to look up in --pipeline.",
 )
 @click.pass_context
-def main(ctx: click.Context, project_dir: str) -> None:
-    """Deploy a propeller project based on its project.yaml."""
+def main(
+    ctx: click.Context,
+    project_dir: str | None,
+    pipeline: str | None,
+    project_name: str | None,
+) -> None:
+    """Deploy a propeller project based on its project.yaml.
+
+    Locate the project either directly with --project-dir, or by name within a
+    resolved pipeline using --pipeline and --project.
+    """
     ctx.ensure_object(dict)
-    project_dir_path = Path(project_dir).resolve()
+
+    if pipeline and project_name:
+        project_dir_path = resolve_project_dir(Path(pipeline), project_name)
+    elif project_dir:
+        project_dir_path = Path(project_dir).resolve()
+    else:
+        raise click.UsageError(
+            "Provide either --project-dir, or both --pipeline and --project."
+        )
+
     project = load_project_yaml(project_dir_path)
     inputs = collect_inputs()
     propeller_tags, consumer_tags = collect_tags()
@@ -78,3 +110,10 @@ def destroy(ctx: click.Context) -> None:
 def outputs(ctx: click.Context) -> None:
     """Print current outputs (debug helper)."""
     sys.exit(ctx.obj["runner"].outputs())
+
+
+@main.command(name="project-dir")
+@click.pass_context
+def project_dir_cmd(ctx: click.Context) -> None:
+    """Print the resolved project directory (for scripts/buildspecs)."""
+    click.echo(str(ctx.obj["runner"].project_dir))

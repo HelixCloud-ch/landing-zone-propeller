@@ -133,3 +133,15 @@ stages:
           - name: private_subnet_ids
           - name: tgw_subnet_ids
           - name: resolver_subnet_ids
+          
+      - project: network-s2s
+        target: network
+        depends_on: [network-tgw]
+        inputs:
+          - name: /network.tgw.id
+            var: tgw_id
+        outputs:
+          - name: /network.s2s.attachment_ids
+            var: vpn_attachment_ids
+          - name: /network.s2s.connection_ids
+            var: vpn_connection_ids
