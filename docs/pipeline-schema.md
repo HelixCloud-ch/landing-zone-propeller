@@ -76,6 +76,10 @@ Inputs:
   `/propeller/landing-zone/control-tower-prerequisites`
 - `/` prefix: reads an individual parameter. `name: /accounts.workload-acme.id`
   → `/propeller/accounts/workload-acme/id`
+- `@namespace/project.field` format: reads from another pipeline's project blob.
+  `name: @landing-zone/workload-parameters.tgw_id` → reads field `tgw_id` from
+  `/propeller/landing-zone/workload-parameters`. Use this for cross-pipeline
+  references (e.g. a platform pipeline consuming landing-zone outputs).
 
 Use absolute paths (`/`) for shared values that should be individually readable
 (e.g. account IDs). Adopt a sound naming strategy for these paths.
