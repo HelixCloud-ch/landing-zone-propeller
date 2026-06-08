@@ -1,0 +1,15 @@
+name: workload-ous
+description: >-
+  Creates the workload OU tree from a consumer-defined flat map. Each OU is
+  optionally enrolled in the Control Tower baseline. Outputs OU IDs.
+
+metadata:
+  cost-center: landing-zone
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"

@@ -1,0 +1,32 @@
+# workload-ous — Workload OU tree
+# Copy this file to config.auto.tfvars and fill in your values.
+
+# AWS region (must match the Control Tower home region).
+region = "eu-central-2"
+
+# ── OU tree ───────────────────────────────────────────────────────────────────
+# Keys are full paths. The parent is derived from the path automatically:
+# "Workloads/Prod" is a child of "Workloads". Single-segment paths are placed
+# under the org root. enroll_baseline defaults to true.
+
+ous = {
+  "Workloads"      = {}
+  "Workloads/Prod" = {}
+  "Workloads/Test" = {}
+}
+
+# Deeper nesting example:
+# ous = {
+#   "Workloads"                = {}
+#   "Workloads/cluster-a"      = { enroll_baseline = false }
+#   "Workloads/cluster-a/Prod" = {}
+#   "Workloads/cluster-a/Test" = {}
+# }
+
+# ── Tags ──────────────────────────────────────────────────────────────────────
+# Per-project tags applied to all resources created by this project.
+
+# tags = {
+#   "acme:env"     = "prod"
+#   "acme:project" = "landing-zone"
+# }

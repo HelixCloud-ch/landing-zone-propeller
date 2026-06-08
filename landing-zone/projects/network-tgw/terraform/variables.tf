@@ -14,24 +14,6 @@ variable "name_prefix" {
   default     = "network"
 }
 
-variable "tags" {
-  type        = map(string)
-  description = "Per-project tags applied to all resources via provider default_tags."
-  default     = {}
-}
-
-variable "consumer_tags" {
-  type        = map(string)
-  description = "Pipeline-wide tags applied to all resources via provider default_tags."
-  default     = {}
-}
-
-variable "propeller_tags" {
-  type        = map(string)
-  description = "Framework-managed tags applied to all resources via provider default_tags."
-  default     = {}
-}
-
 variable "amazon_side_asn" {
   type        = number
   description = "Private ASN for the Amazon side of BGP sessions. Must be unique among TGWs that may peer in the same region."
@@ -66,4 +48,24 @@ variable "vpn_ecmp_support" {
     condition     = contains(["enable", "disable"], var.vpn_ecmp_support)
     error_message = "Must be \"enable\" or \"disable\"."
   }
+}
+
+# ── Tags ──────────────────────────────────────────────────────────────────────
+
+variable "tags" {
+  type        = map(string)
+  description = "Per-project tags applied to all resources via provider default_tags."
+  default     = {}
+}
+
+variable "consumer_tags" {
+  type        = map(string)
+  description = "Pipeline-wide tags applied to all resources via provider default_tags."
+  default     = {}
+}
+
+variable "propeller_tags" {
+  type        = map(string)
+  description = "Framework-managed tags applied to all resources via provider default_tags."
+  default     = {}
 }

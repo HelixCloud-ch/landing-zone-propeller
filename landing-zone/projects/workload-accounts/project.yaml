@@ -1,0 +1,16 @@
+name: workload-accounts
+description: >-
+  Creates workload accounts via Service Catalog Account Factory and places them
+  in the OUs defined by workload-ous. Writes per-account metadata to SSM under
+  /propeller/accounts/<name>/.
+
+metadata:
+  cost-center: landing-zone
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"

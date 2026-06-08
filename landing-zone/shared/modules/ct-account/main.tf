@@ -1,8 +1,10 @@
 locals {
   managed_organizational_unit = "${var.ou_name} (${var.ou_id})"
+  # Provisioned product name must match [a-zA-Z0-9][a-zA-Z0-9._-]*
+  provisioned_product_name = replace(var.account_name, " ", "-")
 }
 resource "aws_servicecatalog_provisioned_product" "this" {
-  name                       = var.account_name
+  name                       = local.provisioned_product_name
   product_name               = var.product_name
   path_name                  = var.portfolio_path_name
   provisioning_artifact_name = var.provisioning_artifact_name

@@ -3,7 +3,7 @@ locals {
 }
 
 module "account" {
-  source = "./modules/ct-account"
+  source = "../../../shared/modules/ct-account"
 
   providers = {
     aws = aws.notags

@@ -145,3 +145,39 @@ stages:
             var: vpn_attachment_ids
           - name: /network.s2s.connection_ids
             var: vpn_connection_ids
+
+  - name: workloads
+    steps:
+      - project: workload-ous
+        target: management
+        outputs:
+          - name: ou_ids
+            var: ou_ids
+
+      - project: workload-accounts
+        target: management
+        depends_on: [workload-ous]
+        inputs:
+          - name: workload-ous.ou_ids
+            var: ou_ids
+        outputs:
+          - name: account_ids
+
+      - project: workload-deploy-runners
+        target: management
+        depends_on: [workload-accounts]
+        inputs:
+          - name: workload-accounts.account_ids
+            var: account_ids
+          - name: bootstrap-parameters.portfolio_id
+            var: portfolio_id
+          - name: bootstrap-parameters.product_id
+            var: product_id
+          - name: bootstrap-parameters.artifact_id
+            var: provisioning_artifact_id
+          - name: bootstrap-parameters.s3_source_bucket
+            var: s3_source_bucket
+          - name: bootstrap-parameters.autopilot_role_arn
+            var: caller_arn
+          - name: /accounts.operations.id
+            var: caller_account_id
