@@ -1,0 +1,18 @@
+name: network-routing
+description: >-
+  Central routing for the network plane. Owns the Transit Gateway route tables,
+  attachment associations, and the routes between the hub VPC, on-premises (via
+  the Site-to-Site VPN), and spokes. Also owns the hub VPC TGW attachment and
+  the hub VPC return route to the TGW. This is the single place where
+  cross-attachment routing policy is expressed.
+
+metadata:
+  cost-center: landing-zone
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
