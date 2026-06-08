@@ -1,4 +1,6 @@
 locals {
+  org_root_id  = data.aws_organizations_organization.current.roots[0].id
+  baseline_arn = data.external.ct_baseline_arn.result["baseline_arn"]
 
   # Enrich each entry with computed name, parent path, and depth
   all_ous = { for path, ou in var.ous : path => merge(ou, {
