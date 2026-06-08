@@ -182,21 +182,38 @@ def _expand_input(
     Inputs always reference another project's output:
     - name: "other-project.field_name" → blob read from /propeller/{namespace}/{project}, field=field_name
     - name: "/absolute.path.here" → individual parameter read
+    - name: "@namespace/project.field" → cross-pipeline blob read
 
     Example: {name: "control-tower.org_id", var: "org_id"} with namespace "landing-zone"
     Resolved: {key: "/propeller/landing-zone/control-tower", field: "org_id", var: "org_id"}
+
+    Cross-pipeline: {name: "@landing-zone/workload-parameters.tgw_id", var: "tgw_id"}
+    Resolved: {key: "/propeller/landing-zone/workload-parameters", field: "tgw_id", var: "tgw_id"}
     """
     if "name" in inp and "key" not in inp:
         name = inp["name"]
-        if name.startswith("/"):
-            # Absolute path → individual parameter
+        if name.startswith("@"):
+            # Cross-pipeline blob reference: @namespace/project.field
+            rest = name[1:]
+            if "." not in rest:
+                raise ResolveError(
+                    f"Cross-pipeline input '{name}' must include a field (e.g. @ns/project.field)"
+                )
+            path_part, field = rest.rsplit(".", 1)
+            return {
+                "key": f"{SSM_PREFIX}/{path_part}",
+                "field": field,
+                "var": inp.get("var", field),
+            }
+        elif name.startswith("/"):
+            # Absolute SSM parameter: /accounts.network.id
             path = name[1:].replace(".", "/")
             return {
                 "key": f"{SSM_PREFIX}/{path}",
                 "var": inp.get("var", name.rsplit(".", 1)[-1]),
             }
         else:
-            # project.field → blob read
+            # Intra-pipeline blob reference: project.field
             parts = name.split(".", 1)
             if len(parts) == 2:
                 project_name, field = parts
