@@ -1,0 +1,15 @@
+name: ecr
+description: >-
+  Configures a shared ECR registry with repository creation templates
+  (create-on-push) and cross-account pull access via organization paths.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
