@@ -185,6 +185,13 @@ stages:
         outputs:
           - name: account_ids
 
+      - project: workload-account-registry
+        target: operations
+        depends_on: [workload-accounts]
+        inputs:
+          - name: workload-accounts.account_ids
+            var: account_ids
+
       - project: workload-deploy-runners
         target: management
         depends_on: [workload-accounts]
