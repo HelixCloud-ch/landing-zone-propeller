@@ -17,7 +17,6 @@ variable "repository_creation_templates" {
     applied_for          = optional(list(string), ["CREATE_ON_PUSH"])
     encryption_type      = optional(string, "AES256")
     kms_key              = optional(string, null)
-    custom_role_arn      = optional(string, null)
     repository_policy    = optional(string, null)
     lifecycle_policy     = optional(string, null)
     resource_tags        = optional(map(string), {})
@@ -26,12 +25,6 @@ variable "repository_creation_templates" {
   default = {
     "ROOT" = {}
   }
-}
-
-variable "create_registry_policy" {
-  type        = bool
-  description = "Whether to create a registry-level policy for cross-account pull access."
-  default     = true
 }
 
 variable "organization_id" {
