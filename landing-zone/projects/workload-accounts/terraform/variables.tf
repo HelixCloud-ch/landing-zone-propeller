@@ -36,13 +36,15 @@ variable "ou_ids" {
   description = "Map of OU path to OU ID, wired from workload-ous outputs."
 }
 
+# ── Internal (framework-managed) ──────────────────────────────────────────────
+
 variable "reserved_account_names" {
   type        = set(string)
   description = "Names reserved by the framework for governance accounts. Workload account names must not collide with these."
   default     = ["management", "operations", "network", "log-archive", "audit", "backup-admin", "backup-central"]
 }
 
-# ── Tags ─────────────────────────────────────────────────────────────────────
+# ── Tags ──────────────────────────────────────────────────────────────────────
 
 variable "tags" {
   type        = map(string)
