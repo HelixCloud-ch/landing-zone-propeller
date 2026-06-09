@@ -1,0 +1,16 @@
+name: workload-account-registry
+description: >-
+  Writes individual SSM parameters for each workload account ID in the
+  operations account, enabling the autopilot Lambda to resolve platform pipeline
+  targets by account name.
+
+metadata:
+  cost-center: landing-zone
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
