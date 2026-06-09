@@ -24,3 +24,8 @@ output "ou_arns" {
     { for path, ou in aws_organizations_organizational_unit.level_3 : path => ou.arn },
   )
 }
+
+output "organization_id" {
+  description = "AWS Organization ID."
+  value       = data.aws_organizations_organization.current.id
+}
