@@ -1,0 +1,33 @@
+region = "eu-central-2"
+
+# ── Repository creation templates ─────────────────────────────────────────────
+# Each key is a namespace prefix. "ROOT" is the catch-all for repos not matching
+# any other prefix. Repos are auto-created on push with these settings.
+
+repository_creation_templates = {
+  "ROOT" = {
+    image_tag_mutability = "IMMUTABLE"
+    applied_for          = ["CREATE_ON_PUSH"]
+    encryption_type      = "AES256"
+
+    # Expire untagged images after 14 days
+    # lifecycle_policy = <<-EOT
+    #   {"rules":[{"rulePriority":1,"description":"Expire untagged after 14 days","selection":{"tagStatus":"untagged","countType":"sinceImagePushed","countUnit":"days","countNumber":14},"action":{"type":"expire"}}]}
+    # EOT
+  }
+
+  # Example: stricter settings for production namespaces
+  # "prod" = {
+  #   image_tag_mutability = "IMMUTABLE"
+  #   encryption_type      = "KMS"
+  #   kms_key              = "arn:aws:kms:eu-central-2:111111111111:key/example"
+  #   custom_role_arn      = "arn:aws:iam::111111111111:role/ecr-template-role"
+  # }
+}
+
+# ── Cross-account pull access ─────────────────────────────────────────────────
+# Grant pull access to all accounts under specific OUs.
+# Requires organization_id to construct the org path condition.
+
+# organization_id    = "o-0eggpu8mki"
+# pull_access_ou_ids = ["ou-z6og-48q35jmb"]  # optional, omit to share whole org
