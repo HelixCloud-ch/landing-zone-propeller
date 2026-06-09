@@ -155,6 +155,8 @@ stages:
             var: hub_vpc_id
           - name: /network.vpc.cidr
             var: hub_vpc_cidr
+          - name: /network.nat.regional_id
+            var: regional_nat_gateway_id
           - name: network-vpc-hub.tgw_subnet_ids
             var: hub_tgw_subnet_ids
           - name: network-vpc-hub.route_table_ids
