@@ -69,13 +69,45 @@ variable "hub_route_table_ids" {
   description = "JSON-encoded map of subnet tier name to route table ID for the hub VPC, from the network-vpc-hub blob (route_table_ids). Used to add the on-prem return route to the private tier's route table."
 }
 
+variable "regional_nat_gateway_id" {
+  type        = string
+  description = "Regional NAT gateway ID, from network-vpc-hub (/network.nat.regional_id). Target of the spoke-egress default route on the tgw-tier route table. Optional: leave empty to skip spoke egress (e.g. VPN-only topologies)."
+  default     = ""
+}
+
+variable "enable_spoke_egress" {
+  type        = bool
+  description = <<-EOT
+    When true, add a 0.0.0.0/0 route on the spoke-egress tier's route table
+    pointing at the regional NAT gateway, so spoke VPCs reaching the hub over the
+    TGW egress to the internet through the hub's NAT. Requires
+    regional_nat_gateway_id and the spoke_egress_tier present in route_table_ids.
+    Default false (opt-in).
+  EOT
+  default     = false
+}
+
+variable "spoke_egress_tier" {
+  type        = string
+  description = <<-EOT
+    Hub VPC subnet tier whose route table receives the spoke-egress default route
+    (0.0.0.0/0 -> regional NAT). Defaults to "tgw" — the tier hosting the TGW
+    attachment ENIs, which is where spoke traffic lands when it enters the hub
+    over the Transit Gateway. Override only if the attachment subnets use a
+    different tier name. Must be present in route_table_ids when
+    enable_spoke_egress is true.
+  EOT
+  default     = "tgw"
+}
+
 variable "onprem_cidrs" {
   type        = list(string)
   description = <<-EOT
     On-premises IPv4 CIDR blocks reachable through the Site-to-Site VPN. Each is
     added to the TGW route table as a static route pointing at the VPN
-    attachment, and to the hub VPC private route table pointing at the TGW.
-    These are customer values and live only in the consumer config.
+    attachment, and to the hub VPC route tables (see onprem_return_route_tiers)
+    pointing at the TGW. These are customer values and live only in the consumer
+    config.
   EOT
   default     = []
 
@@ -83,6 +115,20 @@ variable "onprem_cidrs" {
     condition     = alltrue([for c in var.onprem_cidrs : can(cidrhost(c, 0))])
     error_message = "Every onprem_cidrs entry must be a valid IPv4 CIDR block."
   }
+}
+
+variable "onprem_return_route_tiers" {
+  type        = list(string)
+  description = <<-EOT
+    Hub VPC subnet tiers whose route tables get the on-prem return route
+    (onprem_cidr -> TGW). Defaults to ["private"], where workloads (and the SSM
+    test instance) live. Set to the tiers actually enabled in network-vpc-hub:
+    every listed tier must be present in route_table_ids, otherwise the apply
+    fails with a clear error. The public tier hosts internet-facing ingress
+    (ALB/NLB) and usually does not need to reach on-prem; add it only if a
+    resource there must initiate traffic to on-prem.
+  EOT
+  default     = ["private"]
 }
 
 # ── Tags ─────────────────────────────────────────────────────────────────────

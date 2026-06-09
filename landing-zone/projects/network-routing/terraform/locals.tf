@@ -18,4 +18,16 @@ locals {
       }
     }
   ]...)
+
+  # On-prem return routes: one per (tier, cidr). Keyed by "<tier>@<cidr>" so each
+  # enabled hub tier's route table gets every on-prem CIDR pointed at the TGW.
+  onprem_return_routes = merge([
+    for tier in var.onprem_return_route_tiers : {
+      for cidr in var.onprem_cidrs :
+      "${tier}@${cidr}" => {
+        route_table_id = local.hub_route_table_ids[tier]
+        cidr           = cidr
+      }
+    }
+  ]...)
 }
