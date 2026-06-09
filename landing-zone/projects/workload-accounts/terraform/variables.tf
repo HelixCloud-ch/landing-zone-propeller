@@ -13,12 +13,15 @@ variable "accounts" {
     email               = string
     ou                  = string
     sso_user_email      = optional(string)
-    sso_user_first_name = optional(string)
-    sso_user_last_name  = optional(string)
+    sso_user_first_name = optional(string, "Workload")
+    sso_user_last_name  = optional(string, "Account")
   }))
   description = <<-EOT
     Map of workload accounts to create, keyed by account name. The `ou` field
     references an OU path from workload-ous.
+
+    SSO user fields default to the account email for `sso_user_email`, and
+    "Workload" / "Account" for first/last name. Override per-account if needed.
 
     Example:
       accounts = {
@@ -33,7 +36,7 @@ variable "ou_ids" {
   description = "Map of OU path to OU ID, wired from workload-ous outputs."
 }
 
-# ── SSO defaults ─────────────────────────────────────────────────────────────
+# ── Internal (framework-managed) ──────────────────────────────────────────────
 
 variable "reserved_account_names" {
   type        = set(string)
@@ -41,25 +44,7 @@ variable "reserved_account_names" {
   default     = ["management", "operations", "network", "log-archive", "audit", "backup-admin", "backup-central"]
 }
 
-variable "default_sso_user_email" {
-  type        = string
-  description = "Default SSO user email for new accounts. Per-account override via accounts[].sso_user_email."
-  sensitive   = true
-}
-
-variable "default_sso_user_first_name" {
-  type        = string
-  description = "Default SSO user first name."
-  default     = "Admin"
-}
-
-variable "default_sso_user_last_name" {
-  type        = string
-  description = "Default SSO user last name."
-  default     = "Account"
-}
-
-# ── Tags ─────────────────────────────────────────────────────────────────────
+# ── Tags ──────────────────────────────────────────────────────────────────────
 
 variable "tags" {
   type        = map(string)
