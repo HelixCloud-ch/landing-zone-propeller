@@ -42,7 +42,7 @@ module "accounts" {
 resource "aws_ssm_parameter" "account_ids" {
   for_each = module.accounts
 
-  name      = "/propeller/accounts/${replace(each.key, " ", "-")}/id"
+  name      = "/propeller/accounts/${lower(replace(each.key, " ", "-"))}/id"
   type      = "String"
   value     = each.value.account_id
   overwrite = true
