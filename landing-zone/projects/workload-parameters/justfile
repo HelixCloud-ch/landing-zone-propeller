@@ -1,0 +1,31 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Collects all PROPELLER_INPUT_* env vars and writes them as a single JSON
+# output blob. The pipeline definition controls which inputs are passed —
+# this justfile is generic and doesn't need to change when inputs are added.
+
+init:
+    @echo "workload-parameters: pass-through aggregator"
+
+plan:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "workload-parameters plan — inputs that will be aggregated:"
+    env | grep '^PROPELLER_INPUT_' | sed 's/^PROPELLER_INPUT_/  /' | sort
+
+apply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Build JSON from all PROPELLER_INPUT_* vars
+    jq -n 'env | to_entries
+      | map(select(.key | startswith("PROPELLER_INPUT_")))
+      | map({key: (.key | ltrimstr("PROPELLER_INPUT_")), value: (.value | . as $v | try (fromjson) catch $v)})
+      | from_entries' > .propeller-outputs.json
+    echo "workload-parameters apply — outputs:"
+    jq . .propeller-outputs.json
+
+destroy:
+    @echo "workload-parameters has nothing to destroy"
+
+outputs:
+    @cat .propeller-outputs.json 2>/dev/null || echo '{}'
