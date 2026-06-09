@@ -19,7 +19,7 @@ apply:
     # Build JSON from all PROPELLER_INPUT_* vars
     jq -n 'env | to_entries
       | map(select(.key | startswith("PROPELLER_INPUT_")))
-      | map({key: (.key | ltrimstr("PROPELLER_INPUT_")), value: (.value | try fromjson catch .)})
+      | map({key: (.key | ltrimstr("PROPELLER_INPUT_")), value: (.value | . as $v | try (fromjson) catch $v)})
       | from_entries' > .propeller-outputs.json
     echo "workload-parameters apply — outputs:"
     jq . .propeller-outputs.json
