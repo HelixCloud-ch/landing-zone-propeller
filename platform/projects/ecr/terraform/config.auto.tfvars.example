@@ -21,7 +21,6 @@ repository_creation_templates = {
   #   image_tag_mutability = "IMMUTABLE"
   #   encryption_type      = "KMS"
   #   kms_key              = "arn:aws:kms:eu-central-2:111111111111:key/example"
-  #   custom_role_arn      = "arn:aws:iam::111111111111:role/ecr-template-role"
   # }
 }
 
