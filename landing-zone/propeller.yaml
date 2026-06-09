@@ -24,7 +24,6 @@ stages:
             var: s3_source_bucket
           - name: autopilot_role_arn
           - name: organization_id
-            var: autopilot_role_arn
 
       - project: control-tower-prerequisites
         target: management
