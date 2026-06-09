@@ -23,6 +23,7 @@ stages:
           - name: s3_source_bucket
             var: s3_source_bucket
           - name: autopilot_role_arn
+          - name: organization_id
             var: autopilot_role_arn
 
       - project: control-tower-prerequisites
@@ -134,7 +135,7 @@ stages:
           - name: tgw_subnet_ids
           - name: resolver_subnet_ids
           - name: route_table_ids
-          
+
       - project: network-s2s
         target: network
         depends_on: [network-tgw]
@@ -210,3 +211,27 @@ stages:
         inputs:
           - name: workload-accounts.account_ids
             var: account_ids
+
+      - project: workload-parameters
+        target: management
+        depends_on: [workload-deploy-runners]
+        inputs:
+          - name: bootstrap-parameters.organization_id
+            var: organization_id
+          - name: workload-ous.ou_ids
+            var: ou_ids
+          - name: workload-accounts.account_ids
+            var: account_ids
+          - name: /network.tgw.id
+            var: tgw_id
+          - name: /network.tgw.arn
+            var: tgw_arn
+          - name: /network.tgw.share_arn
+            var: tgw_share_arn
+        outputs:
+          - name: organization_id
+          - name: ou_ids
+          - name: account_ids
+          - name: tgw_id
+          - name: tgw_arn
+          - name: tgw_share_arn
