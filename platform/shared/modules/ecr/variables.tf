@@ -3,13 +3,17 @@
 variable "repository_creation_templates" {
   type = map(object({
     description          = optional(string, "")
-    image_tag_mutability = optional(string, "IMMUTABLE")
-    applied_for          = optional(list(string), ["CREATE_ON_PUSH"])
-    encryption_type      = optional(string, "AES256")
-    kms_key              = optional(string, null)
-    repository_policy    = optional(string, null)
-    lifecycle_policy     = optional(string, null)
-    resource_tags        = optional(map(string), {})
+    image_tag_mutability = optional(string, "IMMUTABLE_WITH_EXCLUSION")
+    image_tag_mutability_exclusion_filters = optional(list(object({
+      filter      = string
+      filter_type = optional(string, "WILDCARD")
+    })), [{ filter = "latest", filter_type = "WILDCARD" }])
+    applied_for       = optional(list(string), ["CREATE_ON_PUSH"])
+    encryption_type   = optional(string, "AES256")
+    kms_key           = optional(string, null)
+    repository_policy = optional(string, null)
+    lifecycle_policy  = optional(string, null)
+    resource_tags     = optional(map(string), {})
   }))
   description = <<-EOT
     Map of repository creation templates keyed by namespace prefix.

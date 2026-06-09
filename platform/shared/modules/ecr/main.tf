@@ -41,6 +41,14 @@ resource "aws_ecr_repository_creation_template" "templates" {
   applied_for          = each.value.applied_for
   custom_role_arn      = aws_iam_role.ecr_template.arn
 
+  dynamic "image_tag_mutability_exclusion_filter" {
+    for_each = each.value.image_tag_mutability_exclusion_filters
+    content {
+      filter      = image_tag_mutability_exclusion_filter.value.filter
+      filter_type = image_tag_mutability_exclusion_filter.value.filter_type
+    }
+  }
+
   encryption_configuration {
     encryption_type = each.value.encryption_type
     kms_key         = each.value.kms_key
