@@ -1,0 +1,10 @@
+name: workload-parameters
+description: >-
+  Aggregates landing-zone outputs (network, accounts, shared config) into a
+  single JSON blob consumable by platform pipelines running in workload accounts.
+
+metadata:
+  cost-center: landing-zone
+
+deploy:
+  type: script
