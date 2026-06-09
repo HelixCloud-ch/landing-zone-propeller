@@ -32,18 +32,3 @@ module "accounts" {
   depends_on = [terraform_data.validate_account_names]
 }
 
-# ── Account registry ──────────────────────────────────────────────────────────
-# These SSM parameters are the contract between the landing zone and platform
-# pipelines. A platform pipeline targets an account by name (e.g. target:
-# acme-prod); the engine resolves it by reading /propeller/accounts/<name>/id.
-# They are created directly here because the list is dynamic, and because we are
-# satisfying an actual contract, pre-requisite of the Platform pipelines.
-
-resource "aws_ssm_parameter" "account_ids" {
-  for_each = module.accounts
-
-  name      = "/propeller/accounts/${lower(replace(each.key, " ", "-"))}/id"
-  type      = "String"
-  value     = each.value.account_id
-  overwrite = true
-}

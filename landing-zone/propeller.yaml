@@ -203,3 +203,10 @@ stages:
             var: caller_arn
           - name: /accounts.operations.id
             var: caller_account_id
+
+      - project: workload-account-registry
+        target: operations
+        depends_on: [workload-deploy-runners]
+        inputs:
+          - name: workload-accounts.account_ids
+            var: account_ids
