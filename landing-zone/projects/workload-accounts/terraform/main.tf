@@ -25,9 +25,9 @@ module "accounts" {
   ou_name = element(split("/", each.value.ou), length(split("/", each.value.ou)) - 1)
   ou_id   = var.ou_ids[each.value.ou]
 
-  sso_user_email      = coalesce(each.value.sso_user_email, var.default_sso_user_email)
-  sso_user_first_name = coalesce(each.value.sso_user_first_name, var.default_sso_user_first_name)
-  sso_user_last_name  = coalesce(each.value.sso_user_last_name, var.default_sso_user_last_name)
+  sso_user_email      = coalesce(each.value.sso_user_email, each.value.email)
+  sso_user_first_name = each.value.sso_user_first_name
+  sso_user_last_name  = each.value.sso_user_last_name
 
   depends_on = [terraform_data.validate_account_names]
 }
