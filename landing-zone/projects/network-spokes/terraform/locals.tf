@@ -94,7 +94,16 @@ locals {
       "${name}@vpc-return@${cidr}" => {
         cidr = cidr
       }
-      if var.hub_vpc_cidr == "" || !cidrcontains(var.hub_vpc_cidr, cidr)
+      # Skip CIDRs that are subsets of (or equal to) the hub VPC CIDR. AWS rejects
+      # routes whose destination is covered by the VPC's own "local" route
+      # (InvalidParameterValue). A spoke CIDR is inside the hub CIDR when both
+      # share the same network address at the hub's prefix length — i.e. masking
+      # the spoke's network address to the hub's prefix gives back the hub's
+      # network address.  cidrhost(hub, 0) and cidrhost(spoke_masked_to_hub, 0)
+      # are equal in that case.
+      if var.hub_vpc_cidr == "" || cidrhost(var.hub_vpc_cidr, 0) != cidrhost(
+        format("%s/%s", cidrhost(cidr, 0), split("/", var.hub_vpc_cidr)[1]), 0
+      )
     } if contains(s.allowed_destinations, "hub")
   ]...) : {}
 
@@ -121,15 +130,18 @@ locals {
   # critical missing piece: the NAT uses its own route table for outbound routing,
   # not the subnet RT. One aws_route per spoke CIDR -> TGW.
   #
-  # Same exclusion as hub_vpc_return_routes: spoke CIDRs that are subsets of the
-  # hub VPC CIDR are covered by the local route; AWS rejects the TGW route.
+  # Same exclusion as hub_vpc_return_routes: spoke CIDRs contained within the hub
+  # VPC CIDR are already covered by the VPC local route; AWS rejects a TGW route
+  # for them.
   hub_nat_return_routes = var.hub_nat_route_table_id != "" ? merge([
     for name, s in local.spokes : {
       for cidr in s.cidrs :
       "${name}@nat-return@${cidr}" => {
         cidr = cidr
       }
-      if var.hub_vpc_cidr == "" || !cidrcontains(var.hub_vpc_cidr, cidr)
+      if var.hub_vpc_cidr == "" || cidrhost(var.hub_vpc_cidr, 0) != cidrhost(
+        format("%s/%s", cidrhost(cidr, 0), split("/", var.hub_vpc_cidr)[1]), 0
+      )
     } if contains(s.allowed_destinations, "hub")
   ]...) : {}
 }
