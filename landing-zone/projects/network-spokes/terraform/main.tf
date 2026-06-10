@@ -75,6 +75,29 @@ resource "aws_ec2_transit_gateway_route" "hub" {
   }
 }
 
+# ── Internet egress route: 0.0.0.0/0 -> hub (per segment) ──────────────────────
+# One default-route per segment table for segments that contain at least one spoke
+# with "hub" reachability. This is the critical TGW-side piece of the centralised-
+# egress pattern: spoke -> TGW segment table (0.0.0.0/0 here) -> hub attachment ->
+# hub VPC NAT Gateway -> internet. Without this route the TGW drops packets whose
+# destination is not explicitly covered by another route in the segment table.
+# Gated on var.enable_segment_internet_egress (default true). Requires
+# hub_attachment_id to be set (enforced by precondition at plan time).
+resource "aws_ec2_transit_gateway_route" "segment_internet_egress" {
+  for_each = local.segment_internet_egress_routes
+
+  destination_cidr_block         = "0.0.0.0/0"
+  transit_gateway_attachment_id  = each.value.attachment_id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.segment[each.value.segment].id
+
+  lifecycle {
+    precondition {
+      condition     = var.hub_attachment_id != ""
+      error_message = "enable_segment_internet_egress is true but hub_attachment_id is empty. Wire network-routing.hub_attachment_id on the network-spokes step, or set enable_segment_internet_egress = false."
+    }
+  }
+}
+
 # ── Shared-destination routes: on-prem ──────────────────────────────────────────
 # Per-segment static route onprem CIDR -> VPN attachment, for spokes that declared
 # "onprem". One per (spoke, onprem CIDR).

@@ -90,6 +90,23 @@ locals {
     } if contains(s.allowed_destinations, "hub")
   ]...) : {}
 
+  # Internet egress routes — per-segment 0.0.0.0/0 -> hub_attachment_id, written
+  # into every segment that contains at least one spoke with "hub" reachability.
+  # This is the centralised-egress pattern: spoke -> TGW -> hub VPC -> NAT Gateway.
+  # Gated on var.enable_segment_internet_egress; emits one route per segment (not
+  # per spoke), so duplicate routes for multiple spokes in the same segment are
+  # deduplicated here. Keyed by segment name.
+  segment_internet_egress_routes = var.enable_segment_internet_egress ? {
+    for seg in distinct([
+      for name, s in local.spokes : s.segment
+      if contains(s.allowed_destinations, "hub")
+    ]) :
+    seg => {
+      segment       = seg
+      attachment_id = var.hub_attachment_id
+    }
+  } : {}
+
   # Hub NAT return routes — written into the regional NAT gateway's own route
   # table (rtb-* automatically created by AWS for the regional NAT) so the NAT
   # itself can route reply packets back to spoke VPCs via the TGW. This is the
