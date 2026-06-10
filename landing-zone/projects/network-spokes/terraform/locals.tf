@@ -79,6 +79,13 @@ locals {
   # Without these, NAT reply packets have no route back to spoke CIDRs and are
   # dropped. One aws_route per spoke CIDR, destination -> TGW. Only emitted when
   # hub_vpc_route_table_ids contains the "tgw" key.
+  #
+  # IMPORTANT: spoke CIDRs that fall within the hub VPC CIDR are already covered
+  # by the VPC's implicit "local" route. AWS rejects any attempt to add a TGW
+  # route for a destination that is equal to or more specific than the VPC's own
+  # CIDR blocks (InvalidParameterValue). These CIDRs are excluded here.
+  # This is the normal case when the hub uses a large /16 CIDR that encompasses
+  # all spoke allocations.
   hub_vpc_tgw_rt_id = lookup(var.hub_vpc_route_table_ids, "tgw", "")
 
   hub_vpc_return_routes = local.hub_vpc_tgw_rt_id != "" ? merge([
@@ -87,6 +94,7 @@ locals {
       "${name}@vpc-return@${cidr}" => {
         cidr = cidr
       }
+      if var.hub_vpc_cidr == "" || !cidrcontains(var.hub_vpc_cidr, cidr)
     } if contains(s.allowed_destinations, "hub")
   ]...) : {}
 
@@ -112,12 +120,16 @@ locals {
   # itself can route reply packets back to spoke VPCs via the TGW. This is the
   # critical missing piece: the NAT uses its own route table for outbound routing,
   # not the subnet RT. One aws_route per spoke CIDR -> TGW.
+  #
+  # Same exclusion as hub_vpc_return_routes: spoke CIDRs that are subsets of the
+  # hub VPC CIDR are covered by the local route; AWS rejects the TGW route.
   hub_nat_return_routes = var.hub_nat_route_table_id != "" ? merge([
     for name, s in local.spokes : {
       for cidr in s.cidrs :
       "${name}@nat-return@${cidr}" => {
         cidr = cidr
       }
+      if var.hub_vpc_cidr == "" || !cidrcontains(var.hub_vpc_cidr, cidr)
     } if contains(s.allowed_destinations, "hub")
   ]...) : {}
 }
