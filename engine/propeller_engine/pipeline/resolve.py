@@ -316,10 +316,10 @@ def resolve(
         _apply_additions(pipeline, config.pipeline)
         _apply_stage_order(pipeline, config.pipeline)
         targets = config.pipeline.targets
-        consumer_tags = dict(config.tags or {})
+        consumer_tags = {**dict(pipeline.tags), **dict(config.tags or {})}
     else:
         targets = {}
-        consumer_tags = {}
+        consumer_tags = dict(pipeline.tags)
 
     # The version is supplied by the consumer tooling (read from the version
     # pin file and passed via --version). Defaults to "dev" for framework-local

@@ -42,4 +42,5 @@ class Pipeline(BaseModel):
     propeller_version: str | None = None
     resolved_at: str | None = None
     stages: list[Stage]
+    tags: dict[str, str] = Field(default_factory=dict)
     consumer_tags: dict[str, str] = Field(default_factory=dict)
