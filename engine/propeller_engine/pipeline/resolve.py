@@ -117,12 +117,17 @@ def _set_default_sources(
     for stage in pipeline.stages:
         for step in stage.steps:
             if step.source is None:
+                # No source - look up by project name
                 entry = project_index.get(step.project)
                 step.source = (
                     entry["path"]
                     if entry
                     else f"{propeller_dir}/projects/{step.project}"
                 )
+            elif step.source in project_index:
+                # Source is a project name reference - resolve to path
+                step.source = project_index[step.source]["path"]
+            # else: source is already a path, leave as-is
 
 
 def _load_project_yaml_for_step(step: Step, project_index: dict[str, dict]) -> dict:
