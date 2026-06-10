@@ -6,7 +6,7 @@ locals {
   public_subnet_ids  = try(local.subnets_by_tier[var.public_subnet_tier], [])
 }
 
-# ── OCM credentials from Secrets Manager ─────────────────────────────────────
+# ── OCM credentials from Secrets Manager ──────────────────────────────────────
 
 data "aws_secretsmanager_secret_version" "ocm" {
   secret_id = var.ocm_secret_name
@@ -16,7 +16,7 @@ locals {
   ocm_credentials = sensitive(jsondecode(data.aws_secretsmanager_secret_version.ocm.secret_string))
 }
 
-# ── ROSA HCP cluster ─────────────────────────────────────────────────────────
+# ── ROSA HCP cluster ──────────────────────────────────────────────────────────
 
 module "rosa_hcp" {
   source  = "terraform-redhat/rosa-hcp/rhcs"
@@ -42,7 +42,7 @@ module "rosa_hcp" {
   tags = var.tags
 }
 
-# ── Store bootstrapped admin credentials in Secrets Manager ───────────────────
+# ── Store admin credentials in Secrets Manager ────────────────────────────────
 
 resource "aws_secretsmanager_secret" "cluster_admin" {
   count = var.create_admin_user ? 1 : 0
