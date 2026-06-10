@@ -172,6 +172,8 @@ stages:
              var: tgw_id
            - name: network-vpc-hub.vpc_cidr
              var: hub_vpc_cidr
+           - name: network-vpc-hub.route_table_ids
+             var: hub_vpc_route_table_ids
            - name: network-routing.hub_attachment_id
              var: hub_attachment_id
            - name: network-routing.tgw_route_table_id

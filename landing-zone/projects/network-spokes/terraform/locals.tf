@@ -73,4 +73,20 @@ locals {
       }
     } if contains(s.allowed_destinations, "hub")
   ]...) : {}
+
+  # Hub VPC return routes — written into the hub's tgw-tier VPC route table
+  # (owned by network-vpc-hub) so the hub NAT can return packets to spoke VPCs.
+  # Without these, NAT reply packets have no route back to spoke CIDRs and are
+  # dropped. One aws_route per spoke CIDR, destination -> TGW. Only emitted when
+  # hub_vpc_route_table_ids contains the "tgw" key.
+  hub_vpc_tgw_rt_id = lookup(var.hub_vpc_route_table_ids, "tgw", "")
+
+  hub_vpc_return_routes = local.hub_vpc_tgw_rt_id != "" ? merge([
+    for name, s in local.spokes : {
+      for cidr in s.cidrs :
+      "${name}@vpc-return@${cidr}" => {
+        cidr = cidr
+      }
+    } if contains(s.allowed_destinations, "hub")
+  ]...) : {}
 }

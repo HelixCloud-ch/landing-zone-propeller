@@ -66,6 +66,16 @@ variable "hub_tgw_route_table_id" {
   }
 }
 
+variable "hub_vpc_route_table_ids" {
+  type        = map(string)
+  description = <<-EOT
+    Map of hub VPC subnet tier name to route table ID, from network-vpc-hub (route_table_ids).
+    network-spokes extracts the 'tgw' tier to write spoke-CIDR -> TGW routes so the hub NAT
+    can return packets to spoke VPCs. Leave empty when no spoke declares 'hub' reachability.
+  EOT
+  default     = {}
+}
+
 variable "vpn_attachment_ids" {
   type        = map(string)
   description = "Map of on-prem peer IP to TGW VPN attachment ID, from the network-s2s blob (vpn_attachment_ids). Target of the per-segment on-prem routes when a spoke declares 'onprem' reachability. Empty map when network-s2s is absent."

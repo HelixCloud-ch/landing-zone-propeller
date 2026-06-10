@@ -115,6 +115,28 @@ resource "aws_ec2_transit_gateway_route" "hub_return" {
   }
 }
 
+# ── Hub VPC return routes (in hub tgw-tier RT, owned by network-vpc-hub) ───────
+# For each spoke that declared "hub" reachability, write spoke-CIDR -> TGW into
+# the hub VPC's tgw-tier route table. This is what allows the hub NAT to return
+# reply packets to spoke VPCs — without it, NAT has no route back for spoke CIDRs.
+# network-spokes owns these routes because it owns the spoke lifecycle and knows
+# all spoke CIDRs. The route table itself is owned by network-vpc-hub; we only
+# add individual aws_route resources (no inline blocks) to avoid state conflicts.
+resource "aws_route" "hub_vpc_return" {
+  for_each = local.hub_vpc_return_routes
+
+  route_table_id         = local.hub_vpc_tgw_rt_id
+  destination_cidr_block = each.value.cidr
+  transit_gateway_id     = var.tgw_id
+
+  lifecycle {
+    precondition {
+      condition     = local.hub_vpc_tgw_rt_id != ""
+      error_message = "hub_vpc_route_table_ids must contain a 'tgw' key to write hub VPC return routes. Wire network-vpc-hub.route_table_ids on the network-spokes step."
+    }
+  }
+}
+
 # Per-segment static route peer CIDR -> peer attachment, written only in the
 # declaring spoke's segment table. Directional: mutual reachability requires both
 # spokes to name each other (no implicit symmetry — isolation by default).
