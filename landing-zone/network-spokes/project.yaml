@@ -1,0 +1,19 @@
+name: network-spokes
+description: >-
+  Governance-owned spoke onboarding for the network plane. Accepts workload-account
+  Transit Gateway VPC attachments (which sit in pendingAcceptance because the shared
+  TGW disables auto-accept per Security Hub EC2.23), gives each a friendly name,
+  associates it to a segment (a named TGW route table this project owns), and writes
+  the static reachability routes declared by the governance registry. Isolation by
+  default: a spoke reaches nothing until an explicit edge is declared.
+
+metadata:
+  cost-center: landing-zone
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
