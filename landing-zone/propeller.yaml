@@ -87,7 +87,7 @@ stages:
 
       - project: network-deploy-runner
         target: management
-        depends_on: [account-network, bootstrap-parameters]
+        depends_on: [account-network]
         inputs:
           - name: /accounts.network.id
             var: network_account_id
