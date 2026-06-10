@@ -1,31 +1,26 @@
-# ── Cross-account pull policy (applied to all templates) ──────────────────────
+# ── Cross-account pull policy ─────────────────────────────────────────────────
 
 data "aws_caller_identity" "current" {}
 
-data "aws_iam_policy_document" "cross_account_pull" {
-  count = length(var.pull_access_org_paths) > 0 ? 1 : 0
-
-  statement {
-    sid    = "AllowOrgPull"
-    effect = "Allow"
-
-    principals {
-      type        = "AWS"
-      identifiers = ["*"]
-    }
-
-    actions = [
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:BatchGetImage",
-      "ecr:BatchCheckLayerAvailability",
-    ]
-
-    condition {
-      test     = "ForAnyValue:StringLike"
-      variable = "aws:PrincipalOrgPaths"
-      values   = var.pull_access_org_paths
-    }
-  }
+locals {
+  cross_account_pull_policy = length(var.pull_access_org_paths) > 0 ? jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AllowOrgPull"
+      Effect    = "Allow"
+      Principal = { AWS = "*" }
+      Action = [
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:BatchCheckLayerAvailability",
+      ]
+      Condition = {
+        "ForAnyValue:StringLike" = {
+          "aws:PrincipalOrgPaths" = var.pull_access_org_paths
+        }
+      }
+    }]
+  }) : null
 }
 
 # ── Repository creation templates ─────────────────────────────────────────────
@@ -54,11 +49,7 @@ resource "aws_ecr_repository_creation_template" "templates" {
     kms_key         = each.value.kms_key
   }
 
-  repository_policy = coalesce(
-    each.value.repository_policy,
-    length(var.pull_access_org_paths) > 0 ? data.aws_iam_policy_document.cross_account_pull[0].json : null
-  )
-
-  lifecycle_policy = each.value.lifecycle_policy
-  resource_tags    = merge(var.default_repository_tags, each.value.resource_tags)
+  repository_policy = coalesce(each.value.repository_policy, local.cross_account_pull_policy)
+  lifecycle_policy  = each.value.lifecycle_policy
+  resource_tags     = merge(var.default_repository_tags, each.value.resource_tags)
 }
