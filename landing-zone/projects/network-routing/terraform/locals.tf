@@ -1,10 +1,10 @@
 locals {
-  # Complex inputs arrive as JSON strings from the engine (_write_outputs uses
-  # json.dumps for list/dict values; _var_args passes them as plain strings).
-  # Decode here so the rest of the config works with native HCL types.
-  vpn_attachment_ids  = var.vpn_attachment_ids == "" ? {} : jsondecode(var.vpn_attachment_ids)
-  hub_route_table_ids = jsondecode(var.hub_route_table_ids)
-  hub_tgw_subnet_ids  = jsondecode(var.hub_tgw_subnet_ids)
+  # Aliases for readability — these inputs arrive as native HCL types (the engine
+  # passes structured -var values as JSON, which Terraform parses against the
+  # variable's declared type). Empty defaults are handled by the variable defaults.
+  vpn_attachment_ids  = var.vpn_attachment_ids
+  hub_route_table_ids = var.hub_route_table_ids
+  hub_tgw_subnet_ids  = var.hub_tgw_subnet_ids
 
   # On-prem CIDR × VPN attachment product. Static routes are required because
   # network-s2s sets static_routes_only = true (no BGP propagation). Keyed by

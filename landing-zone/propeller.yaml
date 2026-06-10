@@ -112,23 +112,17 @@ stages:
         target: network
         depends_on: []
         outputs:
-          - name: /network.tgw.id
-            var: tgw_id
-          - name: /network.tgw.arn
-            var: tgw_arn
-          - name: /network.tgw.share_arn
-            var: tgw_share_arn
+          - name: id
+          - name: arn
+          - name: share_arn
 
       - project: network-vpc-hub
         target: network
         depends_on: []
         outputs:
-          - name: /network.vpc.id
-            var: vpc_id
-          - name: /network.vpc.cidr
-            var: vpc_cidr
-          - name: /network.nat.regional_id
-            var: regional_nat_gateway_id
+          - name: vpc_id
+          - name: vpc_cidr
+          - name: regional_nat_gateway_id
           - name: public_subnet_ids
           - name: private_subnet_ids
           - name: tgw_subnet_ids
@@ -139,7 +133,7 @@ stages:
         target: network
         depends_on: [network-tgw]
         inputs:
-          - name: /network.tgw.id
+          - name: network-tgw.id
             var: tgw_id
         outputs:
           - name: vpn_attachment_ids
@@ -149,13 +143,13 @@ stages:
         target: network
         depends_on: [network-tgw, network-vpc-hub, network-s2s]
         inputs:
-          - name: /network.tgw.id
+          - name: network-tgw.id
             var: tgw_id
-          - name: /network.vpc.id
+          - name: network-vpc-hub.vpc_id
             var: hub_vpc_id
-          - name: /network.vpc.cidr
+          - name: network-vpc-hub.vpc_cidr
             var: hub_vpc_cidr
-          - name: /network.nat.regional_id
+          - name: network-vpc-hub.regional_nat_gateway_id
             var: regional_nat_gateway_id
           - name: network-vpc-hub.tgw_subnet_ids
             var: hub_tgw_subnet_ids
@@ -221,11 +215,11 @@ stages:
             var: ou_ids
           - name: workload-accounts.account_ids
             var: account_ids
-          - name: /network.tgw.id
+          - name: network-tgw.id
             var: tgw_id
-          - name: /network.tgw.arn
+          - name: network-tgw.arn
             var: tgw_arn
-          - name: /network.tgw.share_arn
+          - name: network-tgw.share_arn
             var: tgw_share_arn
         outputs:
           - name: organization_id

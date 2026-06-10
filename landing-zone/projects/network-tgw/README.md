@@ -13,7 +13,7 @@ Creates the Transit Gateway and its RAM share. This is the anchor resource for t
 
 Route tables and routing policy are managed by downstream projects.
 
-**RAM share** — shares the TGW org-internally so spoke accounts can request VPC attachments. The share is created with no principals; workload OU ARNs are added via `aws_ram_principal_association` during spoke onboarding, using the `tgw_share_arn` output.
+**RAM share** — shares the TGW org-internally so spoke accounts can request VPC attachments. The share is created with no principals; workload OU ARNs are added via `aws_ram_principal_association` during spoke onboarding, using the `share_arn` output.
 
 Requires RAM org-sharing to be enabled in the management account (`org-trusted-access` project).
 
@@ -71,7 +71,7 @@ No modules.
 
 | Name | Description |
 | ---- | ----------- |
-| <a name="output_tgw_arn"></a> [tgw\_arn](#output\_tgw\_arn) | ARN of the Transit Gateway. |
-| <a name="output_tgw_id"></a> [tgw\_id](#output\_tgw\_id) | ID of the Transit Gateway. |
-| <a name="output_tgw_share_arn"></a> [tgw\_share\_arn](#output\_tgw\_share\_arn) | ARN of the RAM share. Downstream projects use this to add aws\_ram\_principal\_association resources when onboarding workload OUs. |
+| <a name="output_arn"></a> [arn](#output\_arn) | ARN of the Transit Gateway. |
+| <a name="output_id"></a> [id](#output\_id) | ID of the Transit Gateway. |
+| <a name="output_share_arn"></a> [share\_arn](#output\_share\_arn) | ARN of the RAM share. Downstream projects use this to add aws\_ram\_principal\_association resources when onboarding workload OUs. |
 <!-- END_TF_DOCS -->

@@ -52,21 +52,21 @@ variable "hub_vpc_cidr" {
 }
 
 variable "hub_tgw_subnet_ids" {
-  type        = string
-  description = "JSON-encoded list of hub VPC tgw-tier subnet IDs (one per AZ), from the network-vpc-hub blob (tgw_subnet_ids). The hub TGW VPC attachment places its ENIs in these subnets."
+  type        = list(string)
+  description = "Hub VPC tgw-tier subnet IDs (one per AZ), from the network-vpc-hub blob (tgw_subnet_ids). The hub TGW VPC attachment places its ENIs in these subnets."
 }
 
 variable "vpn_attachment_ids" {
-  type        = string
-  description = "JSON-encoded map of on-prem peer IP to TGW VPN attachment ID, from the network-s2s blob (vpn_attachment_ids). Pass an empty string or '{}' when network-s2s has not been applied yet."
-  default     = "{}"
+  type        = map(string)
+  description = "Map of on-prem peer IP to TGW VPN attachment ID, from the network-s2s blob (vpn_attachment_ids). Empty map when network-s2s has not been applied yet."
+  default     = {}
 }
 
 # ── Routing policy (declarative) ─────────────────────────────────────────────
 
 variable "hub_route_table_ids" {
-  type        = string
-  description = "JSON-encoded map of subnet tier name to route table ID for the hub VPC, from the network-vpc-hub blob (route_table_ids). Used to add the on-prem return route to the private tier's route table."
+  type        = map(string)
+  description = "Map of subnet tier name to route table ID for the hub VPC, from the network-vpc-hub blob (route_table_ids). Used to add the on-prem return route to the chosen tier's route table."
 }
 
 variable "regional_nat_gateway_id" {
