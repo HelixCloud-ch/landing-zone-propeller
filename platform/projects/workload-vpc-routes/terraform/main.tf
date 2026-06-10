@@ -34,20 +34,52 @@ resource "terraform_data" "attachment_ready" {
   }
 }
 
-# Look up the route tables that workload-vpc created, one per egress tier.
-# We find them via subnet ID (each tier's first subnet) rather than re-creating them.
-data "aws_route_table" "egress" {
-  for_each = toset(var.egress_tiers)
+locals {
+  # All tiers that have subnets. Keys are tier names; values are ordered subnet
+  # objects from workload-vpc. Drives route table creation and associations.
+  active_tiers = {
+    for tier, ids in var.subnet_ids_by_tier : tier => ids if length(ids) > 0
+  }
 
-  subnet_id = var.subnet_ids_by_tier[each.key][0]
+  # Flat map keyed by "<tier>-<index>" for subnet associations. Plan-stable keys.
+  associations = merge([
+    for tier, ids in local.active_tiers : {
+      for idx, id in ids : "${tier}-${idx}" => {
+        subnet_id = id
+        tier      = tier
+      }
+    }
+  ]...)
+
+  # Only egress tiers that are actually present.
+  egress_tiers_present = [
+    for t in var.egress_tiers : t if contains(keys(local.active_tiers), t)
+  ]
 }
 
-# 0.0.0.0/0 -> TGW for every egress tier. Single-route resources so adding
-# further routes later causes no state conflicts.
-resource "aws_route" "tgw_default" {
-  for_each = toset(var.egress_tiers)
+resource "aws_route_table" "this" {
+  for_each = local.active_tiers
 
-  route_table_id         = data.aws_route_table.egress[each.key].id
+  vpc_id = var.vpc_id
+
+  tags = {
+    Name = "${var.name_prefix}-${each.key}-rt"
+  }
+}
+
+resource "aws_route_table_association" "this" {
+  for_each = local.associations
+
+  subnet_id      = each.value.subnet_id
+  route_table_id = aws_route_table.this[each.value.tier].id
+}
+
+# 0.0.0.0/0 -> TGW for every egress tier. Single-route resources (no inline
+# blocks) so adding further routes later causes no state conflicts.
+resource "aws_route" "tgw_default" {
+  for_each = toset(local.egress_tiers_present)
+
+  route_table_id         = aws_route_table.this[each.key].id
   destination_cidr_block = "0.0.0.0/0"
   transit_gateway_id     = var.tgw_id
 

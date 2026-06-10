@@ -1,6 +1,6 @@
 output "route_table_ids" {
-  description = "Map of egress tier name to its route table ID (the same tables that workload-vpc created)."
-  value       = { for tier, rt in data.aws_route_table.egress : tier => rt.id }
+  description = "Map of tier name to route table ID for all tiers that have subnets."
+  value       = { for tier, rt in aws_route_table.this : tier => rt.id }
 }
 
 output "attachment_state" {
