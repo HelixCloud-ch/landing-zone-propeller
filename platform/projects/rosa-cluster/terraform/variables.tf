@@ -49,6 +49,14 @@ variable "create_admin_user" {
   default     = true
 }
 
+# ── Billing ──────────────────────────────────────────────────────────────────
+
+variable "aws_billing_account_id" {
+  type        = string
+  description = "AWS account ID where ROSA billing is linked. Only needed if different from the deployment account (e.g. management account in an Organization)."
+  default     = null
+}
+
 # ── Network (from VPC project outputs via pipeline) ──────────────────────────
 
 variable "vpc_id" {

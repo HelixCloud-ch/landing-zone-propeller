@@ -28,6 +28,7 @@ module "rosa_hcp" {
   private                = var.private
   aws_subnet_ids         = var.private ? local.private_subnet_ids : concat(local.private_subnet_ids, local.public_subnet_ids)
   aws_availability_zones = var.availability_zones
+  aws_billing_account_id = var.aws_billing_account_id
   replicas               = var.replicas
   compute_machine_type   = var.compute_machine_type
 
