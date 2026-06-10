@@ -164,7 +164,24 @@ stages:
           - name: tgw_route_table_id
           - name: hub_attachment_id
           - name: onprem_cidrs
-
+      -  project: network-spokes
+         target: network
+         depends_on: [network-tgw, network-routing, network-s2s]
+         inputs:
+           - name: network-tgw.id
+             var: tgw_id
+           - name: network-vpc-hub.vpc_cidr
+             var: hub_vpc_cidr
+           - name: network-routing.hub_attachment_id
+             var: hub_attachment_id
+           - name: network-routing.onprem_cidrs
+             var: onprem_cidrs
+           - name: network-s2s.vpn_attachment_ids
+             var: vpn_attachment_ids
+         outputs:
+          - name: segment_route_table_ids
+          - name: accepted_attachments
+          
   - name: workloads
     steps:
       - project: workload-ous
