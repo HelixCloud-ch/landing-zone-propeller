@@ -55,6 +55,17 @@ variable "hub_vpc_cidr" {
   }
 }
 
+variable "hub_tgw_route_table_id" {
+  type        = string
+  description = "TGW route table ID of the 'main' table owned by network-routing (tgw_route_table_id output). Used to write spoke-CIDR -> spoke-attachment return routes so the hub can initiate or return traffic to accepted spokes. Leave empty when no spoke needs hub reachability."
+  default     = ""
+
+  validation {
+    condition     = var.hub_tgw_route_table_id == "" || can(regex("^tgw-rtb-[0-9a-f]+$", var.hub_tgw_route_table_id))
+    error_message = "hub_tgw_route_table_id must be empty or a valid TGW route table ID (tgw-rtb-*)."
+  }
+}
+
 variable "vpn_attachment_ids" {
   type        = map(string)
   description = "Map of on-prem peer IP to TGW VPN attachment ID, from the network-s2s blob (vpn_attachment_ids). Target of the per-segment on-prem routes when a spoke declares 'onprem' reachability. Empty map when network-s2s is absent."
