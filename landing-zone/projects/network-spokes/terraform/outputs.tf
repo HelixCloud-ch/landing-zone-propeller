@@ -4,7 +4,7 @@ output "segment_route_table_ids" {
 }
 
 output "accepted_attachments" {
-  description = "Map of friendly name to {attachment_id, cidrs, segment} for each accepted spoke. Consumed by network-routing to write hub->spoke return routes into the main table; network-spokes never writes into main."
+  description = "Map of friendly name to {attachment_id, cidrs, segment} for each accepted spoke. Available for informational use; hub return routes are now written directly by network-spokes into the main TGW route table."
   value = {
     for k, s in local.spokes : k => {
       attachment_id = aws_ec2_transit_gateway_vpc_attachment_accepter.spoke[k].id

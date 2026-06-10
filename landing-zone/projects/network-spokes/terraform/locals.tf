@@ -58,4 +58,19 @@ locals {
       }
     }
   ]...)
+
+  # Hub return routes — written into the 'main' TGW route table (owned by
+  # network-routing) so the hub can return or initiate traffic to accepted spokes.
+  # One route per spoke CIDR, for every spoke that declared "hub" reachability.
+  # Keyed "<friendly>@return@<cidr>".
+  # Only populated when hub_tgw_route_table_id is provided.
+  hub_return_routes = var.hub_tgw_route_table_id != "" ? merge([
+    for name, s in local.spokes : {
+      for cidr in s.cidrs :
+      "${name}@return@${cidr}" => {
+        cidr          = cidr
+        attachment_id = aws_ec2_transit_gateway_vpc_attachment_accepter.spoke[name].id
+      }
+    } if contains(s.allowed_destinations, "hub")
+  ]...) : {}
 }

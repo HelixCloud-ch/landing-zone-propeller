@@ -93,7 +93,28 @@ resource "aws_ec2_transit_gateway_route" "onprem" {
   }
 }
 
-# ── Peer (inter-spoke) routes ───────────────────────────────────────────────────
+# ── Hub return routes (in main, owned by network-routing) ──────────────────────
+# For each spoke that declared "hub" reachability, write spoke-CIDR -> spoke-attachment
+# into the hub's TGW route table (main). This is what allows the hub to return
+# traffic (NAT reply packets, or hub-initiated connections) back to the spoke.
+# network-spokes owns these routes because it owns the spoke lifecycle — adding a
+# spoke creates the return path, removing it destroys it, atomically.
+# Gated on hub_tgw_route_table_id being set; the route table itself is not owned here.
+resource "aws_ec2_transit_gateway_route" "hub_return" {
+  for_each = local.hub_return_routes
+
+  destination_cidr_block         = each.value.cidr
+  transit_gateway_attachment_id  = each.value.attachment_id
+  transit_gateway_route_table_id = var.hub_tgw_route_table_id
+
+  lifecycle {
+    precondition {
+      condition     = var.hub_tgw_route_table_id != ""
+      error_message = "hub_tgw_route_table_id must be set to write hub return routes. Wire network-routing.tgw_route_table_id on the network-spokes step."
+    }
+  }
+}
+
 # Per-segment static route peer CIDR -> peer attachment, written only in the
 # declaring spoke's segment table. Directional: mutual reachability requires both
 # spokes to name each other (no implicit symmetry — isolation by default).
