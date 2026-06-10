@@ -21,7 +21,7 @@ data "aws_iam_policy_document" "cross_account_pull" {
     ]
 
     condition {
-      test     = "StringLike"
+      test     = "ForAnyValue:StringLike"
       variable = "aws:PrincipalOrgPaths"
       values   = var.pull_access_org_paths
     }
