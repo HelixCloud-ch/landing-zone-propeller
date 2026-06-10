@@ -76,6 +76,22 @@ variable "hub_vpc_route_table_ids" {
   default     = {}
 }
 
+variable "hub_nat_route_table_id" {
+  type        = string
+  description = <<-EOT
+    ID of the route table automatically created by the regional NAT gateway, from
+    network-vpc-hub (regional_nat_route_table_id). network-spokes writes spoke-CIDR -> TGW
+    return routes into this table so the NAT can route reply packets back to spoke VPCs.
+    Leave empty when no spoke declares 'hub' reachability.
+  EOT
+  default     = ""
+
+  validation {
+    condition     = var.hub_nat_route_table_id == "" || can(regex("^rtb-[0-9a-f]+$", var.hub_nat_route_table_id))
+    error_message = "hub_nat_route_table_id must be empty or a valid route table ID (rtb-*)."
+  }
+}
+
 variable "vpn_attachment_ids" {
   type        = map(string)
   description = "Map of on-prem peer IP to TGW VPN attachment ID, from the network-s2s blob (vpn_attachment_ids). Target of the per-segment on-prem routes when a spoke declares 'onprem' reachability. Empty map when network-s2s is absent."

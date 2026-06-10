@@ -115,6 +115,28 @@ resource "aws_ec2_transit_gateway_route" "hub_return" {
   }
 }
 
+# ── Hub NAT return routes (in regional NAT's own route table) ──────────────────
+# The regional NAT gateway has its own route table (separate from the hub's subnet
+# RTs). When the NAT translates a packet back to a spoke IP, it looks up the
+# destination in THIS table. Without a spoke-CIDR -> TGW route here, the NAT
+# drops the reply packet. network-spokes owns these routes because it owns the
+# spoke lifecycle and knows all spoke CIDRs. The NAT route table itself is owned
+# by network-vpc-hub; we only add individual aws_route resources (no inline blocks).
+resource "aws_route" "hub_nat_return" {
+  for_each = local.hub_nat_return_routes
+
+  route_table_id         = var.hub_nat_route_table_id
+  destination_cidr_block = each.value.cidr
+  transit_gateway_id     = var.tgw_id
+
+  lifecycle {
+    precondition {
+      condition     = var.hub_nat_route_table_id != ""
+      error_message = "hub_nat_route_table_id must be set to write hub NAT return routes. Wire network-vpc-hub.regional_nat_route_table_id on the network-spokes step."
+    }
+  }
+}
+
 # ── Hub VPC return routes (in hub tgw-tier RT, owned by network-vpc-hub) ───────
 # For each spoke that declared "hub" reachability, write spoke-CIDR -> TGW into
 # the hub VPC's tgw-tier route table. This is what allows the hub NAT to return

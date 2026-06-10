@@ -13,6 +13,11 @@ output "regional_nat_gateway_id" {
   value       = module.nat.regional_nat_gateway_id
 }
 
+output "regional_nat_route_table_id" {
+  description = "ID of the route table automatically created by the regional NAT gateway. Consumed by network-spokes to write spoke-CIDR -> TGW return routes so the NAT can route reply packets back to spoke VPCs."
+  value       = module.nat.route_table_id
+}
+
 # Per-tier subnet ID lists. Tiers that are disabled or absent yield an empty
 # list so downstream consumers get a stable shape.
 output "public_subnet_ids" {

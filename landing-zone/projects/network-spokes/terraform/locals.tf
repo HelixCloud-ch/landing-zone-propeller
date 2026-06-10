@@ -89,4 +89,18 @@ locals {
       }
     } if contains(s.allowed_destinations, "hub")
   ]...) : {}
+
+  # Hub NAT return routes — written into the regional NAT gateway's own route
+  # table (rtb-* automatically created by AWS for the regional NAT) so the NAT
+  # itself can route reply packets back to spoke VPCs via the TGW. This is the
+  # critical missing piece: the NAT uses its own route table for outbound routing,
+  # not the subnet RT. One aws_route per spoke CIDR -> TGW.
+  hub_nat_return_routes = var.hub_nat_route_table_id != "" ? merge([
+    for name, s in local.spokes : {
+      for cidr in s.cidrs :
+      "${name}@nat-return@${cidr}" => {
+        cidr = cidr
+      }
+    } if contains(s.allowed_destinations, "hub")
+  ]...) : {}
 }

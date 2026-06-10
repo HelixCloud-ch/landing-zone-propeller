@@ -91,6 +91,7 @@ The `routing` module creates one route table per tier that has subnets and assoc
 | <a name="output_private_subnet_ids"></a> [private\_subnet\_ids](#output\_private\_subnet\_ids) | IDs of the private tier subnets (empty when the tier is disabled). |
 | <a name="output_public_subnet_ids"></a> [public\_subnet\_ids](#output\_public\_subnet\_ids) | IDs of the public tier subnets (empty when the tier is disabled). |
 | <a name="output_regional_nat_gateway_id"></a> [regional\_nat\_gateway\_id](#output\_regional\_nat\_gateway\_id) | ID of the regional NAT gateway. |
+| <a name="output_regional_nat_route_table_id"></a> [regional\_nat\_route\_table\_id](#output\_regional\_nat\_route\_table\_id) | ID of the route table automatically created by the regional NAT gateway. Consumed by network-spokes to write spoke-CIDR -> TGW return routes so the NAT can route reply packets back to spoke VPCs. |
 | <a name="output_resolver_subnet_ids"></a> [resolver\_subnet\_ids](#output\_resolver\_subnet\_ids) | IDs of the resolver tier subnets, consumed by the future network-resolver project (empty when the tier is disabled). |
 | <a name="output_route_table_ids"></a> [route\_table\_ids](#output\_route\_table\_ids) | Map of subnet tier name to its route table ID (only tiers that have subnets appear). |
 | <a name="output_subnet_ids_by_tier"></a> [subnet\_ids\_by\_tier](#output\_subnet\_ids\_by\_tier) | Map of subnet tier name to its ordered list of subnet IDs. |
