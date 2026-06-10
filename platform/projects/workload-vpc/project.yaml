@@ -1,0 +1,18 @@
+name: workload-vpc
+description: >-
+  Builds a workload VPC inside a vended workload account: multi-AZ VPC with
+  app, data, and tgw-attach subnet tiers, intra-VPC routing, and a Transit
+  Gateway VPC attachment against the RAM-shared landing-zone TGW. The TGW
+  route table association/propagation and the spoke reachability routes are
+  out of scope; they are owned by network-spokes in the network account.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"

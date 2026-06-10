@@ -1,0 +1,18 @@
+name: workload-vpc-routes
+description: >-
+  Installs the 0.0.0.0/0 -> TGW default routes on the workload VPC route
+  tables. Depends on workload-vpc. Fails fast with a clear error if the TGW
+  VPC attachment is still in pendingAcceptance — the developer must share the
+  attachment ID with the network team to have it accepted via network-spokes
+  before re-running this step.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
