@@ -24,6 +24,7 @@ stages:
             var: s3_source_bucket
           - name: autopilot_role_arn
           - name: organization_id
+          - name: organization_arn
 
       - project: control-tower-prerequisites
         target: management
@@ -110,7 +111,10 @@ stages:
     steps:
       - project: network-tgw
         target: network
-        depends_on: []
+        depends_on: [bootstrap-parameters]
+        inputs:
+          - name: bootstrap-parameters.organization_arn
+            var: organization_arn
         outputs:
           - name: id
           - name: arn

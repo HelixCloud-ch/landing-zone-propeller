@@ -9,6 +9,6 @@ output "arn" {
 }
 
 output "share_arn" {
-  description = "ARN of the RAM share. Downstream projects use this to add aws_ram_principal_association resources when onboarding workload OUs."
+  description = "ARN of the RAM share. The TGW is already associated with the whole Organization; this output is available for informational purposes or future per-OU scoping."
   value       = aws_ram_resource_share.tgw.arn
 }

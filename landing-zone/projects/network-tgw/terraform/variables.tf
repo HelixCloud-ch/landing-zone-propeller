@@ -8,6 +8,16 @@ variable "region" {
   }
 }
 
+variable "organization_arn" {
+  type        = string
+  description = "ARN of the AWS Organization (e.g. 'arn:aws:organizations::123456789012:organization/o-abc123'). Used as the RAM principal to share the TGW with all accounts in the organization. Sourced from bootstrap-parameters."
+
+  validation {
+    condition     = can(regex("^arn:aws:organizations::[0-9]{12}:organization/o-[a-z0-9]+$", var.organization_arn))
+    error_message = "organization_arn must be a valid AWS Organizations ARN (e.g. arn:aws:organizations::123456789012:organization/o-abc123)."
+  }
+}
+
 variable "name_prefix" {
   type        = string
   description = "Prefix applied to the TGW and RAM share names (e.g. \"network\" produces \"network-tgw\", \"network-tgw-share\")."

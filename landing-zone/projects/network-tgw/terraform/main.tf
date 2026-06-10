@@ -27,3 +27,11 @@ resource "aws_ram_resource_association" "tgw" {
   resource_arn       = aws_ec2_transit_gateway.this.arn
   resource_share_arn = aws_ram_resource_share.tgw.arn
 }
+
+# Share the TGW with the entire AWS Organization so any vended workload account
+# can create a VPC attachment without per-account or per-OU wiring.
+# Requires RAM org-sharing to be active (org-trusted-access project).
+resource "aws_ram_principal_association" "org" {
+  resource_share_arn = aws_ram_resource_share.tgw.arn
+  principal          = var.organization_arn
+}

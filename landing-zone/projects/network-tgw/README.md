@@ -13,14 +13,14 @@ Creates the Transit Gateway and its RAM share. This is the anchor resource for t
 
 Route tables and routing policy are managed by downstream projects.
 
-**RAM share** — shares the TGW org-internally so spoke accounts can request VPC attachments. The share is created with no principals; workload OU ARNs are added via `aws_ram_principal_association` during spoke onboarding, using the `share_arn` output.
+**RAM share** — shares the TGW with the entire AWS Organization so any vended workload account can create a VPC attachment without per-account or per-OU wiring. The share uses `aws_ram_principal_association` targeting `data.aws_organizations_organization.current.arn`. Requires RAM org-sharing to be active in the management account (`org-trusted-access` project).
 
-Requires RAM org-sharing to be enabled in the management account (`org-trusted-access` project).
+`auto_accept_shared_attachments` remains `"disable"` — the RAM share makes the TGW *visible* to workload accounts; `network-spokes` still controls which attachments are *accepted* into the TGW route tables.
 
 ## What does NOT belong here
 
 - TGW route tables — managed by `network-tgw-routing`.
-- RAM principal associations — added per workload OU during spoke onboarding.
+- Per-workload RAM principal associations — no longer needed; the org-wide association covers all accounts.
 - Routes and attachment associations — managed by the project that creates each attachment.
 
 ## References
@@ -51,6 +51,7 @@ No modules.
 | Name | Type |
 | ---- | ---- |
 | [aws_ec2_transit_gateway.this](https://registry.terraform.io/providers/hashicorp/aws/6.41.0/docs/resources/ec2_transit_gateway) | resource |
+| [aws_ram_principal_association.org](https://registry.terraform.io/providers/hashicorp/aws/6.41.0/docs/resources/ram_principal_association) | resource |
 | [aws_ram_resource_association.tgw](https://registry.terraform.io/providers/hashicorp/aws/6.41.0/docs/resources/ram_resource_association) | resource |
 | [aws_ram_resource_share.tgw](https://registry.terraform.io/providers/hashicorp/aws/6.41.0/docs/resources/ram_resource_share) | resource |
 
@@ -62,6 +63,7 @@ No modules.
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | Pipeline-wide tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_dns_support"></a> [dns\_support](#input\_dns\_support) | Whether DNS support is enabled on the TGW. Allows VPCs attached to the TGW to resolve public DNS hostnames to private IP addresses across attachments. | `string` | `"enable"` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix applied to the TGW and RAM share names (e.g. "network" produces "network-tgw", "network-tgw-share"). | `string` | `"network"` | no |
+| <a name="input_organization_arn"></a> [organization\_arn](#input\_organization\_arn) | ARN of the AWS Organization (e.g. 'arn:aws:organizations::123456789012:organization/o-abc123'). Used as the RAM principal to share the TGW with all accounts in the organization. Sourced from bootstrap-parameters. | `string` | n/a | yes |
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | Framework-managed tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region where the Transit Gateway is created (must match the landing zone home region). | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Per-project tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
@@ -73,5 +75,5 @@ No modules.
 | ---- | ----------- |
 | <a name="output_arn"></a> [arn](#output\_arn) | ARN of the Transit Gateway. |
 | <a name="output_id"></a> [id](#output\_id) | ID of the Transit Gateway. |
-| <a name="output_share_arn"></a> [share\_arn](#output\_share\_arn) | ARN of the RAM share. Downstream projects use this to add aws\_ram\_principal\_association resources when onboarding workload OUs. |
+| <a name="output_share_arn"></a> [share\_arn](#output\_share\_arn) | ARN of the RAM share. The TGW is already associated with the whole Organization; this output is available for informational purposes or future per-OU scoping. |
 <!-- END_TF_DOCS -->

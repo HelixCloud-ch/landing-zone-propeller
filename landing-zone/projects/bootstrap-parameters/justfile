@@ -60,12 +60,18 @@ _resolve:
         --query 'Organization.Id' \
         --output text)
 
+    ORGANIZATION_ARN=$(aws organizations describe-organization \
+        --region "{{ region }}" \
+        --query 'Organization.Arn' \
+        --output text)
+
     echo "PORTFOLIO_ID=$PORTFOLIO_ID"
     echo "PRODUCT_ID=$PRODUCT_ID"
     echo "ARTIFACT_ID=$ARTIFACT_ID"
     echo "S3_SOURCE_BUCKET=$S3_SOURCE_BUCKET"
     echo "AUTOPILOT_ROLE_ARN=$AUTOPILOT_ROLE_ARN"
     echo "ORGANIZATION_ID=$ORGANIZATION_ID"
+    echo "ORGANIZATION_ARN=$ORGANIZATION_ARN"
 
 # ── Recipes ───────────────────────────────────────────────────────────────────
 
@@ -84,6 +90,7 @@ plan:
     echo "  s3_source_bucket:   $S3_SOURCE_BUCKET"
     echo "  autopilot_role_arn: $AUTOPILOT_ROLE_ARN"
     echo "  organization_id:    $ORGANIZATION_ID"
+    echo "  organization_arn:   $ORGANIZATION_ARN"
 
 apply:
     #!/usr/bin/env bash
@@ -97,7 +104,8 @@ apply:
       "artifact_id":        "$ARTIFACT_ID",
       "s3_source_bucket":   "$S3_SOURCE_BUCKET",
       "autopilot_role_arn": "$AUTOPILOT_ROLE_ARN",
-      "organization_id":    "$ORGANIZATION_ID"
+      "organization_id":    "$ORGANIZATION_ID",
+      "organization_arn":   "$ORGANIZATION_ARN"
     }
     EOF
     echo "bootstrap-parameters apply — outputs written:"
@@ -107,6 +115,7 @@ apply:
     echo "  s3_source_bucket:   $S3_SOURCE_BUCKET"
     echo "  autopilot_role_arn: $AUTOPILOT_ROLE_ARN"
     echo "  organization_id:    $ORGANIZATION_ID"
+    echo "  organization_arn:   $ORGANIZATION_ARN"
 
 destroy:
     @echo "bootstrap-parameters has nothing to destroy"
