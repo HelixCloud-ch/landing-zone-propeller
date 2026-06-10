@@ -6,9 +6,12 @@ region = "eu-central-2"
 
 repository_creation_templates = {
   "ROOT" = {
-    image_tag_mutability = "IMMUTABLE"
-    applied_for          = ["CREATE_ON_PUSH"]
-    encryption_type      = "AES256"
+    # Default: IMMUTABLE_WITH_EXCLUSION + "latest" excluded
+    # All versioned tags are immutable; "latest" can be overwritten.
+    # Override with image_tag_mutability = "MUTABLE" and
+    # image_tag_mutability_exclusion_filters = [] to disable.
+    applied_for     = ["CREATE_ON_PUSH"]
+    encryption_type = "AES256"
 
     # Expire untagged images after 14 days
     # lifecycle_policy = <<-EOT
@@ -18,10 +21,10 @@ repository_creation_templates = {
 
   # Example: stricter settings for production namespaces
   # "prod" = {
-  #   image_tag_mutability = "IMMUTABLE"
-  #   encryption_type      = "KMS"
-  #   kms_key              = "arn:aws:kms:eu-central-2:111111111111:key/example"
-  #   custom_role_arn      = "arn:aws:iam::111111111111:role/ecr-template-role"
+  #   image_tag_mutability = "IMMUTABLE"  # no exclusions — all tags locked
+  #   image_tag_mutability_exclusion_filters = []
+  #   encryption_type = "KMS"
+  #   kms_key         = "arn:aws:kms:eu-central-2:111111111111:key/example"
   # }
 }
 
