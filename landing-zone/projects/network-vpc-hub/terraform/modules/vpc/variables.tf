@@ -8,6 +8,17 @@ variable "vpc_cidr" {
   }
 }
 
+variable "secondary_cidrs" {
+  type        = list(string)
+  description = "Additional IPv4 CIDR blocks to associate with the VPC. Used to extend the VPC address space when source IPs from spoke VPCs need NAT translation. Each CIDR must be valid and non-overlapping."
+  default     = []
+
+  validation {
+    condition     = alltrue([for cidr in var.secondary_cidrs : can(cidrhost(cidr, 0))])
+    error_message = "All secondary CIDRs must be valid IPv4 CIDR blocks."
+  }
+}
+
 variable "name_prefix" {
   type        = string
   description = "Prefix applied to the Name tag of every resource in this module (e.g. \"network-hub\" yields \"network-hub-vpc\")."

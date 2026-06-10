@@ -15,6 +15,13 @@ resource "aws_vpc" "this" {
   }
 }
 
+resource "aws_vpc_ipv4_cidr_block_association" "secondary" {
+  for_each = toset(var.secondary_cidrs)
+
+  vpc_id     = aws_vpc.this.id
+  cidr_block = each.value
+}
+
 # Optional: spoke VPCs without centralized egress do not need an IGW.
 resource "aws_internet_gateway" "this" {
   count = var.create_internet_gateway ? 1 : 0
