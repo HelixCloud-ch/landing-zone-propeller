@@ -1,0 +1,15 @@
+name: rds-oracle
+description: >-
+  Deploys an RDS Oracle instance with managed credentials (Secrets Manager),
+  encryption at rest, and configurable networking.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
