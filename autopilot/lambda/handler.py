@@ -536,10 +536,10 @@ def handler(event: dict, context: DurableContext):
                 r["project"] for r in stage_results if r["status"] == "failed"
             ]
             context.logger.error(
-                f"[{stage['name']}] ✗ {s_ok} succeeded, {s_fail} failed ({', '.join(failed_projects)}), {s_skip} skipped"
+                f"[stage:{stage['name']}] ✗ {s_ok} succeeded, {s_fail} failed ({', '.join(failed_projects)}), {s_skip} skipped"
             )
         else:
-            context.logger.info(f"[{stage['name']}] ✓ {s_ok} succeeded")
+            context.logger.info(f"[stage:{stage['name']}] ✓ {s_ok} succeeded")
 
         if s_fail:
             stage_failed = True
