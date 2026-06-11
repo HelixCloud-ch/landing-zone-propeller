@@ -27,3 +27,8 @@ output "cluster_name" {
   description = "Name of the cluster (pass-through for downstream projects)."
   value       = var.cluster_name
 }
+
+output "oidc_endpoint_url" {
+  description = "OIDC provider endpoint URL for the cluster (used for IRSA trust policies)."
+  value       = module.rosa_hcp.oidc_endpoint_url
+}

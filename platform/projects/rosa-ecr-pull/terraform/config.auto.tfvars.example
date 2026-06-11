@@ -1,0 +1,12 @@
+region = "eu-central-2"
+
+# ── Cluster (from pipeline input) ────────────────────────────────────────────
+# cluster_name comes from the rosa-cluster project output.
+
+# ── ECR ───────────────────────────────────────────────────────────────────────
+ecr_account_id = "111111111111"
+# ecr_region   = "eu-central-2"  # defaults to same as region
+
+# ── Worker role (optional) ────────────────────────────────────────────────────
+# Override if the worker role doesn't follow the default ROSA HCP naming.
+# worker_role_name = "my-custom-worker-role"
