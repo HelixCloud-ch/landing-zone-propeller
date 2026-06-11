@@ -1,0 +1,51 @@
+# rosa-cluster — ROSA HCP cluster
+# Copy this file to config.auto.tfvars and fill in your values.
+
+# ── Region ────────────────────────────────────────────────────────────────────
+
+region = "eu-central-2"
+
+# ── Cluster ───────────────────────────────────────────────────────────────────
+
+cluster_name      = "acme-prod"
+openshift_version = "4.17.6"
+
+# Only needed if ROSA billing is linked to a different account (e.g. management).
+# If omitted, uses the current (deployment) account.
+# aws_billing_account_id = "111111111111"
+
+# Private cluster (API and ingress not publicly accessible).
+# private = true
+
+# ── Default workers ───────────────────────────────────────────────────────────
+
+# Worker nodes — must be a multiple of the number of private subnets.
+# replicas = 3
+
+# EC2 instance type for worker nodes.
+# compute_machine_type = "m5.xlarge"
+
+# ── Network (from VPC project outputs via pipeline) ───────────────────────────
+# vpc_id and subnet_ids_json come from the Landing Zone via pipeline wiring.
+# subnet_ids_json is a JSON-encoded map: {"private": [...], "public": [...]}
+
+# Must match VPC CIDR. Must not overlap with pod CIDR (10.128.0.0/14)
+# or service CIDR (172.30.0.0/16) or contain 172.20.0.1.
+machine_cidr = "10.0.0.0/16"
+
+availability_zones = ["eu-central-1a", "eu-central-1b", "eu-central-1c"]
+
+# Which tier keys in the subnet map to use:
+# private_subnet_tier = "private"  # for worker nodes
+# public_subnet_tier  = "public"   # only used if private = false
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+
+# Secrets Manager secret with {"client_id":"...","client_secret":"..."}.
+# ocm_secret_name = "propeller/rosa/ocm-token"
+
+# ── Tags ──────────────────────────────────────────────────────────────────────
+
+# tags = {
+#   "acme:environment" = "production"
+# }

@@ -22,3 +22,8 @@ output "admin_secret_arn" {
   description = "ARN of the Secrets Manager secret containing cluster admin credentials."
   value       = var.create_admin_user ? aws_secretsmanager_secret.cluster_admin[0].arn : null
 }
+
+output "cluster_name" {
+  description = "Name of the cluster (pass-through for downstream projects)."
+  value       = var.cluster_name
+}

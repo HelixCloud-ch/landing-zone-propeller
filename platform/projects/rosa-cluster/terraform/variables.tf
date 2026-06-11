@@ -25,6 +25,14 @@ variable "openshift_version" {
   description = "OpenShift version to deploy (e.g. 4.17.6)."
 }
 
+variable "private" {
+  type        = bool
+  description = "Deploy a private cluster (API and ingress not publicly accessible)."
+  default     = true
+}
+
+# ── Default workers ──────────────────────────────────────────────────────────
+
 variable "replicas" {
   type        = number
   description = "Number of worker nodes. Must be a multiple of the number of private subnets."
@@ -35,12 +43,6 @@ variable "compute_machine_type" {
   type        = string
   description = "EC2 instance type for worker nodes."
   default     = "m5.xlarge"
-}
-
-variable "private" {
-  type        = bool
-  description = "Deploy a private cluster (API and ingress not publicly accessible)."
-  default     = true
 }
 
 variable "create_admin_user" {
