@@ -2,8 +2,31 @@
 
 locals {
   subnets_by_tier    = jsondecode(var.subnet_ids_json)
-  private_subnet_ids = local.subnets_by_tier[var.private_subnet_tier]
-  public_subnet_ids  = try(local.subnets_by_tier[var.public_subnet_tier], [])
+  all_private_ids    = local.subnets_by_tier[var.private_subnet_tier]
+  all_public_ids     = try(local.subnets_by_tier[var.public_subnet_tier], [])
+}
+
+# Look up AZ for each private subnet so we can filter by requested AZs
+data "aws_subnet" "private" {
+  for_each = toset(local.all_private_ids)
+  id       = each.value
+}
+
+data "aws_subnet" "public" {
+  for_each = toset(local.all_public_ids)
+  id       = each.value
+}
+
+locals {
+  # Filter subnets to only those in the requested AZs
+  private_subnet_ids = [
+    for id, subnet in data.aws_subnet.private :
+    id if contains(var.availability_zones, subnet.availability_zone)
+  ]
+  public_subnet_ids = [
+    for id, subnet in data.aws_subnet.public :
+    id if contains(var.availability_zones, subnet.availability_zone)
+  ]
 }
 
 # ── OCM credentials from Secrets Manager (ephemeral — never stored in state) ──
