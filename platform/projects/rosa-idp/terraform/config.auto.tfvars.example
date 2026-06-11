@@ -1,0 +1,15 @@
+region = "eu-central-1"
+
+# ── Cluster (from pipeline input) ────────────────────────────────────────────
+# cluster_id and cluster_name come from the rosa-cluster project via pipeline.
+
+# ── IDP ───────────────────────────────────────────────────────────────────────
+# idp_name = "htpasswd"
+
+# ── Users secret ──────────────────────────────────────────────────────────────
+# Default path: propeller/rosa/<cluster_name>/htpasswd-users
+# Pre-create this secret in Secrets Manager with format:
+# [{"username":"alice","password":"SecurePass123!"},{"username":"bob","password":"SecurePass456!"}]
+#
+# Override with a custom path:
+# users_secret_name = "my-custom/path/users"
