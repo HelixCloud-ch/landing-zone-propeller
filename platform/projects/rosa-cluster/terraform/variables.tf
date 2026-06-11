@@ -61,11 +61,6 @@ variable "aws_billing_account_id" {
 
 # ── Network (from VPC project outputs via pipeline) ──────────────────────────
 
-variable "vpc_id" {
-  type        = string
-  description = "VPC ID (from VPC project output)."
-}
-
 variable "machine_cidr" {
   type        = string
   description = "VPC CIDR block — must match the VPC used for subnets."

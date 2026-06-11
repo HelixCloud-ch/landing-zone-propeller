@@ -26,8 +26,8 @@ openshift_version = "4.17.6"
 # compute_machine_type = "m5.xlarge"
 
 # ── Network (from VPC project outputs via pipeline) ───────────────────────────
-# vpc_id and subnet_ids_json come from the Landing Zone via pipeline wiring.
-# subnet_ids_json is a JSON-encoded map: {"private": [...], "public": [...]}
+# subnet_ids_json comes from the VPC project via pipeline wiring.
+# It is a JSON-encoded map: {"private": [...], "public": [...]}
 
 # Must match VPC CIDR. Must not overlap with pod CIDR (10.128.0.0/14)
 # or service CIDR (172.30.0.0/16) or contain 172.20.0.1.

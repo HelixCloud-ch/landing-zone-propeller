@@ -20,12 +20,28 @@ locals {
 
 # ── IDP configuration ─────────────────────────────────────────────────────────
 
+locals {
+  _users_valid = alltrue([for u in nonsensitive(local.users) : can(u.username) && can(u.password)])
+}
+
+resource "terraform_data" "validate_users" {
+  lifecycle {
+    precondition {
+      condition     = local._users_valid
+      error_message = "Each entry in the users secret must be an object with 'username' and 'password' keys. Expected format: [{\"username\":\"...\",\"password\":\"...\"}]"
+    }
+  }
+}
+
 module "idp" {
-  source = "terraform-redhat/rosa-hcp/rhcs//modules/idp"
+  source  = "terraform-redhat/rosa-hcp/rhcs//modules/idp"
+  version = "1.7.3"
 
   cluster_id = var.cluster_id
   name       = var.idp_name
   idp_type   = "htpasswd"
 
   htpasswd_idp_users = local.users
+
+  depends_on = [terraform_data.validate_users]
 }

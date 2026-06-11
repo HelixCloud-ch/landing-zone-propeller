@@ -17,8 +17,6 @@ stages:
         target: workload-account
         depends_on: [vpc]
         inputs:
-          - name: vpc.vpc_id
-            var: vpc_id
           - name: vpc.subnet_ids_by_tier
             var: subnet_ids_json
           - name: vpc.availability_zones
