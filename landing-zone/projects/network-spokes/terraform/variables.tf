@@ -155,6 +155,23 @@ variable "spokes" {
   }
 }
 
+# ── Internet egress behaviour ────────────────────────────────────────────────
+
+variable "enable_segment_internet_egress" {
+  type        = bool
+  description = <<-EOT
+    When true (default), a static 0.0.0.0/0 -> hub_attachment_id route is
+    inserted into every segment route table that contains at least one spoke
+    declaring "hub" reachability. This is the standard centralised-egress
+    pattern: spoke traffic destined for the internet is sent to the hub VPC,
+    where a NAT Gateway provides the outbound path. Set to false only when the
+    hub provides no NAT and internet egress must be disabled at the TGW layer.
+    Requires hub_attachment_id to be non-empty; a lifecycle precondition
+    enforces this at plan time.
+  EOT
+  default     = true
+}
+
 # ── Tags (mandatory plumbing) ────────────────────────────────────────────────
 
 variable "tags" {

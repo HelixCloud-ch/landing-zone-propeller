@@ -29,6 +29,17 @@ variable "vpc_cidr" {
   }
 }
 
+variable "secondary_cidrs" {
+  type        = list(string)
+  description = "Additional IPv4 CIDR blocks to associate with the VPC. Required when spoke VPC traffic needs NAT translation through the hub (centralized egress pattern). Each CIDR must be valid, non-overlapping, and should cover spoke VPC ranges."
+  default     = []
+
+  validation {
+    condition     = alltrue([for cidr in var.secondary_cidrs : can(cidrhost(cidr, 0))])
+    error_message = "All secondary CIDRs must be valid IPv4 CIDR blocks."
+  }
+}
+
 variable "name_prefix" {
   type        = string
   description = "Prefix applied to the Name tag of every resource (e.g. \"network-hub\" yields \"network-hub-vpc\")."

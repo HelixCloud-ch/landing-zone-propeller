@@ -2,6 +2,7 @@ module "vpc" {
   source = "./modules/vpc"
 
   vpc_cidr                = var.vpc_cidr
+  secondary_cidrs         = var.secondary_cidrs
   name_prefix             = var.name_prefix
   region                  = var.region
   create_internet_gateway = var.create_internet_gateway
