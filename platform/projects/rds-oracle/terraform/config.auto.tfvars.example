@@ -1,0 +1,47 @@
+region         = "eu-central-2"
+identifier     = "my-oracle-db"
+engine_version = "19"  # Required. Use: aws rds describe-db-engine-versions --engine oracle-se2
+
+# ── Engine ────────────────────────────────────────────────────────────────────
+# engine         = "oracle-se2"        # Standard Edition Two (default)
+# license_model  = "license-included"  # AWS provides the Oracle license
+# instance_class = "db.t3.medium"      # t3 is burstable, m5 better for prod
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+# allocated_storage     = 20    # Initial GiB
+# max_allocated_storage = 40    # Autoscale up to this (0 = disable)
+# storage_type          = "gp3"
+# storage_encrypted     = true
+# kms_key_id            = null  # Uses default aws/rds key
+
+# ── Database ──────────────────────────────────────────────────────────────────
+# db_name            = "ORCL"       # Oracle SID (uppercase, max 8 chars)
+# character_set_name = "AL32UTF8"   # Cannot change after creation
+# username           = "admin"      # Master user (password in Secrets Manager)
+
+# ── Network (from pipeline inputs) ───────────────────────────────────────────
+# vpc_id and subnet_ids_json come from the Landing Zone via pipeline wiring.
+# subnet_tier = "data"  # Which tier in the subnet map to use
+
+# ── Access control ────────────────────────────────────────────────────────────
+# allowed_cidrs              = [] # e.g. ["10.0.0.0/8"]
+# allowed_security_group_ids = [] # e.g. ["sg-0123456789abcdef0"]
+
+# ── Availability ──────────────────────────────────────────────────────────────
+# multi_az = false
+
+# ── Backups & Maintenance ─────────────────────────────────────────────────────
+# backup_retention_period = 7
+# backup_window           = "03:00-04:00"
+# maintenance_window      = "sun:05:00-sun:06:00"
+
+# ── Protection ────────────────────────────────────────────────────────────────
+# deletion_protection = true   # Prevent accidental deletion
+# skip_final_snapshot = false  # Take snapshot before deletion
+
+# ── Upgrades ──────────────────────────────────────────────────────────────────
+# auto_minor_version_upgrade = true
+# apply_immediately          = false  # Wait for maintenance window
+
+# ── Monitoring ────────────────────────────────────────────────────────────────
+# performance_insights_enabled = false
