@@ -1,0 +1,60 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+region := env("AWS_REGION")
+cluster_name := env("PROPELLER_INPUT_cluster_name")
+ocm_secret_name := env("PROPELLER_INPUT_ocm_secret_name", "propeller/rosa/ocm-token")
+
+init:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Install rosa CLI if not present
+    if ! command -v rosa &>/dev/null; then
+      echo "Installing rosa CLI..."
+      mkdir -p /usr/local/bin
+      curl -sL https://mirror.openshift.com/pub/openshift-v4/clients/rosa/latest/rosa-linux.tar.gz \
+        | tar xz -C /usr/local/bin
+      chmod +x /usr/local/bin/rosa
+    fi
+    echo "rosa $(rosa version) ready"
+    echo "rosa-rbac: will grant cluster roles on {{ cluster_name }}"
+
+plan:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "rosa-rbac plan:"
+    jq -r '.[] | "  \(.username) → \(.role)"' config.json
+
+apply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Login to OCM via service account credentials
+    ocm_creds=$(aws secretsmanager get-secret-value \
+      --region "{{ region }}" \
+      --secret-id "{{ ocm_secret_name }}" \
+      --query SecretString --output text)
+
+    client_id=$(echo "$ocm_creds" | jq -r '.client_id')
+    client_secret=$(echo "$ocm_creds" | jq -r '.client_secret')
+
+    rosa login --client-id "$client_id" --client-secret "$client_secret"
+
+    # Grant roles to each user
+    jq -c '.[]' config.json | while read -r entry; do
+      username=$(echo "$entry" | jq -r '.username')
+      role=$(echo "$entry" | jq -r '.role')
+      echo "Granting $role to $username on {{ cluster_name }}..."
+      rosa grant user "$role" \
+        --user "$username" \
+        --cluster "{{ cluster_name }}" \
+        --yes
+    done
+
+    echo "rosa-rbac: done"
+    echo '{}' > .propeller-outputs.json
+
+destroy:
+    @echo "rosa-rbac: role bindings are removed when cluster is destroyed"
+
+outputs:
+    @cat .propeller-outputs.json 2>/dev/null || echo '{}'

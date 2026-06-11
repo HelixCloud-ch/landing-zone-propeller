@@ -1,0 +1,8 @@
+name: rosa-rbac
+description: Grants cluster roles to htpasswd users on a ROSA HCP cluster.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: script
