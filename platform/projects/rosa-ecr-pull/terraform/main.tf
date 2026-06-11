@@ -5,7 +5,7 @@
 
 locals {
   ecr_region       = coalesce(var.ecr_region, var.region)
-  worker_role_name = coalesce(var.worker_role_name, "${var.cluster_name}-operator-cloud-credentials")
+  worker_role_name = coalesce(var.worker_role_name, "${var.cluster_name}-account-HCP-ROSA-Worker-Role")
 }
 
 # Verify the role exists

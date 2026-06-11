@@ -44,13 +44,13 @@ ecr_account_id = "111111111111"  # account hosting ECR
 ## Worker role naming
 
 By default, the project looks for an IAM role named
-`<cluster_name>-operator-cloud-credentials`. This is the ROSA HCP convention
-when using `operator_role_prefix = "<cluster_name>-operator"`.
+`<cluster_name>-account-HCP-ROSA-Worker-Role`. This is the ROSA HCP convention
+when using `account_role_prefix = "<cluster_name>-account"`.
 
 If your cluster uses a different naming pattern, override with:
 
 ```hcl
-worker_role_name = "ManagedOpenShift-HCP-ROSA-Worker-Role"
+worker_role_name = "my-custom-HCP-ROSA-Worker-Role"
 ```
 
 ## After deploy
