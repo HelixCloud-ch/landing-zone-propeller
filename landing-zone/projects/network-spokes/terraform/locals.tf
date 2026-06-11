@@ -12,31 +12,42 @@ locals {
   # the target; empty when network-s2s is absent.
   vpn_attachment_id = length(local.vpn_attachment_ids) > 0 ? values(local.vpn_attachment_ids)[0] : ""
 
-  # Shared-destination routes — hub. For each spoke whose allowed_destinations
-  # names "hub", emit one route in that spoke's segment table: hub CIDR -> hub
-  # attachment. Keyed "<friendly>@hub".
+  # Shared-destination routes — hub. One route per segment (not per spoke):
+  # hub CIDR -> hub attachment. Multiple spokes in the same segment all require
+  # the same route; keying by spoke would cause RouteAlreadyExists on the second
+  # spoke. Deduplicated by collecting the distinct segments that need a hub route,
+  # then emitting one entry per segment. Keyed "<segment>@hub".
   hub_routes = {
-    for name, s in local.spokes :
-    "${name}@hub" => {
-      segment       = s.segment
+    for seg in distinct([
+      for name, s in local.spokes : s.segment
+      if contains(s.allowed_destinations, "hub")
+    ]) :
+    "${seg}@hub" => {
+      segment       = seg
       cidr          = var.hub_vpc_cidr
       attachment_id = var.hub_attachment_id
-    } if contains(s.allowed_destinations, "hub")
+    }
   }
 
-  # Shared-destination routes — on-prem. For each spoke whose allowed_destinations
-  # names "onprem", emit one route per on-prem CIDR in that spoke's segment table:
-  # onprem CIDR -> VPN attachment. Keyed "<friendly>@onprem@<cidr>".
-  onprem_routes = merge([
-    for name, s in local.spokes : {
-      for cidr in local.onprem_cidrs :
-      "${name}@onprem@${cidr}" => {
-        segment       = s.segment
-        cidr          = cidr
-        attachment_id = local.vpn_attachment_id
-      }
-    } if contains(s.allowed_destinations, "onprem")
-  ]...)
+  # Shared-destination routes — on-prem. One route per (segment, on-prem CIDR):
+  # onprem CIDR -> VPN attachment. Same deduplication rationale as hub_routes —
+  # multiple spokes in the same segment would otherwise collide on the same
+  # destination CIDR. Keyed "<segment>@onprem@<cidr>".
+  onprem_routes = {
+    for pair in distinct(flatten([
+      for name, s in local.spokes : [
+        for cidr in local.onprem_cidrs : {
+          segment = s.segment
+          cidr    = cidr
+        }
+      ] if contains(s.allowed_destinations, "onprem")
+    ])) :
+    "${pair.segment}@onprem@${pair.cidr}" => {
+      segment       = pair.segment
+      cidr          = pair.cidr
+      attachment_id = local.vpn_attachment_id
+    }
+  }
 
   # Peer (spoke-to-spoke) routes. For each spoke, for each allowed destination
   # that names another registry entry, emit one route per peer CIDR in this
