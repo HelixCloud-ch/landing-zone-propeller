@@ -34,7 +34,7 @@ or symbols.
 ## Consumer tfvars
 
 ```hcl
-region = "eu-central-1"
+region = "eu-central-2"
 # cluster_id comes from pipeline input
 ```
 

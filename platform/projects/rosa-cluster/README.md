@@ -34,11 +34,11 @@ The project extracts the `private` tier by default (configurable via
 Required values:
 
 ```hcl
-region            = "eu-central-1"
+region            = "eu-central-2"
 cluster_name      = "acme-prod"
 openshift_version = "4.17.6"
 machine_cidr      = "10.0.0.0/16"
-availability_zones = ["eu-central-1a", "eu-central-1b", "eu-central-1c"]
+availability_zones = ["eu-central-2a", "eu-central-2b", "eu-central-2c"]
 ```
 
 ## Accessing the cluster
