@@ -6,14 +6,14 @@ locals {
   public_subnet_ids  = try(local.subnets_by_tier[var.public_subnet_tier], [])
 }
 
-# ── OCM credentials from Secrets Manager ──────────────────────────────────────
+# ── OCM credentials from Secrets Manager (ephemeral — never stored in state) ──
 
-data "aws_secretsmanager_secret_version" "ocm" {
+ephemeral "aws_secretsmanager_secret_version" "ocm" {
   secret_id = var.ocm_secret_name
 }
 
 locals {
-  ocm_credentials = sensitive(jsondecode(data.aws_secretsmanager_secret_version.ocm.secret_string))
+  ocm_credentials = jsondecode(ephemeral.aws_secretsmanager_secret_version.ocm.secret_string)
 }
 
 # ── ROSA HCP cluster ──────────────────────────────────────────────────────────

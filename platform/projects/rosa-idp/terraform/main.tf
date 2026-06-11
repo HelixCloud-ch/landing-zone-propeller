@@ -1,11 +1,11 @@
-# ── OCM credentials ───────────────────────────────────────────────────────────
+# ── OCM credentials (ephemeral — never stored in state) ───────────────────────
 
-data "aws_secretsmanager_secret_version" "ocm" {
+ephemeral "aws_secretsmanager_secret_version" "ocm" {
   secret_id = var.ocm_secret_name
 }
 
 locals {
-  ocm_credentials = sensitive(jsondecode(data.aws_secretsmanager_secret_version.ocm.secret_string))
+  ocm_credentials = jsondecode(ephemeral.aws_secretsmanager_secret_version.ocm.secret_string)
 }
 
 # ── htpasswd users from Secrets Manager ───────────────────────────────────────
