@@ -117,11 +117,11 @@ def _make_step_branch(step: dict, pctx: PipelineCtx):
                 )
                 if result["status"] != "SUCCEEDED":
                     ctx.logger.error(
-                        f"[{project}] Build {result['status']}\n{build_logs}"
+                        f"✗ [{project}] Build {result['status']}\n{build_logs}"
                     )
                 else:
                     ctx.logger.info(
-                        f"[{project}] Build {result['status']}\n{build_logs}"
+                        f"✓ [{project}] Build {result['status']}\n{build_logs}"
                     )
             except Exception as log_err:
                 ctx.logger.warning(f"[{project}] Failed to fetch build logs: {log_err}")
@@ -450,7 +450,7 @@ def run_stage(context: DurableContext, stage: dict, pctx: PipelineCtx) -> list[d
 
 @durable_execution
 def handler(event: dict, context: DurableContext):
-    context.logger.info(f"Pipeline triggered: action={event.get('deploy_action', 'unknown')}, namespace={event.get('pipeline', {}).get('namespace', '?')}")
+    context.logger.info(f"▶ Pipeline triggered: action={event.get('deploy_action', 'unknown')}, namespace={event.get('pipeline', {}).get('namespace', '?')}")
 
     pipeline = event["pipeline"]
     bundle_s3_uri = event["bundle_s3_uri"]
@@ -489,7 +489,17 @@ def handler(event: dict, context: DurableContext):
         stage_results = run_stage(context, stage, pctx)
         all_results.extend(stage_results)
 
-        if any(r["status"] == "failed" for r in stage_results):
+        # Log stage summary at handler level
+        s_ok = sum(1 for r in stage_results if r["status"] == "succeeded")
+        s_fail = sum(1 for r in stage_results if r["status"] == "failed")
+        s_skip = sum(1 for r in stage_results if r["status"] == "skipped")
+        if s_fail:
+            failed_projects = [r["project"] for r in stage_results if r["status"] == "failed"]
+            context.logger.error(f"✗ Stage '{stage['name']}': {s_ok} succeeded, {s_fail} failed ({', '.join(failed_projects)}), {s_skip} skipped")
+        else:
+            context.logger.info(f"✓ Stage '{stage['name']}': {s_ok} succeeded")
+
+        if s_fail:
             stage_failed = True
 
     succeeded = sum(1 for r in all_results if r["status"] == "succeeded")
