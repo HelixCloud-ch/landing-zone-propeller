@@ -10,6 +10,7 @@ import boto3
 from aws_durable_execution_sdk_python import (
     BatchResult,
     DurableContext,
+    StepContext,
     durable_execution,
 )
 from aws_durable_execution_sdk_python.config import (
@@ -89,11 +90,26 @@ def _make_step_branch(step: dict, pctx: PipelineCtx):
 
     def branch(ctx: DurableContext) -> dict:
         try:
-            config = ctx.step(lambda _: _prepare(step), name=f"prepare:{project}")
-            build_id = ctx.step(
-                lambda _: _start_build(step, config, pctx),
-                name=f"start:{project}",
-            )
+
+            def do_prepare(step_ctx: StepContext) -> dict:
+                step_ctx.logger.info(f"[{project}] Preparing build config")
+                result = _prepare(step)
+                step_ctx.logger.info(
+                    f"[{project}] Target account={result['accountId']}, region={result['region']}"
+                )
+                return result
+
+            config = ctx.step(do_prepare, name=f"prepare:{project}")
+
+            def do_start_build(step_ctx: StepContext) -> str:
+                step_ctx.logger.info(
+                    f"[{project}] Starting CodeBuild in {config['accountId']}"
+                )
+                bid = _start_build(step, config, pctx)
+                step_ctx.logger.info(f"[{project}] Build started: {bid}")
+                return bid
+
+            build_id = ctx.step(do_start_build, name=f"start:{project}")
 
             while True:
                 result = ctx.step(
@@ -111,17 +127,30 @@ def _make_step_branch(step: dict, pctx: PipelineCtx):
 
             # Fetch and log the full build output
             try:
-                build_logs = ctx.step(
-                    lambda _: _fetch_build_logs(build_id, config),
-                    name=f"logs:{project}",
-                )
+
+                def do_fetch_logs(step_ctx: StepContext) -> str:
+                    step_ctx.logger.info(f"[{project}] Fetching build logs")
+                    logs = _fetch_build_logs(build_id, config)
+                    if result["status"] != "SUCCEEDED":
+                        step_ctx.logger.error(
+                            f"[{project}] ✗ Build {result['status']}",
+                            extra={"build_id": build_id},
+                        )
+                    else:
+                        step_ctx.logger.info(
+                            f"[{project}] ✓ Build {result['status']}",
+                            extra={"build_id": build_id},
+                        )
+                    return logs
+
+                build_logs = ctx.step(do_fetch_logs, name=f"logs:{project}")
                 if result["status"] != "SUCCEEDED":
                     ctx.logger.error(
-                        f"✗ [{project}] Build {result['status']}\n{build_logs}"
+                        f"[{project}] ✗ Build {result['status']}\n{build_logs}"
                     )
                 else:
                     ctx.logger.info(
-                        f"✓ [{project}] Build {result['status']}\n{build_logs}"
+                        f"[{project}] ✓ Build {result['status']}\n{build_logs}"
                     )
             except Exception as log_err:
                 ctx.logger.warning(f"[{project}] Failed to fetch build logs: {log_err}")
@@ -140,12 +169,19 @@ def _make_step_branch(step: dict, pctx: PipelineCtx):
                 }
 
             if pctx.deploy_action == "apply":
-                ctx.step(
-                    lambda _: _write_outputs(
+
+                def do_write_outputs(step_ctx: StepContext) -> dict:
+                    step_ctx.logger.info(f"[{project}] Writing outputs to SSM")
+                    written = _write_outputs(
                         step, result["exportedVars"], build_id, pctx
-                    ),
-                    name=f"outputs:{project}",
-                )
+                    )
+                    step_ctx.logger.info(
+                        f"[{project}] Outputs written",
+                        extra={"keys": list(written.get("written", {}).keys())},
+                    )
+                    return written
+
+                ctx.step(do_write_outputs, name=f"outputs:{project}")
 
             return {
                 "status": "succeeded",
@@ -450,7 +486,9 @@ def run_stage(context: DurableContext, stage: dict, pctx: PipelineCtx) -> list[d
 
 @durable_execution
 def handler(event: dict, context: DurableContext):
-    context.logger.info(f"▶ Pipeline triggered: action={event.get('deploy_action', 'unknown')}, namespace={event.get('pipeline', {}).get('namespace', '?')}")
+    context.logger.info(
+        f"▶ Pipeline triggered: action={event.get('deploy_action', 'unknown')}, namespace={event.get('pipeline', {}).get('namespace', '?')}"
+    )
 
     pipeline = event["pipeline"]
     bundle_s3_uri = event["bundle_s3_uri"]
@@ -494,10 +532,14 @@ def handler(event: dict, context: DurableContext):
         s_fail = sum(1 for r in stage_results if r["status"] == "failed")
         s_skip = sum(1 for r in stage_results if r["status"] == "skipped")
         if s_fail:
-            failed_projects = [r["project"] for r in stage_results if r["status"] == "failed"]
-            context.logger.error(f"✗ Stage '{stage['name']}': {s_ok} succeeded, {s_fail} failed ({', '.join(failed_projects)}), {s_skip} skipped")
+            failed_projects = [
+                r["project"] for r in stage_results if r["status"] == "failed"
+            ]
+            context.logger.error(
+                f"[{stage['name']}] ✗ {s_ok} succeeded, {s_fail} failed ({', '.join(failed_projects)}), {s_skip} skipped"
+            )
         else:
-            context.logger.info(f"✓ Stage '{stage['name']}': {s_ok} succeeded")
+            context.logger.info(f"[{stage['name']}] ✓ {s_ok} succeeded")
 
         if s_fail:
             stage_failed = True
