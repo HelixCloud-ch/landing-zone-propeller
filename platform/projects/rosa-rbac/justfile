@@ -46,8 +46,7 @@ apply:
       echo "Granting $role to $username on {{ cluster_name }}..."
       rosa grant user "$role" \
         --user "$username" \
-        --cluster "{{ cluster_name }}" \
-        --yes
+        --cluster "{{ cluster_name }}"
     done
 
     echo "rosa-rbac: done"
