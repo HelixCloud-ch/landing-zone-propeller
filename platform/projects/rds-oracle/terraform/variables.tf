@@ -173,7 +173,7 @@ variable "apply_immediately" {
 
 variable "performance_insights_enabled" {
   type    = bool
-  default = false
+  default = true
 }
 
 # ── Tags ─────────────────────────────────────────────────────────────────────

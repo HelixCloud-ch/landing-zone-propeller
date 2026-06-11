@@ -189,7 +189,7 @@ variable "apply_immediately" {
 variable "performance_insights_enabled" {
   type        = bool
   description = "Enable Performance Insights."
-  default     = false
+  default     = true
 }
 
 # ── Parameter & Option Groups ─────────────────────────────────────────────────
