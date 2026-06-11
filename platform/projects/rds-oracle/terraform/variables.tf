@@ -26,6 +26,11 @@ variable "subnet_tier" {
 variable "identifier" {
   type        = string
   description = "Unique identifier for the RDS instance."
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{0,62}$", var.identifier))
+    error_message = "Identifier must be lowercase, start with a letter, contain only alphanumerics and hyphens, max 63 chars."
+  }
 }
 
 # ── Engine ────────────────────────────────────────────────────────────────────
@@ -47,7 +52,7 @@ variable "license_model" {
 
 variable "instance_class" {
   type    = string
-  default = "db.m5.large"
+  default = "db.t3.medium"
 }
 
 # ── Storage ───────────────────────────────────────────────────────────────────
@@ -82,6 +87,11 @@ variable "kms_key_id" {
 variable "db_name" {
   type    = string
   default = "ORCL"
+
+  validation {
+    condition     = can(regex("^[A-Z][A-Z0-9]{0,7}$", var.db_name))
+    error_message = "db_name (Oracle SID) must be uppercase, alphanumeric, start with a letter, max 8 characters."
+  }
 }
 
 variable "character_set_name" {

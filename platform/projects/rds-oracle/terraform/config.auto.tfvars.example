@@ -5,6 +5,7 @@ engine_version = "19"  # Required. Use: aws rds describe-db-engine-versions --en
 # ── Engine ────────────────────────────────────────────────────────────────────
 # engine         = "oracle-se2"        # Standard Edition Two (default)
 # license_model  = "license-included"  # AWS provides the Oracle license
+# instance_class = "db.t3.medium"      # t3 is burstable, m5 better for prod
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 # allocated_storage     = 20    # Initial GiB

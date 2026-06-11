@@ -3,6 +3,11 @@
 variable "identifier" {
   type        = string
   description = "Unique identifier for the RDS instance. Used for naming all associated resources."
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{0,62}$", var.identifier))
+    error_message = "Identifier must be lowercase, start with a letter, contain only alphanumerics and hyphens, max 63 chars."
+  }
 }
 
 # ── Network ───────────────────────────────────────────────────────────────────
@@ -57,7 +62,7 @@ variable "license_model" {
 variable "instance_class" {
   type        = string
   description = "RDS instance class (e.g. 'db.m5.large', 'db.t3.medium')."
-  default     = "db.m5.large"
+  default     = "db.t3.medium"
 }
 
 # ── Storage ───────────────────────────────────────────────────────────────────
@@ -98,6 +103,11 @@ variable "db_name" {
   type        = string
   description = "Oracle SID (database name). Must be uppercase, max 8 chars for Oracle."
   default     = "ORCL"
+
+  validation {
+    condition     = can(regex("^[A-Z][A-Z0-9]{0,7}$", var.db_name))
+    error_message = "db_name (Oracle SID) must be uppercase, alphanumeric, start with a letter, max 8 characters."
+  }
 }
 
 variable "character_set_name" {
