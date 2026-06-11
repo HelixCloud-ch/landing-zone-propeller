@@ -1,0 +1,6 @@
+# Scale-to-zero fixture: no segments, no spokes. Asserts the project is a clean
+# no-op (zero resources) before any workload account is vended.
+region   = "eu-central-2"
+tgw_id   = "tgw-00000000000000000"
+segments = []
+spokes   = {}

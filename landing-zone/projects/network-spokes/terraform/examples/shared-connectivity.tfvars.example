@@ -1,0 +1,83 @@
+# Fixture: shared connectivity across three workload accounts.
+#
+# Scenario
+# --------
+# - account-a (team Alpha) is the "anchor" spoke: it must reach the internet
+#   through the hub VPC's centralized NAT, and it must be reachable from
+#   on-premises over the Site-to-Site VPN.
+# - account-b (team Bravo) and account-c (team Charlie) are workload spokes
+#   that need to talk to account-a and to each other, but have no direct
+#   hub or on-prem connectivity of their own.
+#
+# Resulting TGW routes (network-spokes owns all segment tables below)
+# -------------------------------------------------------------------
+# seg-alpha  (account-a's table)
+#   hub CIDR   10.0.0.0/16  → hub attachment    (internet egress via hub NAT)
+#   on-prem    10.50.0.0/16 → VPN attachment    (reachable from on-prem)
+#   10.20.0.0/16            → account-b attach  (account-a → account-b)
+#   10.30.0.0/16            → account-c attach  (account-a → account-c)
+#
+# seg-bravo  (account-b's table)
+#   10.10.0.0/16            → account-a attach  (account-b → account-a)
+#   10.30.0.0/16            → account-c attach  (account-b → account-c)
+#
+# seg-charlie  (account-c's table)
+#   10.10.0.0/16            → account-a attach  (account-c → account-a)
+#   10.20.0.0/16            → account-b attach  (account-c → account-b)
+#
+# Note: the hub → account-a RETURN route (hub CIDR table needs
+# account-a's CIDR → account-a attachment) is NOT written here — it lives
+# in network-routing, which owns the main TGW route table. The
+# accepted_attachments output of this project feeds that work.
+#
+# Similarly, the spoke-VPC-internal routes (0/0 → TGW attachment inside
+# each workload VPC) are the developer's responsibility in their VPC project,
+# not managed here.
+
+region             = "eu-central-2"
+tgw_id             = "tgw-0123456789abcdef0"
+hub_attachment_id  = "tgw-attach-0aaaaaaaaaaaaaaaa"
+hub_vpc_cidr       = "10.0.0.0/16"
+vpn_attachment_ids = { "52.49.108.10" = "tgw-attach-0eeeeeeeeeeeeeeee" }
+onprem_cidrs       = ["10.50.0.0/16"]
+
+# One segment per team. Governance chooses the names — none are reserved.
+segments = ["seg-alpha", "seg-bravo", "seg-charlie"]
+
+spokes = {
+  # account-a — anchor spoke: hub egress + on-prem reachability + peers B and C.
+  account-a = {
+    attachment_id = "tgw-attach-0bbbbbbbbbbbbbbbb"
+    cidrs         = ["10.10.0.0/16"]
+    segment       = "seg-alpha"
+    allowed_destinations = [
+      "hub",       # internet egress via hub NAT (writes hub CIDR → hub attach in seg-alpha)
+      "onprem",    # reachable from / can reach on-prem (writes on-prem CIDR → VPN attach in seg-alpha)
+      "account-b", # spoke-to-spoke: account-a ↔ account-b (this direction only; account-b must also list account-a)
+      "account-c", # spoke-to-spoke: account-a ↔ account-c (same)
+    ]
+  }
+
+  # account-b — workload spoke: talks to account-a and account-c only.
+  # No hub egress and no on-prem reachability from this spoke's segment table.
+  account-b = {
+    attachment_id = "tgw-attach-0cccccccccccccccc"
+    cidrs         = ["10.20.0.0/16"]
+    segment       = "seg-bravo"
+    allowed_destinations = [
+      "account-a", # route 10.10.0.0/16 → account-a attach in seg-bravo
+      "account-c", # route 10.30.0.0/16 → account-c attach in seg-bravo
+    ]
+  }
+
+  # account-c — workload spoke: talks to account-a and account-b only.
+  account-c = {
+    attachment_id = "tgw-attach-0dddddddddddddddd"
+    cidrs         = ["10.30.0.0/16"]
+    segment       = "seg-charlie"
+    allowed_destinations = [
+      "account-a", # route 10.10.0.0/16 → account-a attach in seg-charlie
+      "account-b", # route 10.20.0.0/16 → account-b attach in seg-charlie
+    ]
+  }
+}

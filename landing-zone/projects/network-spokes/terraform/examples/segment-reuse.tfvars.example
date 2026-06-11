@@ -1,0 +1,210 @@
+# Fixture: segment reuse -- many spokes, few route tables.
+#
+# WHY THIS MATTERS
+# ----------------
+# The default TGW quota is 20 route tables per gateway. A naive one-segment-
+# per-spoke model hits that ceiling at 20 workload accounts. With segment
+# reuse you can host hundreds of spokes inside the same 5-10 route tables.
+#
+# The key: isolation is enforced by ROUTES, not by segment membership.
+# Two spokes that share a segment table are still isolated from each other
+# as long as neither names the other in allowed_destinations -- no route
+# between them is ever written, so the TGW has no path to forward packets.
+#
+# SEGMENT DESIGN PATTERN
+# ----------------------
+# Group spokes by their OUTBOUND POLICY (what they are allowed to reach),
+# not by their tenant or team. Every spoke with the same outbound policy
+# goes in the same segment.
+#
+# This landing zone has five outbound profiles:
+#
+#  isolated           - no outbound at all (default catch-all; new spokes land here)
+#  hub-egress         - internet via hub NAT only
+#  onprem-only        - on-prem via VPN only, no internet
+#  full-connectivity  - hub + on-prem (the "privileged" profile)
+#  shared-services    - hub + on-prem; this is also the segment hosting shared-svc
+#
+# 5 route tables serve 11 spokes. Without reuse this would require 11 tables.
+# In a real landing zone with 50 accounts it would be 50 vs 5.
+#
+# RESULTING ROUTE TABLES
+# ----------------------
+#
+# seg-isolated        (sandbox-x, sandbox-y)
+#   <empty -- no routes>
+#
+# seg-hub-egress      (prod-a, prod-b, staging-a)
+#   hub CIDR 10.0.0.0/16  -> hub attachment
+#   10.60.0.0/16           -> shared-svc attachment
+#     ^ ONE route for the whole segment; only prod-a declares "shared-svc"
+#       (see CONSTRAINT note below). prod-b gets the route silently because
+#       it shares the table -- this is the segment-sharing trade-off.
+#
+# seg-onprem-only     (legacy-a, legacy-b)
+#   10.50.0.0/16           -> VPN attachment
+#
+# seg-full-connectivity  (privileged-a, privileged-b)
+#   hub CIDR 10.0.0.0/16  -> hub attachment
+#   10.50.0.0/16           -> VPN attachment
+#   10.60.0.0/16           -> shared-svc attachment
+#     ^ privileged-a declares "shared-svc"; privileged-b does not, but both
+#       share the table so the route is visible to privileged-b too.
+#
+# seg-shared-services    (shared-svc)
+#   hub CIDR 10.0.0.0/16  -> hub attachment
+#   10.50.0.0/16           -> VPN attachment
+#   10.10.0.0/16           -> prod-a attachment     (return path)
+#   10.20.0.0/16           -> prod-b attachment     (return path)
+#   10.40.0.0/16           -> privileged-a attach   (return path)
+#
+# CONSTRAINT: duplicate destinations on a shared table
+# ----------------------------------------------------
+# When two spokes in the SAME segment both declare the same peer destination,
+# the local route builder generates two Terraform resource instances keyed
+# differently (e.g. "prod-a@shared-svc@..." and "prod-b@shared-svc@...") but
+# targeting the SAME table and the SAME destination CIDR. Terraform plans both
+# without error (the route table ID is "(known after apply)"). The AWS APPLY
+# fails on the second one:
+#
+#   Error: duplicate destination CIDR 10.60.0.0/16 in route table <id>
+#
+# Resolution options (pick one):
+#   A. Only ONE spoke in the segment declares the peer. The route lands once in
+#      the shared table and is implicitly available to all co-segment spokes.
+#      This is option A -- prod-a carries "shared-svc"; prod-b does not.
+#   B. Split spokes with different peer needs into separate segments, accepting
+#      one extra route table per diverging peer set.
+#   C. (future) Add a segment-level shared_routes input so governance can
+#      express "this route belongs to the segment" rather than to a spoke.
+#
+# This fixture uses option A throughout.
+
+region             = "eu-central-2"
+tgw_id             = "tgw-0123456789abcdef0"
+hub_attachment_id  = "tgw-attach-0aaaaaaaaaaaaaaaa"
+hub_vpc_cidr       = "10.0.0.0/16"
+vpn_attachment_ids = { "52.49.108.10" = "tgw-attach-0fffffffffffffffe" }
+onprem_cidrs       = ["10.50.0.0/16"]
+
+# 5 segments serve 11 spokes.
+segments = [
+  "seg-isolated",
+  "seg-hub-egress",
+  "seg-onprem-only",
+  "seg-full-connectivity",
+  "seg-shared-services",
+]
+
+spokes = {
+  # ---- Sandbox / new accounts (seg-isolated) --------------------------------
+  # Reach nothing. Default landing segment for any new spoke. Governance moves
+  # an account to a productive segment by editing this file and re-running the
+  # pipeline -- no infrastructure change needed outside this project.
+
+  sandbox-x = {
+    attachment_id        = "tgw-attach-0aaa0000000000001"
+    cidrs                = ["10.100.0.0/24"]
+    segment              = "seg-isolated"
+    allowed_destinations = []
+  }
+
+  sandbox-y = {
+    attachment_id        = "tgw-attach-0aaa0000000000002"
+    cidrs                = ["10.100.1.0/24"]
+    segment              = "seg-isolated"
+    allowed_destinations = []
+  }
+
+  # ---- Production workloads that only need internet (seg-hub-egress) --------
+  # prod-a and prod-b share the same route table. They cannot reach each other
+  # (neither declares the other) -- isolation holds even on a shared table.
+  #
+  # Only prod-a declares "shared-svc" (option A for the duplicate-destination
+  # constraint above). prod-b gets the route silently because it shares the
+  # table. staging-a does not need shared-svc at all.
+
+  prod-a = {
+    attachment_id        = "tgw-attach-0bbb0000000000001"
+    cidrs                = ["10.10.0.0/16"]
+    segment              = "seg-hub-egress"
+    allowed_destinations = ["hub", "shared-svc"]
+  }
+
+  prod-b = {
+    attachment_id        = "tgw-attach-0bbb0000000000002"
+    cidrs                = ["10.20.0.0/16"]
+    segment              = "seg-hub-egress"
+    # Does NOT declare "shared-svc" -- it benefits from prod-a's route in the
+    # shared table. Governance documents this dependency explicitly.
+    allowed_destinations = ["hub"]
+  }
+
+  staging-a = {
+    attachment_id        = "tgw-attach-0bbb0000000000003"
+    cidrs                = ["10.21.0.0/16"]
+    segment              = "seg-hub-egress"
+    allowed_destinations = ["hub"]
+  }
+
+  # ---- Legacy accounts: on-prem only (seg-onprem-only) ----------------------
+  # No internet egress, no spoke-to-spoke. Classic regulated profile.
+
+  legacy-a = {
+    attachment_id        = "tgw-attach-0ccc0000000000001"
+    cidrs                = ["10.200.0.0/24"]
+    segment              = "seg-onprem-only"
+    allowed_destinations = ["onprem"]
+  }
+
+  legacy-b = {
+    attachment_id        = "tgw-attach-0ccc0000000000002"
+    cidrs                = ["10.200.1.0/24"]
+    segment              = "seg-onprem-only"
+    allowed_destinations = ["onprem"]
+  }
+
+  # ---- Privileged accounts: full connectivity (seg-full-connectivity) --------
+  # Both need hub + on-prem. privileged-a also calls shared-svc (option A
+  # again: privileged-b benefits from the route in the shared table without
+  # declaring it, which is explicitly acceptable in this landing zone's policy).
+
+  privileged-a = {
+    attachment_id        = "tgw-attach-0ddd0000000000001"
+    cidrs                = ["10.40.0.0/16"]
+    segment              = "seg-full-connectivity"
+    allowed_destinations = ["hub", "onprem", "shared-svc"]
+  }
+
+  privileged-b = {
+    attachment_id        = "tgw-attach-0ddd0000000000002"
+    cidrs                = ["10.41.0.0/16"]
+    segment              = "seg-full-connectivity"
+    # Does NOT declare "shared-svc" -- benefits from privileged-a's route.
+    allowed_destinations = ["hub", "onprem"]
+  }
+
+  # ---- Shared services VPC (seg-shared-services) ----------------------------
+  # Only one spoke in this segment. It gets hub + on-prem like any other
+  # full-connectivity spoke, plus it explicitly names its callers to get the
+  # return routes (no implicit symmetry: shared-svc must declare each caller).
+  # Callers are: prod-a, prod-b (via shared table), privileged-a, privileged-b
+  # (via shared table). We only need return routes to the "declaring" spokes
+  # because their segment tables already have the forward route; shared-svc
+  # only needs to write the reverse. For prod-b and privileged-b we still add
+  # their CIDRs so replies can flow back from shared-svc.
+
+  shared-svc = {
+    attachment_id        = "tgw-attach-0eee0000000000001"
+    cidrs                = ["10.60.0.0/16"]
+    segment              = "seg-shared-services"
+    allowed_destinations = [
+      "hub",
+      "onprem",
+      "prod-a",       # return path: 10.10.0.0/16 -> prod-a attach in seg-shared-services
+      "prod-b",       # return path: 10.20.0.0/16 -> prod-b attach
+      "privileged-a", # return path: 10.40.0.0/16 -> privileged-a attach
+      "privileged-b", # return path: 10.41.0.0/16 -> privileged-b attach
+    ]
+  }
+}

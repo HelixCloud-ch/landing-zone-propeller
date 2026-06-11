@@ -1,0 +1,27 @@
+# Representative fixture: two segments, two spokes. payments-prod is in
+# shared-services and reaches hub + onprem; analytics-dev is isolated and reaches
+# nothing. Exercises accepter, segment tables, associations, hub/onprem routes,
+# and structural isolation. Used for plan assertions (not applied).
+region             = "eu-central-2"
+tgw_id             = "tgw-0123456789abcdef0"
+hub_attachment_id  = "tgw-attach-0aaaaaaaaaaaaaaaa"
+hub_vpc_cidr       = "10.0.0.0/16"
+vpn_attachment_ids = { "52.49.108.10" = "tgw-attach-0cccccccccccccccc" }
+onprem_cidrs       = ["10.50.0.0/16"]
+
+segments = ["isolated", "shared-services"]
+
+spokes = {
+  payments-prod = {
+    attachment_id        = "tgw-attach-0bbbbbbbbbbbbbbbb"
+    cidrs                = ["10.20.0.0/16"]
+    segment              = "shared-services"
+    allowed_destinations = ["hub", "onprem"]
+  }
+  analytics-dev = {
+    attachment_id        = "tgw-attach-0dddddddddddddddd"
+    cidrs                = ["10.30.0.0/16"]
+    segment              = "isolated"
+    allowed_destinations = []
+  }
+}
