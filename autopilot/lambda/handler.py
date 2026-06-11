@@ -450,6 +450,8 @@ def run_stage(context: DurableContext, stage: dict, pctx: PipelineCtx) -> list[d
 
 @durable_execution
 def handler(event: dict, context: DurableContext):
+    context.logger.info(f"Pipeline triggered: action={event.get('deploy_action', 'unknown')}, namespace={event.get('pipeline', {}).get('namespace', '?')}")
+
     pipeline = event["pipeline"]
     bundle_s3_uri = event["bundle_s3_uri"]
     only = set(event.get("only", []))
