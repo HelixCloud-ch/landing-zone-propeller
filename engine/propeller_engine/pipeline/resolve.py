@@ -367,6 +367,8 @@ def _step_to_dict(step: Step) -> dict:
         d["outputs"] = outputs
     if step.propeller_tags:
         d["propeller_tags"] = dict(step.propeller_tags)
+    if step.timeout:
+        d["timeout"] = step.timeout
     return d
 
 
