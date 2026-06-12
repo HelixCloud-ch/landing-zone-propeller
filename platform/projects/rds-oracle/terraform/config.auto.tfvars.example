@@ -45,3 +45,8 @@ engine_version = "19"  # Required. Use: aws rds describe-db-engine-versions --en
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
 # performance_insights_enabled = false
+
+# ── S3 Integration ────────────────────────────────────────────────────────────
+# Creates an S3 bucket, IAM role, and option group for Oracle Data Pump.
+# Bucket name: <identifier>-oracle-data-<account_id>-<region>-an
+# enable_s3_integration = false

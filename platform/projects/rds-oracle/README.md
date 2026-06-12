@@ -1,7 +1,7 @@
 # RDS Oracle
 
-Deploys an RDS Oracle instance (SE2 by default) with managed credentials
-via Secrets Manager, encrypted storage, and configurable networking.
+Deploys an RDS Oracle instance (SE2 by default) with managed credentials via
+Secrets Manager, encrypted storage, and configurable networking.
 
 ## What it deploys
 
@@ -26,9 +26,9 @@ stages:
             var: subnet_ids_json
 ```
 
-The `subnet_ids_json` input is the JSON-encoded map from the VPC project.
-The project decodes it and extracts the `data` tier by default (configurable
-via `subnet_tier`).
+The `subnet_ids_json` input is the JSON-encoded map from the VPC project. The
+project decodes it and extracts the `data` tier by default (configurable via
+`subnet_tier`).
 
 ## Consumer tfvars
 
@@ -60,14 +60,36 @@ aws secretsmanager get-secret-value \
 
 Returns `{"username": "admin", "password": "..."}`.
 
-Or from the [Secrets Manager console](https://console.aws.amazon.com/secretsmanager)
-— find the secret by its ARN (from the Terraform output `master_user_secret_arn`)
-and click **Retrieve secret value**.
+Or from the
+[Secrets Manager console](https://console.aws.amazon.com/secretsmanager) — find
+the secret by its ARN (from the Terraform output `master_user_secret_arn`) and
+click **Retrieve secret value**.
 
-## Cost
+## S3 Integration (optional)
 
-With `license-included` (default), pricing is pay-as-you-go. No upfront
-license commitment. Delete the instance and billing stops immediately.
+Set `enable_s3_integration = true` to create an S3 bucket and IAM role for
+Oracle Data Pump / `UTL_FILE` operations. This adds the `S3_INTEGRATION` option
+to the instance's option group.
+
+The bucket is named `<identifier>-oracle-data-<account_id>-<region>-an`.
+
+## Additional options
+
+Use `additional_options` to add Oracle features to the module-managed option
+group (e.g. native network encryption):
+
+```hcl
+additional_options = [
+  {
+    option_name = "NATIVE_NETWORK_ENCRYPTION"
+    settings = [
+      { name = "SQLNET.ENCRYPTION_SERVER", value = "REQUIRED" },
+      { name = "SQLNET.CRYPTO_CHECKSUM_SERVER", value = "REQUIRED" },
+    ]
+  }
+]
+```
+
 
 ## Engine versions
 

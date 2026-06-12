@@ -200,8 +200,26 @@ variable "parameter_group_name" {
   default     = null
 }
 
-variable "option_group_name" {
-  type        = string
-  description = "DB option group name. Uses engine default if not specified."
-  default     = null
+# ── S3 Integration ────────────────────────────────────────────────────────────
+
+variable "enable_s3_integration" {
+  type        = bool
+  description = "Enable S3 integration (creates bucket, IAM role, adds S3_INTEGRATION to the option group)."
+  default     = false
+}
+
+# ── Additional Options ────────────────────────────────────────────────────────
+
+variable "additional_options" {
+  type = list(object({
+    option_name = string
+    version     = optional(string)
+    port        = optional(number)
+    settings = optional(list(object({
+      name  = string
+      value = string
+    })), [])
+  }))
+  description = "Additional options to include in the module-managed option group (e.g. APEX, native network encryption)."
+  default     = []
 }

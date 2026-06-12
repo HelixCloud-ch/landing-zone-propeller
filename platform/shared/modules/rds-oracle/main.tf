@@ -100,7 +100,7 @@ resource "aws_db_instance" "this" {
 
   # Parameter & option groups
   parameter_group_name = var.parameter_group_name
-  option_group_name    = var.option_group_name
+  option_group_name    = aws_db_option_group.this.name
 
   lifecycle {
     ignore_changes = [

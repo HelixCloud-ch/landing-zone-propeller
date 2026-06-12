@@ -176,6 +176,14 @@ variable "performance_insights_enabled" {
   default = true
 }
 
+# ── S3 Integration ────────────────────────────────────────────────────────────
+
+variable "enable_s3_integration" {
+  type        = bool
+  description = "Enable S3 integration for Oracle Data Pump import/export."
+  default     = false
+}
+
 # ── Tags ─────────────────────────────────────────────────────────────────────
 
 variable "tags" {
