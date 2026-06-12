@@ -1,0 +1,40 @@
+region     = "eu-central-2"
+identifier = "my-redis"
+
+# ── Engine ────────────────────────────────────────────────────────────────────
+# engine         = "valkey"          # Cheaper than redis (default)
+# engine_version = "9.0"             # Currently "7.1" for Redis.
+# node_type      = "cache.t3.small"  # 1.37 GB, burstable (cheapest in eu-central-2)
+# num_replicas   = 1                 # 1 replica = HA with auto-failover
+
+# ── Network (from pipeline inputs) ───────────────────────────────────────────
+# vpc_id and subnet_ids_json come from the VPC project via pipeline wiring.
+# subnet_tier = "data"  # Which tier in the subnet map to use
+
+# ── Access control ────────────────────────────────────────────────────────────
+# allowed_cidrs              = ["10.0.0.0/8"]
+# allowed_security_group_ids = []
+
+# ── Encryption ────────────────────────────────────────────────────────────────
+# transit_encryption_enabled = true   # TLS in-transit (default)
+# at_rest_encryption_enabled = true   # Encrypted at rest (default)
+# kms_key_id                 = null   # Uses default aws/elasticache key
+
+# ── Availability ──────────────────────────────────────────────────────────────
+# multi_az_enabled           = true
+# automatic_failover_enabled = true
+
+# ── Maintenance & Snapshots ───────────────────────────────────────────────────
+# maintenance_window       = "sun:05:00-sun:06:00"
+# snapshot_retention_limit = 7
+# snapshot_window          = "03:00-04:00"
+
+# ── Upgrades ──────────────────────────────────────────────────────────────────
+# auto_minor_version_upgrade = true
+# apply_immediately          = false
+
+# ── For testing (allows fast teardown) ────────────────────────────────────────
+# snapshot_retention_limit = 0
+# num_replicas             = 0
+# multi_az_enabled         = false
+# automatic_failover_enabled = false
