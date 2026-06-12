@@ -17,6 +17,16 @@ external_idp = false
 # Session duration for all permission sets (ISO 8601).
 # session_duration = "PT1H"
 
+# Per-permission-set relay state overrides. All keys are optional.
+# Defaults (computed from var.region):
+#   readonly, poweruser, admin  -> https://<region>.console.aws.amazon.com
+#   identity_operator           -> https://<region>.console.aws.amazon.com/singlesignon/
+#
+# relay_states = {
+#   admin             = "https://eu-central-2.console.aws.amazon.com/cloudtrail/"
+#   identity_operator = "https://eu-central-2.console.aws.amazon.com/singlesignon/"
+# }
+
 # ── Tags ──────────────────────────────────────────────────────────────────────
 
 # Tags applied to all resources created by this project.

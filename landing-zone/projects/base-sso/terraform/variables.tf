@@ -37,6 +37,43 @@ variable "identity_operators_group_name" {
 
 # ── Permission set behavior ──────────────────────────────────────────────────
 
+variable "relay_states" {
+  type = object({
+    readonly          = optional(string, "")
+    poweruser         = optional(string, "")
+    admin             = optional(string, "")
+    identity_operator = optional(string, "")
+  })
+  description = <<-EOT
+    Per-permission-set relay state URL overrides. Each key is optional; omit
+    or leave empty to use the built-in default for that permission set.
+
+    Defaults (computed from var.region):
+      readonly, poweruser, admin  -> https://<region>.console.aws.amazon.com
+      identity_operator           -> https://<region>.console.aws.amazon.com/singlesignon/
+
+    Override example - send Admin users to the CloudTrail console:
+      relay_states = {
+        admin = "https://eu-central-2.console.aws.amazon.com/cloudtrail/"
+      }
+
+    See: https://docs.aws.amazon.com/singlesignon/latest/userguide/howtopermrelaystate.html
+  EOT
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for v in compact([
+        var.relay_states.readonly,
+        var.relay_states.poweruser,
+        var.relay_states.admin,
+        var.relay_states.identity_operator,
+      ]) : can(regex("^https://", v))
+    ])
+    error_message = "All relay_states values must be valid HTTPS URLs."
+  }
+}
+
 variable "session_duration" {
   type        = string
   description = "Session duration for all permission sets (ISO 8601, e.g. PT1H, PT8H)."
