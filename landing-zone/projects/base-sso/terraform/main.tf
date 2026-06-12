@@ -1,13 +1,43 @@
 # ── Permission sets ──────────────────────────────────────────────────────────
 # Permission set names are singular. Groups are plural.
 
+locals {
+  # Default relay state for ReadOnly / PowerUser / Admin: caller-supplied URL
+  # or, if not set, the console homepage for the deployment region.
+  # Using a region-prefixed domain ensures users always land in the right
+  # region regardless of their browser history.
+  relay_state_default = (
+    var.relay_states.readonly != ""
+    ? var.relay_states.readonly
+    : "https://${var.region}.console.aws.amazon.com"
+  )
+  relay_state_poweruser = (
+    var.relay_states.poweruser != ""
+    ? var.relay_states.poweruser
+    : "https://${var.region}.console.aws.amazon.com"
+  )
+  relay_state_admin = (
+    var.relay_states.admin != ""
+    ? var.relay_states.admin
+    : "https://${var.region}.console.aws.amazon.com"
+  )
+
+  # IdentityOperator lands directly on the IAM Identity Center console —
+  # the only service they are scoped to manage.
+  relay_state_identity_operator = (
+    var.relay_states.identity_operator != ""
+    ? var.relay_states.identity_operator
+    : "https://${var.region}.console.aws.amazon.com/singlesignon/"
+  )
+}
+
 resource "aws_ssoadmin_permission_set" "readonly" {
   instance_arn     = local.instance_arn
   name             = "ReadOnly"
   description      = "Read-only access to all AWS services and resources."
   session_duration = var.session_duration
+  relay_state      = local.relay_state_default
 }
-
 resource "aws_ssoadmin_managed_policy_attachment" "readonly" {
   instance_arn       = local.instance_arn
   managed_policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
@@ -19,6 +49,7 @@ resource "aws_ssoadmin_permission_set" "poweruser" {
   name             = "PowerUser"
   description      = "Power user access (manage AWS resources, no IAM/Organizations management)."
   session_duration = var.session_duration
+  relay_state      = local.relay_state_poweruser
 }
 
 resource "aws_ssoadmin_managed_policy_attachment" "poweruser" {
@@ -32,6 +63,7 @@ resource "aws_ssoadmin_permission_set" "admin" {
   name             = "Admin"
   description      = "Full administrative access."
   session_duration = var.session_duration
+  relay_state      = local.relay_state_admin
 }
 
 resource "aws_ssoadmin_managed_policy_attachment" "admin" {
@@ -50,6 +82,7 @@ resource "aws_ssoadmin_permission_set" "identity_operator" {
   name             = "IdentityOperator"
   description      = "Manage IAM Identity Center user/group assignments to AWS accounts."
   session_duration = var.session_duration
+  relay_state      = local.relay_state_identity_operator
 }
 
 # AWSSSOReadOnly — full read on sso:*, plus required reads on Directory
