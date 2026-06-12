@@ -10,9 +10,15 @@ resource "aws_lambda_function" "autopilot" {
   handler          = "handler.handler"
   runtime          = "python3.14"
   timeout          = 900
-  memory_size      = 512
+  memory_size      = 1024
   filename         = data.archive_file.autopilot.output_path
   source_code_hash = data.archive_file.autopilot.output_base64sha256
+
+  logging_config {
+    log_format            = "JSON"
+    application_log_level = "INFO"
+    system_log_level      = "WARN"
+  }
 
   durable_config {
     execution_timeout = 86400
@@ -33,6 +39,11 @@ resource "aws_iam_role" "lambda" {
   })
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_durable" {
+  role       = aws_iam_role.lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy"
+}
+
 resource "aws_iam_role_policy" "lambda" {
   name = "propeller-autopilot-policy"
   role = aws_iam_role.lambda.id
@@ -40,11 +51,6 @@ resource "aws_iam_role_policy" "lambda" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
-        Resource = "arn:aws:logs:${local.region}:${local.account_id}:*"
-      },
       {
         Effect   = "Allow"
         Action   = ["ssm:GetParameter", "ssm:PutParameter"]

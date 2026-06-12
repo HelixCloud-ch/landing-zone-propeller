@@ -25,6 +25,7 @@ stages:
     steps:
       - project: account-factory
         target: management
+        timeout: 90
         depends_on: [operations-baseline]
         inputs:
           - name: operations-baseline.log_bucket
@@ -50,6 +51,8 @@ stages:
 - `project` - project name (matches `name` in `project.yaml`)
 - `target` - logical account to deploy into
 - `depends_on` - projects that must complete first (within the same stage)
+- `timeout` - CodeBuild timeout override in minutes (default: CodeBuild project
+  setting, typically 60). Use for long-running steps like cluster provisioning.
 - `inputs` - values to read from SSM before deploy
 - `outputs` - values to write to SSM after deploy
 
