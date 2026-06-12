@@ -22,3 +22,8 @@ output "security_group_id" {
   description = "Security group ID for the RDS instance."
   value       = module.rds_oracle.security_group_id
 }
+
+output "s3_bucket_name" {
+  description = "S3 bucket for Oracle Data Pump import/export (null if S3 integration disabled)."
+  value       = module.rds_oracle.s3_bucket_name
+}

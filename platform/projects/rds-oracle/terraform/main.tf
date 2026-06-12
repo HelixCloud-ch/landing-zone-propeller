@@ -51,4 +51,7 @@ module "rds_oracle" {
 
   # Monitoring
   performance_insights_enabled = var.performance_insights_enabled
+
+  # S3 Integration
+  enable_s3_integration = var.enable_s3_integration
 }

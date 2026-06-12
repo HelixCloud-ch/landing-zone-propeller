@@ -32,3 +32,13 @@ output "security_group_id" {
   description = "ID of the security group created for the RDS instance."
   value       = aws_security_group.this.id
 }
+
+output "s3_bucket_name" {
+  description = "Name of the S3 bucket for Oracle data import/export (null if S3 integration disabled)."
+  value       = var.enable_s3_integration ? aws_s3_bucket.oracle_data[0].id : null
+}
+
+output "s3_bucket_arn" {
+  description = "ARN of the S3 bucket for Oracle data import/export (null if S3 integration disabled)."
+  value       = var.enable_s3_integration ? aws_s3_bucket.oracle_data[0].arn : null
+}
