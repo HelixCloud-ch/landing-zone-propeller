@@ -39,14 +39,21 @@ apply:
 
     rosa login --client-id "$client_id" --client-secret "$client_secret"
 
-    # Grant roles to each user
+    # Grant roles to each user (idempotent: ignore "already exists" errors)
     jq -c '.[]' config.json | while read -r entry; do
       username=$(echo "$entry" | jq -r '.username')
       role=$(echo "$entry" | jq -r '.role')
       echo "Granting $role to $username on {{ cluster_name }}..."
-      rosa grant user "$role" \
+      output=$(rosa grant user "$role" \
         --user "$username" \
-        --cluster "{{ cluster_name }}"
+        --cluster "{{ cluster_name }}" 2>&1) || {
+        if echo "$output" | grep -qi "already exists"; then
+          echo "  (already granted, skipping)"
+        else
+          echo "$output" >&2
+          exit 1
+        fi
+      }
     done
 
     echo "rosa-rbac: done"
