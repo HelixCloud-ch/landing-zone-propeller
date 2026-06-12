@@ -1,20 +1,12 @@
 # ── S3 Integration (optional) ─────────────────────────────────────────────────
-# When enabled, creates: S3 bucket, IAM role, option group with S3_INTEGRATION,
-# and associates the role with the RDS instance.
+# When enabled, creates: S3 bucket, IAM role, and associates the role with the
+# RDS instance. The S3_INTEGRATION option is handled by option_group.tf.
 # Ref: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/oracle-s3-integration.html
-
-data "aws_caller_identity" "current" {
-  count = var.enable_s3_integration ? 1 : 0
-}
-
-data "aws_region" "current" {
-  count = var.enable_s3_integration ? 1 : 0
-}
 
 resource "aws_s3_bucket" "oracle_data" {
   count = var.enable_s3_integration ? 1 : 0
 
-  bucket = "${var.identifier}-oracle-data-${data.aws_caller_identity.current[0].account_id}-${data.aws_region.current[0].name}-an"
+  bucket = "${var.identifier}-oracle-data-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}-an"
 
   tags = {
     Name = "${var.identifier}-oracle-data"
