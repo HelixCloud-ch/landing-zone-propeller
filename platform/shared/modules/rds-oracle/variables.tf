@@ -200,12 +200,6 @@ variable "parameter_group_name" {
   default     = null
 }
 
-variable "option_group_name" {
-  type        = string
-  description = "Externally managed DB option group name. When set, the module will not create its own option group (enable_s3_integration and additional_options are ignored). Uses engine default if null and no options are configured."
-  default     = null
-}
-
 # ── S3 Integration ────────────────────────────────────────────────────────────
 
 variable "enable_s3_integration" {
@@ -226,6 +220,6 @@ variable "additional_options" {
       value = string
     })), [])
   }))
-  description = "Additional options to include in the module-managed option group (e.g. APEX, native network encryption). Ignored when option_group_name is set."
+  description = "Additional options to include in the module-managed option group (e.g. APEX, native network encryption)."
   default     = []
 }

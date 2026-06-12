@@ -1,10 +1,7 @@
 # ── Option Group (module-managed) ─────────────────────────────────────────────
-# Created when enable_s3_integration or additional_options are set,
-# and no external option_group_name is provided.
+# Always created. Includes S3_INTEGRATION when enabled, plus any additional_options.
 
 resource "aws_db_option_group" "this" {
-  count = local.create_option_group ? 1 : 0
-
   name                     = "${var.identifier}-options"
   engine_name              = var.engine
   major_engine_version     = var.engine_version

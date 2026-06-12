@@ -90,8 +90,6 @@ additional_options = [
 ]
 ```
 
-If you need a fully externally-managed option group, pass `option_group_name`
-instead — `enable_s3_integration` and `additional_options` will be ignored.
 
 ## Engine versions
 
