@@ -59,7 +59,7 @@ variable "relay_states" {
 
     See: https://docs.aws.amazon.com/singlesignon/latest/userguide/howtopermrelaystate.html
   EOT
-  default = {}
+  default     = {}
 
   validation {
     condition = alltrue([
