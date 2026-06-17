@@ -84,11 +84,3 @@ variable "restrict_public_buckets" {
   description = "Restrict cross-account access to the bucket when its policy allows public access."
   default     = true
 }
-
-# ── Bucket policy ─────────────────────────────────────────────────────────────
-
-variable "bucket_policy_json" {
-  type        = string
-  description = "Full bucket policy as a JSON string. The caller composes the policy (e.g. DenyInsecureTransport plus grant statements) with aws_iam_policy_document and passes the .json result here. When null, no bucket policy is attached."
-  default     = null
-}

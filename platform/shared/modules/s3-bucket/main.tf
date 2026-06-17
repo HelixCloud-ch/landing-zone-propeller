@@ -54,16 +54,3 @@ resource "aws_s3_bucket_public_access_block" "this" {
   ignore_public_acls      = var.ignore_public_acls
   restrict_public_buckets = var.restrict_public_buckets
 }
-
-# ── Bucket policy ─────────────────────────────────────────────────────────────
-# The caller passes the full policy JSON. Only attached when provided.
-
-resource "aws_s3_bucket_policy" "this" {
-  count = var.bucket_policy_json != null ? 1 : 0
-
-  bucket = aws_s3_bucket.this.id
-  policy = var.bucket_policy_json
-
-  # Public access block must be in place before the policy is attached.
-  depends_on = [aws_s3_bucket_public_access_block.this]
-}
