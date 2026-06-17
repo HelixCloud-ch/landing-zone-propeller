@@ -1,0 +1,17 @@
+name: s3-bucket
+description: >-
+  Generic S3 bucket project. Wraps the shared s3-bucket module and applies a
+  TLS-only bucket policy (DenyInsecureTransport). Same-account IAM principals
+  are granted access via their own IAM policies (see iam-s3-user); the bucket
+  policy itself does not grant access.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
