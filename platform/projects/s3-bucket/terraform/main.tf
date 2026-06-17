@@ -4,7 +4,7 @@ data "aws_region" "current" {}
 # ── Bucket ────────────────────────────────────────────────────────────────────
 
 module "bucket" {
-  source = "../../shared/modules/s3-bucket"
+  source = "../../../shared/modules/s3-bucket"
 
   name             = var.name
   bucket_namespace = "account-regional"
