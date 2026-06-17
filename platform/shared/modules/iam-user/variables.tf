@@ -16,7 +16,7 @@ variable "path" {
   default     = "/"
 
   validation {
-    condition     = can(regex("^/.*/$", var.path))
+    condition     = can(regex("^/.*/$", var.path)) || var.path == "/"
     error_message = "path must begin and end with '/'."
   }
 }
