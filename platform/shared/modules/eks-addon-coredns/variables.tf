@@ -5,7 +5,7 @@ variable "cluster_name" {
 
 variable "addon_version" {
   type        = string
-  description = "Pinned CoreDNS managed add-on version (e.g. 'v1.11.4-eksbuild.40'). Null lets EKS pick the default version for the cluster's Kubernetes release."
+  description = "Pinned CoreDNS managed add-on version (e.g. 'v1.11.4-eksbuild.40'). Null lets EKS pick the default version for the cluster's Kubernetes release. For EKS 1.32, use 'v1.11.4-eksbuild.40'."
   default     = null
 }
 
