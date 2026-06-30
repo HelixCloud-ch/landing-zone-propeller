@@ -16,8 +16,8 @@ out with a single module block.
 ## IAM policy
 
 The controller's IAM policy is bundled as `iam_policy.json`, pinned to a
-specific upstream controller release. When bumping `chart_version`, refresh the
-JSON from the matching release tag:
+specific upstream controller release (currently v3.4.0). When bumping
+`chart_version`, refresh the JSON from the matching release tag:
 
 ```
 curl -o iam_policy.json \
@@ -35,7 +35,7 @@ module "lb_controller" {
   vpc_id            = var.vpc_id
   oidc_provider_arn = module.cluster.oidc_provider_arn
   oidc_provider_url = module.cluster.oidc_provider_url
-  chart_version     = "1.8.1"
+  chart_version     = "3.4.0"
 }
 ```
 
@@ -81,7 +81,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Version of the aws-load-balancer-controller Helm chart. Keep in sync with the bundled iam\_policy.json (both pinned to the same controller release). For EKS 1.32, use '1.12.1' (controller v3.2.2). | `string` | n/a | yes |
+| <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Version of the aws-load-balancer-controller Helm chart from the https://aws.github.io/eks-charts repository. Keep in sync with the bundled iam\_policy.json (both pinned to the same controller release). The chart version tracks the controller appVersion (e.g. '3.4.0' installs controller v3.4.0). Supports Kubernetes 1.22 and later, including 1.36. | `string` | n/a | yes |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster the controller manages load balancers for. | `string` | n/a | yes |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Namespace to install the controller into. | `string` | `"kube-system"` | no |
 | <a name="input_oidc_provider_arn"></a> [oidc\_provider\_arn](#input\_oidc\_provider\_arn) | ARN of the cluster IAM OIDC provider. Required only when use\_pod\_identity = false. Used as the IRSA trust principal for the controller's service account role. | `string` | `null` | no |

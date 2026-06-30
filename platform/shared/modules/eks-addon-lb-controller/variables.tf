@@ -45,7 +45,7 @@ variable "oidc_provider_url" {
 
 variable "chart_version" {
   type        = string
-  description = "Version of the aws-load-balancer-controller Helm chart. Keep in sync with the bundled iam_policy.json (both pinned to the same controller release). For EKS 1.32, use '1.12.1' (controller v3.2.2)."
+  description = "Version of the aws-load-balancer-controller Helm chart from the https://aws.github.io/eks-charts repository. Keep in sync with the bundled iam_policy.json (both pinned to the same controller release). The chart version tracks the controller appVersion (e.g. '3.4.0' installs controller v3.4.0). Supports Kubernetes 1.22 and later, including 1.36."
 }
 
 variable "service_account_name" {
