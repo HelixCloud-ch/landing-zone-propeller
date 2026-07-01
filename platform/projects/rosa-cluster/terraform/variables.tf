@@ -101,6 +101,14 @@ variable "ocm_secret_name" {
   default     = "propeller/rosa/ocm-token"
 }
 
+# ── Additional control plane access ──────────────────────────────────────────
+
+variable "additional_control_plane_cidrs" {
+  type        = list(string)
+  description = "CIDR blocks allowed to reach the ROSA HCP control plane VPC endpoint (e.g. site-to-site VPN ranges)."
+  default     = []
+}
+
 # ── Tags ─────────────────────────────────────────────────────────────────────
 
 variable "tags" {
