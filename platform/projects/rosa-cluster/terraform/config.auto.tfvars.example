@@ -44,6 +44,12 @@ availability_zones = ["eu-central-1a", "eu-central-1b", "eu-central-1c"]
 # Secrets Manager secret with {"client_id":"...","client_secret":"..."}.
 # ocm_secret_name = "propeller/rosa/ocm-token"
 
+# ── Additional control plane access ───────────────────────────────────────────
+
+# CIDRs that need to reach the ROSA HCP API (e.g. site-to-site VPN ranges).
+# Creates a security group attached to the control plane VPC endpoint.
+# additional_control_plane_cidrs = ["10.200.0.0/16"]
+
 # ── Tags ──────────────────────────────────────────────────────────────────────
 
 # tags = {

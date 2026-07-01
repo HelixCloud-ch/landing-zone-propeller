@@ -39,6 +39,32 @@ locals {
   ocm_credentials = jsondecode(ephemeral.aws_secretsmanager_secret_version.ocm.secret_string)
 }
 
+# ── Additional control plane security group ───────────────────────────────────
+
+resource "aws_security_group" "control_plane_extra" {
+  count = length(var.additional_control_plane_cidrs) > 0 ? 1 : 0
+
+  name        = "${var.cluster_name}-control-plane-extra"
+  description = "Additional access to ROSA HCP control plane (e.g. site-to-site VPN)"
+  vpc_id      = data.aws_subnet.private[local.all_private_ids[0]].vpc_id
+
+  tags = {
+    Name = "${var.cluster_name}-control-plane-extra"
+  }
+}
+
+resource "aws_security_group_rule" "control_plane_extra_ingress" {
+  count = length(var.additional_control_plane_cidrs) > 0 ? 1 : 0
+
+  type              = "ingress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = var.additional_control_plane_cidrs
+  security_group_id = aws_security_group.control_plane_extra[0].id
+  description       = "HTTPS access to control plane from additional CIDRs"
+}
+
 # ── ROSA HCP cluster ──────────────────────────────────────────────────────────
 
 module "rosa_hcp" {
@@ -62,6 +88,8 @@ module "rosa_hcp" {
   operator_role_prefix  = "${var.cluster_name}-operator"
 
   create_admin_user = var.create_admin_user
+
+  aws_additional_control_plane_security_group_ids = aws_security_group.control_plane_extra[*].id
 
   tags = var.tags
 }
