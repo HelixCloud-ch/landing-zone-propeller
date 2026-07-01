@@ -74,11 +74,6 @@ variable "namespace" {
 
 variable "role_name" {
   type        = string
-  description = "Name of the IRSA role for the controller. Defaults to '<cluster_name>-aws-load-balancer-controller'. Required only when use_pod_identity = false."
+  description = "Name of the IRSA role for the controller. Defaults to '<cluster_name>-aws-load-balancer-controller' when null. Override only when the naming convention conflicts with an existing role or IAM path constraint."
   default     = null
-
-  validation {
-    condition     = var.use_pod_identity || (var.role_name != null && length(var.role_name) > 0)
-    error_message = "role_name is required when use_pod_identity = false."
-  }
 }

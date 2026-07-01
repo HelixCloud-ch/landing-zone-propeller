@@ -85,6 +85,12 @@ variable "lbc_chart_repository" {
   default     = "https://aws.github.io/eks-charts"
 }
 
+variable "lbc_role_name" {
+  type        = string
+  description = "Name of the IRSA role created for the LB Controller. Defaults to '<cluster_name>-aws-load-balancer-controller'. Override only when the naming convention conflicts with an existing role or IAM path constraint."
+  default     = null
+}
+
 variable "lbc_create_service_account" {
   type        = bool
   description = "Whether Helm creates the LB Controller's Kubernetes ServiceAccount. Set to false when the ServiceAccount is managed externally (pre-created, GitOps, or a Pod Identity association). When false under IRSA, the external ServiceAccount must already carry the eks.amazonaws.com/role-arn annotation."

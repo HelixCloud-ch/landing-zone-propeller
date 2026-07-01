@@ -31,6 +31,7 @@ module "lb_controller" {
   oidc_provider_url = var.oidc_provider_url
   chart_version     = var.lbc_chart_version
   chart_repository  = var.lbc_chart_repository
+  role_name         = var.lbc_role_name
   use_pod_identity  = var.lbc_use_pod_identity
 
   create_service_account = var.lbc_create_service_account
