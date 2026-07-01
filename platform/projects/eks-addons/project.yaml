@@ -1,0 +1,17 @@
+name: eks-addons
+description: >-
+  Cluster add-ons for an Amazon EKS cluster. Installs the CoreDNS managed
+  add-on and, optionally, the AWS Load Balancer Controller Helm release. A thin
+  pipeline wrapper around the eks-addon-coredns and eks-addon-lb-controller
+  shared modules.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"

@@ -1,0 +1,17 @@
+name: eks-cluster
+description: >-
+  Generic Amazon EKS cluster. Creates the control plane, cluster IAM role, and
+  an OIDC provider for IRSA by default; optionally creates Fargate profiles
+  when fargate_profiles is set. Node groups, mixed mode, and Pod Identity are
+  planned for a later iteration.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"

@@ -1,0 +1,11 @@
+region = "eu-central-2"
+
+# AWS account ID hosting the shared ECR registry.
+ecr_account_id = "111111111111"
+
+# Set only if the ECR registry lives in a different region than the pod
+# execution role. Defaults to region when omitted.
+# ecr_region = "eu-central-1"
+
+# pod_execution_role_name is injected by the pipeline from the eks-cluster
+# project output — do NOT set it here.

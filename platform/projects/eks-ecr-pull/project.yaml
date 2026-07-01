@@ -1,0 +1,17 @@
+name: eks-ecr-pull
+description: >-
+  Attaches a cross-account ECR pull policy to an EKS Fargate pod execution
+  role, letting all pods scheduled under that role pull images from a shared
+  ECR registry without per-pod credentials. A thin wrapper that attaches an
+  inline IAM policy to a role supplied by the pipeline.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
