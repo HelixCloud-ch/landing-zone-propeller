@@ -1,0 +1,46 @@
+region = "eu-central-2"
+
+cluster_name = "test"
+
+# Pinned Kubernetes minor version. Bump this value per the EKS upgrade
+# runbook (notes/wiki/operations/eks-upgrade-runbook.md) — sequential
+# minor upgrades only, no downgrades. Update add-on versions in lockstep.
+eks_version = "1.36"
+
+fargate_profiles = [
+  { name = "test", namespace = "test" },
+  # kube-system is required here because this is a pure-Fargate cluster with
+  # no EC2 nodes — CoreDNS must run on Fargate. The label selector narrows the
+  # profile to CoreDNS pods only; other kube-system pods are not affected.
+  # If EC2 node groups were added later, remove this entry.
+  { name = "coredns", namespace = "kube-system", labels = { "k8s-app" = "kube-dns" } },
+  # Optional per-profile placement: set subnet_tier to pin a profile to a
+  # specific tier (e.g. a team's dedicated subnets). Omit to use
+  # fargate_subnet_tier. Set pod_execution_role to give a profile a dedicated
+  # pod execution role (a role is created per distinct key) — useful to isolate
+  # cross-account ECR pull per team/environment; profiles sharing a role use the
+  # same key. Omit to use the shared "default" role.
+  # { name = "team-x", namespace = "team-x", subnet_tier = "team-x", pod_execution_role = "team-x" },
+]
+
+# Set to true and supply kms_key_arn to enable CMK envelope encryption
+# for Kubernetes secrets. Leave false for test environments; enable in
+# production accounts that require secrets encryption at the envelope
+# level (e.g. regulated workloads with CIS or PCI controls).
+secrets_encryption_enabled = false
+
+# kms_key_arn is intentionally omitted: secrets_encryption_enabled is
+# false, so no CMK is required. Uncomment and supply the ARN of a
+# symmetric CMK in eu-central-2 when enabling secrets encryption.
+# kms_key_arn = "arn:aws:kms:eu-central-2:<account_id>:key/<key_id>"
+
+# vpc_id and subnet_ids_by_tier are injected by the pipeline from the
+# workload-vpc project outputs — do NOT set them here.
+
+# One or more tiers attached to the cluster's vpc_config (control-plane ENIs).
+# Flattened into a single subnet list — aws_eks_cluster allows one vpc_config.
+cluster_subnet_tiers = ["app"]
+
+# Optional: tier for Fargate profile placement. Defaults to the first entry of
+# cluster_subnet_tiers when omitted.
+# fargate_subnet_tier = "app"

@@ -81,6 +81,25 @@ variable "enable_oidc_provider" {
 }
 
 
+# ── Cluster IAM role ──────────────────────────────────────────────────────────
+
+variable "create_cluster_role" {
+  type        = bool
+  description = "Create the cluster IAM role. Set false to supply an externally-managed role via cluster_role_arn (e.g. centralized role management)."
+  default     = true
+}
+
+variable "cluster_role_arn" {
+  type        = string
+  description = "ARN of an externally-managed cluster IAM role. Required when create_cluster_role is false; ignored otherwise. The role must trust eks.amazonaws.com and carry AmazonEKSClusterPolicy."
+  default     = null
+
+  validation {
+    condition     = var.create_cluster_role || (var.cluster_role_arn != null && length(var.cluster_role_arn) > 0)
+    error_message = "cluster_role_arn is required when create_cluster_role is false."
+  }
+}
+
 # ── Secrets encryption ─────────────────────────────────────────────────────────
 
 variable "secrets_encryption_enabled" {
