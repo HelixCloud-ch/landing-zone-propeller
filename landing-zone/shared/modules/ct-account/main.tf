@@ -1,7 +1,8 @@
 locals {
   managed_organizational_unit = "${var.ou_name} (${var.ou_id})"
-  # Provisioned product name must match [a-zA-Z0-9][a-zA-Z0-9._-]*
-  provisioned_product_name = replace(var.account_name, " ", "-")
+  # Spaces replaced with hyphens to satisfy the API pattern [a-zA-Z0-9][a-zA-Z0-9._-]*.
+  # Uniqueness and overall length are the caller's responsibility.
+  provisioned_product_name = replace(var.provisioned_product_name, " ", "-")
 }
 resource "aws_servicecatalog_provisioned_product" "this" {
   name                       = local.provisioned_product_name

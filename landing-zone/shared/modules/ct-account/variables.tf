@@ -1,10 +1,28 @@
 variable "account_name" {
   type        = string
-  description = "Friendly name for the new account. Also used as the Service Catalog provisioned product name."
+  description = "Friendly name for the new account."
 
   validation {
     condition     = length(var.account_name) > 0 && length(var.account_name) <= 50
     error_message = "account_name must be between 1 and 50 characters."
+  }
+}
+
+variable "provisioned_product_name" {
+  type        = string
+  description = <<-EOT
+    Name for the Service Catalog provisioned product. Must be unique within the
+    management account. The caller (root module) is responsible for uniqueness.
+    AWS constraints (ProvisionProduct API):
+      - Pattern: [a-zA-Z0-9][a-zA-Z0-9._-]*
+      - Maximum length: 128 characters
+    Existing provisioned products are unaffected by any name change because
+    ignore_changes = [name] is set on the resource.
+  EOT
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9][a-zA-Z0-9._-]{0,126}$", var.provisioned_product_name))
+    error_message = "provisioned_product_name must start with [a-zA-Z0-9], contain only [a-zA-Z0-9._-], and be at most 128 characters."
   }
 }
 
