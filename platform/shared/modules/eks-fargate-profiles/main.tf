@@ -14,7 +14,7 @@ resource "aws_eks_fargate_profile" "this" {
   lifecycle {
     precondition {
       condition     = contains(keys(local.role_defs), coalesce(each.value.pod_execution_role, "default"))
-      error_message = "Profile \"${each.value.name}\" references pod_execution_role \"${each.value.pod_execution_role}\", which is not a key in pod_execution_roles."
+      error_message = "Profile \"${each.value.name}\" references pod_execution_role \"${coalesce(each.value.pod_execution_role, "default")}\", which is not a key in pod_execution_roles."
     }
   }
 }
