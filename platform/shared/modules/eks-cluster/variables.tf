@@ -34,6 +34,12 @@ variable "endpoint_public_access" {
   default     = false
 }
 
+variable "additional_security_group_ids" {
+  type        = list(string)
+  description = "Security group IDs attached to the cluster's cross-account ENIs (vpc_config.security_group_ids), in addition to the EKS-managed cluster security group. Use these to allow connected networks (deploy runner, operator VPN/TGW ranges) to reach the private API endpoint on 443. The security groups themselves are created and owned outside this module — by the eks-cluster project today, or a centralized security-group plane later — so SG management can be centralized without touching the cluster module. Empty (default) attaches no extra security group."
+  default     = []
+}
+
 # ── Cluster behaviour ─────────────────────────────────────────────────────────
 
 variable "authentication_mode" {

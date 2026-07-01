@@ -90,6 +90,23 @@ variable "kms_key_arn" {
   default     = null
 }
 
+variable "api_server_ingress_cidrs" {
+  type        = list(string)
+  description = "CIDR blocks allowed to reach the private Kubernetes API server endpoint on TCP 443. When non-empty, this project creates a security group with these ingress rules and attaches it to the cluster. Required for a private-only cluster (endpoint_public_access = false) whenever something outside the cluster's own security group must call the API — notably a VPC-attached deploy runner applying eks-addons (helm/kubernetes providers) and operator networks reaching over TGW/VPN. Empty (default) creates no security group."
+  default     = []
+
+  validation {
+    condition     = alltrue([for c in var.api_server_ingress_cidrs : can(cidrhost(c, 0))])
+    error_message = "Every api_server_ingress_cidrs entry must be a valid IPv4 CIDR block."
+  }
+}
+
+variable "additional_security_group_ids" {
+  type        = list(string)
+  description = "Externally-managed security group IDs to attach to the cluster's cross-account ENIs, in addition to any group this project creates from api_server_ingress_cidrs. Intended for a future centralized security-group plane that owns SG lifecycle: supply IDs here and leave api_server_ingress_cidrs empty. Empty (default) attaches nothing extra."
+  default     = []
+}
+
 # ── Tagging ────────────────────────────────────────────────────────────────────
 
 variable "tags" {

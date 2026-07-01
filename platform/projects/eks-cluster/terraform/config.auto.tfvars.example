@@ -44,3 +44,17 @@ cluster_subnet_tiers = ["app"]
 # Optional: tier for Fargate profile placement. Defaults to the first entry of
 # cluster_subnet_tiers when omitted.
 # fargate_subnet_tier = "app"
+
+# ── Private API endpoint access from connected networks ───────────────────────
+# The API endpoint is private-only (endpoint_public_access defaults to false).
+# The EKS-managed cluster security group only permits its own members, so any
+# connected client that must call the Kubernetes API — a VPC-attached deploy
+# runner applying eks-addons (helm/kubernetes providers), or operators over
+# TGW/VPN — needs an explicit 443 allowance. Populate this list with those
+# source CIDRs; the project creates a security group and attaches it to the
+# cluster. Leave empty for a fully closed endpoint.
+# api_server_ingress_cidrs = ["10.150.34.0/23"]
+
+# Alternatively, when a centralized security-group plane owns SG lifecycle,
+# supply pre-created SG IDs here and leave api_server_ingress_cidrs empty.
+# additional_security_group_ids = ["sg-0123456789abcdef0"]

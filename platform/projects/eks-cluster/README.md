@@ -84,7 +84,9 @@ pull policy belongs in `eks-ecr-pull`.
 
 ## Providers
 
-No providers.
+| Name | Version |
+| ---- | ------- |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.52.0 |
 
 ## Modules
 
@@ -95,12 +97,17 @@ No providers.
 
 ## Resources
 
-No resources.
+| Name | Type |
+| ---- | ---- |
+| [aws_security_group.api_ingress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
+| [aws_vpc_security_group_ingress_rule.api_ingress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_additional_security_group_ids"></a> [additional\_security\_group\_ids](#input\_additional\_security\_group\_ids) | Externally-managed security group IDs to attach to the cluster's cross-account ENIs, in addition to any group this project creates from api\_server\_ingress\_cidrs. Intended for a future centralized security-group plane that owns SG lifecycle: supply IDs here and leave api\_server\_ingress\_cidrs empty. Empty (default) attaches nothing extra. | `list(string)` | `[]` | no |
+| <a name="input_api_server_ingress_cidrs"></a> [api\_server\_ingress\_cidrs](#input\_api\_server\_ingress\_cidrs) | CIDR blocks allowed to reach the private Kubernetes API server endpoint on TCP 443. When non-empty, this project creates a security group with these ingress rules and attaches it to the cluster. Required for a private-only cluster (endpoint\_public\_access = false) whenever something outside the cluster's own security group must call the API — notably a VPC-attached deploy runner applying eks-addons (helm/kubernetes providers) and operator networks reaching over TGW/VPN. Empty (default) creates no security group. | `list(string)` | `[]` | no |
 | <a name="input_authentication_mode"></a> [authentication\_mode](#input\_authentication\_mode) | EKS access-config authentication mode: API (recommended), CONFIG\_MAP, or API\_AND\_CONFIG\_MAP. | `string` | `"API"` | no |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster. Supplied per consumer in config.auto.tfvars. | `string` | n/a | yes |
 | <a name="input_cluster_subnet_tiers"></a> [cluster\_subnet\_tiers](#input\_cluster\_subnet\_tiers) | One or more keys in subnet\_ids\_by\_tier whose subnets are attached to the cluster's vpc\_config (control-plane cross-account ENIs). aws\_eks\_cluster allows a single vpc\_config block, so all selected tiers are flattened into one subnet\_ids list. Requires subnets spanning at least two AZs. | `list(string)` | n/a | yes |
@@ -121,6 +128,7 @@ No resources.
 
 | Name | Description |
 | ---- | ----------- |
+| <a name="output_api_ingress_security_group_id"></a> [api\_ingress\_security\_group\_id](#output\_api\_ingress\_security\_group\_id) | ID of the project-created API server ingress security group. Null when api\_server\_ingress\_cidrs is empty. |
 | <a name="output_cluster_certificate_authority_data"></a> [cluster\_certificate\_authority\_data](#output\_cluster\_certificate\_authority\_data) | Base64-encoded certificate authority data for the cluster. |
 | <a name="output_cluster_endpoint"></a> [cluster\_endpoint](#output\_cluster\_endpoint) | Private API server endpoint URL for the EKS cluster. |
 | <a name="output_cluster_name"></a> [cluster\_name](#output\_cluster\_name) | Name of the EKS cluster. |

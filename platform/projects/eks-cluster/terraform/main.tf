@@ -48,6 +48,8 @@ module "cluster" {
 
   secrets_encryption_enabled = var.secrets_encryption_enabled
   kms_key_arn                = var.kms_key_arn
+
+  additional_security_group_ids = local.cluster_additional_security_group_ids
 }
 
 module "fargate_profiles" {

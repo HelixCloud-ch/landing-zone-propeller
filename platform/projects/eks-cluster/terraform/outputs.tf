@@ -30,6 +30,11 @@ output "cluster_security_group_id" {
   value       = module.cluster.cluster_security_group_id
 }
 
+output "api_ingress_security_group_id" {
+  description = "ID of the project-created API server ingress security group. Null when api_server_ingress_cidrs is empty."
+  value       = local.create_api_ingress_sg ? aws_security_group.api_ingress[0].id : null
+}
+
 # ── From eks-fargate-profiles (null/empty when fargate_profiles is empty) ─────
 
 output "pod_execution_role_names" {
