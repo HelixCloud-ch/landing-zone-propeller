@@ -1,0 +1,31 @@
+region = "eu-central-2"
+
+# CoreDNS managed EKS add-on. Managed here only when install_coredns = true.
+# Required on pure-Fargate clusters; optional on EC2 node-group clusters (EKS
+# provides a working CoreDNS by default there — enable only to pin versions).
+install_coredns = true
+
+# CoreDNS add-on version. Bump this value in lockstep with the cluster
+# eks_version per the EKS upgrade runbook
+# (notes/wiki/operations/eks-upgrade-runbook.md) — sequential minor upgrades
+# only, no downgrades. Null lets EKS pick the default for the cluster's
+# Kubernetes release. Ignored when install_coredns = false.
+coredns_version = "v1.11.4-eksbuild.40"
+
+# Set to "Fargate" for pure-Fargate clusters (CoreDNS must run on Fargate and
+# the cluster needs a kube-system Fargate profile). Omit for EC2-based clusters.
+coredns_compute_type = "Fargate"
+
+# AWS Load Balancer Controller (optional). Leave install_lb_controller = false
+# for clusters that only need internal DNS. When true, pin lbc_chart_version;
+# the chart version tracks the controller appVersion (3.4.0 installs v3.4.0).
+install_lb_controller = false
+# lbc_chart_version = "3.4.0"
+
+# Set lbc_use_pod_identity = true to use EKS Pod Identity instead of IRSA/OIDC.
+# Requires the Pod Identity Agent add-on; not supported on pure-Fargate clusters.
+# lbc_use_pod_identity = false
+
+# cluster_name, cluster_endpoint, cluster_certificate_authority_data,
+# oidc_provider_arn, oidc_provider_url, and vpc_id are injected by the pipeline
+# from the eks-cluster and workload-vpc project outputs — do NOT set them here.
