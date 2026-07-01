@@ -72,7 +72,7 @@ resource "aws_iam_role_policy_attachment" "this" {
 
 resource "helm_release" "this" {
   name       = "aws-load-balancer-controller"
-  repository = "https://aws.github.io/eks-charts"
+  repository = var.chart_repository
   chart      = "aws-load-balancer-controller"
   version    = var.chart_version
   namespace  = var.namespace
@@ -92,7 +92,7 @@ resource "helm_release" "this" {
     },
     {
       name  = "serviceAccount.create"
-      value = "true"
+      value = tostring(var.create_service_account)
     },
     {
       name  = "serviceAccount.name"
@@ -100,8 +100,11 @@ resource "helm_release" "this" {
     },
   ]
 
-  # When using IRSA/OIDC, attach the role ARN via annotation
-  set_sensitive = var.use_pod_identity ? [] : [
+  # IRSA role-arn annotation is applied through the chart-managed ServiceAccount,
+  # so it is only injected when this module creates the SA (create_service_account
+  # = true) under IRSA. When the SA is managed externally (create_service_account
+  # = false), that SA must already carry the annotation; see the module README.
+  set_sensitive = (var.use_pod_identity || !var.create_service_account) ? [] : [
     {
       name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
       value = aws_iam_role.this[0].arn

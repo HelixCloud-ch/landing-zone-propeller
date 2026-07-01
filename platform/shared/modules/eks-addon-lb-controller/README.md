@@ -24,6 +24,29 @@ curl -o iam_policy.json \
   https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v<X.Y.Z>/docs/install/iam_policy.json
 ```
 
+## Chart source
+
+The chart name is fixed (`aws-load-balancer-controller`) but `chart_repository`
+selects where it is pulled from. It defaults to the upstream
+`https://aws.github.io/eks-charts`; override it to point at an internal mirror —
+an HTTPS chart index, an OCI registry (`oci://...`), or a Helm plugin scheme
+(`s3://`, `gs://`, which require the corresponding Helm plugin on the runner).
+
+## ServiceAccount ownership
+
+`create_service_account` (default `true`) controls whether Helm creates the
+controller's ServiceAccount. Set it to `false` when the ServiceAccount is
+managed outside the chart (pre-created by a separate resource, a GitOps tool,
+or a Pod Identity association that owns it) — otherwise the release fails on an
+ownership conflict.
+
+Under IRSA the `eks.amazonaws.com/role-arn` annotation is applied *through* the
+chart-managed ServiceAccount, so it is only injected when
+`create_service_account = true`. When `false` under IRSA, the external
+ServiceAccount **must already carry** that annotation pointing at this module's
+`role_arn` output; the module cannot annotate a ServiceAccount it does not
+create. Under Pod Identity no annotation is needed.
+
 ## Usage
 
 ```hcl
@@ -60,8 +83,8 @@ DNS). In a pipeline, sequence this after the CoreDNS add-on.
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.0 |
-| <a name="provider_helm"></a> [helm](#provider\_helm) | ~> 3.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.52.0 |
+| <a name="provider_helm"></a> [helm](#provider\_helm) | 3.2.0 |
 
 ## Modules
 
@@ -81,8 +104,10 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_chart_repository"></a> [chart\_repository](#input\_chart\_repository) | Helm repository the chart is pulled from. Defaults to the upstream eks-charts repo. Set to an alternative HTTPS index, an OCI registry (oci://...), or a Helm plugin scheme (s3://, gs://) to source the chart from a mirror. The chart name is always 'aws-load-balancer-controller'. | `string` | `"https://aws.github.io/eks-charts"` | no |
 | <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Version of the aws-load-balancer-controller Helm chart from the https://aws.github.io/eks-charts repository. Keep in sync with the bundled iam\_policy.json (both pinned to the same controller release). The chart version tracks the controller appVersion (e.g. '3.4.0' installs controller v3.4.0). Supports Kubernetes 1.22 and later, including 1.36. | `string` | n/a | yes |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster the controller manages load balancers for. | `string` | n/a | yes |
+| <a name="input_create_service_account"></a> [create\_service\_account](#input\_create\_service\_account) | Whether Helm creates the controller's Kubernetes ServiceAccount. Set to false when the ServiceAccount is managed externally (pre-created, GitOps, or a Pod Identity association that owns it) to avoid an ownership conflict. When false under IRSA, the external ServiceAccount must already carry the eks.amazonaws.com/role-arn annotation for role\_arn — this module cannot annotate a ServiceAccount it does not create. | `bool` | `true` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Namespace to install the controller into. | `string` | `"kube-system"` | no |
 | <a name="input_oidc_provider_arn"></a> [oidc\_provider\_arn](#input\_oidc\_provider\_arn) | ARN of the cluster IAM OIDC provider. Required only when use\_pod\_identity = false. Used as the IRSA trust principal for the controller's service account role. | `string` | `null` | no |
 | <a name="input_oidc_provider_url"></a> [oidc\_provider\_url](#input\_oidc\_provider\_url) | Issuer URL of the cluster OIDC provider, without the https:// prefix. Required only when use\_pod\_identity = false. Used in the IRSA sub/aud trust conditions. | `string` | `null` | no |

@@ -48,6 +48,18 @@ variable "chart_version" {
   description = "Version of the aws-load-balancer-controller Helm chart from the https://aws.github.io/eks-charts repository. Keep in sync with the bundled iam_policy.json (both pinned to the same controller release). The chart version tracks the controller appVersion (e.g. '3.4.0' installs controller v3.4.0). Supports Kubernetes 1.22 and later, including 1.36."
 }
 
+variable "chart_repository" {
+  type        = string
+  description = "Helm repository the chart is pulled from. Defaults to the upstream eks-charts repo. Set to an alternative HTTPS index, an OCI registry (oci://...), or a Helm plugin scheme (s3://, gs://) to source the chart from a mirror. The chart name is always 'aws-load-balancer-controller'."
+  default     = "https://aws.github.io/eks-charts"
+}
+
+variable "create_service_account" {
+  type        = bool
+  description = "Whether Helm creates the controller's Kubernetes ServiceAccount. Set to false when the ServiceAccount is managed externally (pre-created, GitOps, or a Pod Identity association that owns it) to avoid an ownership conflict. When false under IRSA, the external ServiceAccount must already carry the eks.amazonaws.com/role-arn annotation for role_arn — this module cannot annotate a ServiceAccount it does not create."
+  default     = true
+}
+
 variable "service_account_name" {
   type        = string
   description = "Name of the Kubernetes service account the controller uses. Must match the IRSA trust policy subject (when using IRSA) or the service account associated with the Pod Identity (when using Pod Identity)."
