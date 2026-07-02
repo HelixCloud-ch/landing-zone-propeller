@@ -197,8 +197,11 @@ def _make_step_branch(step: dict, pctx: PipelineCtx):
     return branch
 
 
-def _get_codebuild_client(account_id: str, region: str) -> boto3.client:
-    role_arn = f"arn:aws:iam::{account_id}:role/{RUN_ROLE_NAME}"
+def _get_codebuild_client(
+    account_id: str, region: str, runner: str | None = None
+) -> boto3.client:
+    run_role = f"{runner}-run-role" if runner else RUN_ROLE_NAME
+    role_arn = f"arn:aws:iam::{account_id}:role/{run_role}"
     creds = sts.assume_role(
         RoleArn=role_arn,
         RoleSessionName=f"propeller-{account_id}",
@@ -221,7 +224,8 @@ def _prepare(step: dict) -> dict:
     config = {
         "accountId": account_id,
         "region": region,
-        "codebuildProject": CODEBUILD_PROJECT_NAME,
+        "codebuildProject": step.get("runner") or CODEBUILD_PROJECT_NAME,
+        "runner": step.get("runner"),
     }
     inputs = {}
     blob_cache: dict[str, dict] = {}
@@ -240,7 +244,9 @@ def _prepare(step: dict) -> dict:
 
 
 def _start_build(step: dict, config: dict, pctx: PipelineCtx) -> str:
-    cb = _get_codebuild_client(config["accountId"], config["region"])
+    cb = _get_codebuild_client(
+        config["accountId"], config["region"], config.get("runner")
+    )
 
     s3_parts = pctx.bundle_s3_uri.replace("s3://", "").split("/", 1)
     s3_location = f"{s3_parts[0]}/{s3_parts[1]}"
@@ -282,7 +288,9 @@ def _start_build(step: dict, config: dict, pctx: PipelineCtx) -> str:
 
 
 def _check_build(build_id: str, config: dict) -> dict:
-    cb = _get_codebuild_client(config["accountId"], config["region"])
+    cb = _get_codebuild_client(
+        config["accountId"], config["region"], config.get("runner")
+    )
     resp = cb.batch_get_builds(ids=[build_id])
     build = resp["builds"][0]
     return {
@@ -297,7 +305,7 @@ def _fetch_build_logs(build_id: str, config: dict) -> str:
     region = config["region"]
 
     # Get log location from the build
-    cb = _get_codebuild_client(account_id, region)
+    cb = _get_codebuild_client(account_id, region, config.get("runner"))
     resp = cb.batch_get_builds(ids=[build_id])
     build = resp["builds"][0]
 

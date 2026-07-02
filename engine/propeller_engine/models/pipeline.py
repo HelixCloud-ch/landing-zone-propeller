@@ -30,6 +30,7 @@ class Step(BaseModel):
     outputs: list[dict | ProjectOutput] = Field(default_factory=list)
     propeller_tags: dict[str, str] = Field(default_factory=dict)
     timeout: int | None = None
+    runner: str | None = None
 
 
 class Stage(BaseModel):
