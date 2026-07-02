@@ -63,7 +63,7 @@ locals {
   #
   # NOTE: within a single segment table reachability is shared by all associated
   # spokes — per-spoke allowed_destinations differentiate reachability only ACROSS
-  # segments, not between members of the same segment. See README / ADR-007.
+  # segments, not between members of the same segment.
   peer_routes = merge([
     for name, s in local.spokes : {
       for pair in flatten([
