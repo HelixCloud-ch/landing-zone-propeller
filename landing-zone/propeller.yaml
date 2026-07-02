@@ -248,6 +248,12 @@ stages:
             var: tgw_arn
           - name: network-tgw.share_arn
             var: tgw_share_arn
+          - name: bootstrap-parameters.autopilot_role_arn
+            var: autopilot_role_arn
+          - name: /accounts.operations.id
+            var: operations_account_id
+          - name: bootstrap-parameters.s3_source_bucket
+            var: bundle_bucket_name
         outputs:
           - name: organization_id
           - name: ou_ids
@@ -255,3 +261,6 @@ stages:
           - name: tgw_id
           - name: tgw_arn
           - name: tgw_share_arn
+          - name: autopilot_role_arn
+          - name: operations_account_id
+          - name: bundle_bucket_name
