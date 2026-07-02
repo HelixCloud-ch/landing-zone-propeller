@@ -21,6 +21,8 @@ Once a pipeline is in place, these cover day-to-day tasks.
 
 - [Customization](customization.md) - add, remove, override projects; insert new
   stages.
+- [Platforms](platforms.md) - deploy per-workload infrastructure pipelines
+  alongside the landing zone.
 - [Base SSO setup](base-sso-setup.md) - configure the identity baseline; local
   directory vs. external IdP, group naming, first operator.
 
