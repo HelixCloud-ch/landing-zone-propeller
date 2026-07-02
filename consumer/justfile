@@ -20,13 +20,23 @@ propeller_version := shell("yq '.propeller.version' landing-zone/propeller.overr
 
 # Resolve the landing-zone pipeline (framework base + consumer overrides)
 resolve:
+    #!/usr/bin/env bash
+    set -euo pipefail
     mkdir -p dist/landing-zone
+    resolve_args=()
+    if [[ -n "${ONLY:-}" ]]; then
+        resolve_args+=(--highlight "$ONLY")
+    fi
+    if [[ -n "${DEPLOY_ACTION:-}" ]]; then
+        resolve_args+=(--action "$DEPLOY_ACTION")
+    fi
     uv run --project .propeller/engine propeller-resolve \
         --base .propeller/landing-zone/propeller.yaml \
         --overrides landing-zone/propeller.overrides.yaml \
         --version "{{ propeller_version }}" \
         --output dist/landing-zone/pipeline.lock.yaml \
-        --propeller-dir .propeller/landing-zone
+        --propeller-dir .propeller/landing-zone \
+        ${resolve_args[@]+"${resolve_args[@]}"}
 
 # Validate the resolved landing-zone pipeline
 validate:
@@ -61,16 +71,19 @@ platform-resolve name:
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p dist/{{ name }}
-    highlight_args=()
+    resolve_args=()
     if [[ -n "${ONLY:-}" ]]; then
-        highlight_args+=(--highlight "$ONLY")
+        resolve_args+=(--highlight "$ONLY")
+    fi
+    if [[ -n "${DEPLOY_ACTION:-}" ]]; then
+        resolve_args+=(--action "$DEPLOY_ACTION")
     fi
     uv run --project .propeller/engine propeller-resolve \
         --base platforms/{{ name }}/pipeline.yaml \
         --version "{{ propeller_version }}" \
         --output dist/{{ name }}/pipeline.lock.yaml \
         --propeller-dir .propeller/platform \
-        ${highlight_args[@]+"${highlight_args[@]}"}
+        ${resolve_args[@]+"${resolve_args[@]}"}
 
 # Validate a resolved platform pipeline
 platform-validate name:
