@@ -32,6 +32,7 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
             lines.append("  classDef highlighted fill:#ef5350,stroke:#c62828,stroke-width:2px,color:#fff")
         else:
             lines.append("  classDef highlighted fill:#f9a825,stroke:#f57f17,stroke-width:2px,color:#000")
+        lines.append("  classDef dimmed fill:none,stroke:#9e9e9e,stroke-dasharray:5 5,color:#9e9e9e")
 
     for i, stage in enumerate(pipeline.stages):
         stage_node = f"stage_{stage.name}"
@@ -58,10 +59,13 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
             for dep in step.depends_on:
                 lines.append(f"  {dep} --> {step.project}")
 
-    # Apply highlight class to targeted projects
+    # Apply highlight class to targeted projects, dim the rest
     if highlighted:
+        all_projects = {step.project for stage in pipeline.stages for step in stage.steps}
         for project in highlighted:
             lines.append(f"  class {project} highlighted")
+        for project in all_projects - highlighted:
+            lines.append(f"  class {project} dimmed")
 
     return "\n".join(lines) + "\n"
 
