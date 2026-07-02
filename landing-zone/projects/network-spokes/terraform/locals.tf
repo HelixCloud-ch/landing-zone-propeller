@@ -49,12 +49,21 @@ locals {
     }
   }
 
-  # Peer (spoke-to-spoke) routes. For each spoke, for each allowed destination
-  # that names another registry entry, emit one route per peer CIDR in this
-  # spoke's segment table: peer CIDR -> peer attachment. Directional only — mutual
-  # reachability requires the peer to name this spoke too (no implicit symmetry).
-  # Unknown destination names are filtered out (contains check) so they produce
-  # no route. Keyed "<friendly>@<peer>@<cidr>".
+  # Peer (spoke-to-spoke) routes: peer CIDR -> peer attachment, written into the
+  # segment's route table. Because every spoke in a segment shares one route
+  # table, a peer route is a property of the (segment, peer) pair, not of the
+  # source spoke — so the map is keyed "<segment>@<peer>@<cidr>". Multiple spokes
+  # in the same segment naming the same peer therefore collapse to one route via
+  # merge() (identical value), instead of colliding on RouteAlreadyExists.
+  #
+  # Keys use only plan-time-known values (segment/dest/cidr); the known-after-apply
+  # attachment_id stays in the value, so for_each stays resolvable at plan time.
+  # Unknown destination names are filtered out (contains check) so they emit no
+  # route.
+  #
+  # NOTE: within a single segment table reachability is shared by all associated
+  # spokes — per-spoke allowed_destinations differentiate reachability only ACROSS
+  # segments, not between members of the same segment. See README / ADR-007.
   peer_routes = merge([
     for name, s in local.spokes : {
       for pair in flatten([
@@ -62,7 +71,7 @@ locals {
           for cidr in try(local.spokes[dest].cidrs, []) : { dest = dest, cidr = cidr }
         ] if contains(keys(local.spokes), dest)
       ]) :
-      "${name}@${pair.dest}@${pair.cidr}" => {
+      "${s.segment}@${pair.dest}@${pair.cidr}" => {
         segment       = s.segment
         cidr          = pair.cidr
         attachment_id = aws_ec2_transit_gateway_vpc_attachment_accepter.spoke[pair.dest].id
