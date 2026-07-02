@@ -1,0 +1,16 @@
+name: deploy-runner-vpc
+description: >
+  CodeBuild project deployed in a VPC private subnet for executing terraform
+  against resources with private endpoints (e.g. private EKS/ROSA clusters).
+  Coexists with the default deploy-runner; steps opt-in via the `runner` field.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"

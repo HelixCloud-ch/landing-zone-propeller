@@ -1,0 +1,25 @@
+# deploy-runner-vpc — VPC-attached CodeBuild for private cluster access
+# Copy this file to config.auto.tfvars and fill in your values.
+
+region = "eu-central-2"
+
+# ── Runner ────────────────────────────────────────────────────────────────────
+
+# Must match the `runner:` value used in pipeline steps.
+project_name = "deploy-runner-vpc"
+
+# compute_type = "BUILD_GENERAL1_SMALL"
+# image        = "aws/codebuild/amazonlinux-x86_64-standard:6.0"
+
+# ── Network (from VPC project outputs via pipeline) ───────────────────────────
+# vpc_id and subnet_ids_json come from the VPC project via pipeline wiring.
+
+subnet_tier = "app"  # Which tier in the subnet map to use
+
+# ── Cross-account access (from landing-zone parameters via pipeline) ──────────
+# caller_arn and caller_account_id come via pipeline wiring from
+# @landing-zone/workload-parameters.
+
+# ── S3 access (from landing-zone parameters via pipeline) ─────────────────────
+# bundle_bucket_name comes via pipeline wiring from
+# @landing-zone/workload-parameters.
