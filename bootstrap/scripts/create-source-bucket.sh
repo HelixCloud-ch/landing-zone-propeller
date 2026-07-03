@@ -47,6 +47,7 @@ echo "  TF state key          : ${TF_STATE_KEY}"
 ROLE_ARN="arn:aws:iam::${OPERATIONS_ACCOUNT_ID}:role/${OPERATIONS_ROLE_NAME}"
 echo "--- Assuming ${OPERATIONS_ROLE_NAME} in ${OPERATIONS_ACCOUNT_ID} (via ${STS_REGION}) ---"
 
+set +x
 CREDS=$(aws sts assume-role \
   --region "$STS_REGION" \
   --role-arn "$ROLE_ARN" \
@@ -55,6 +56,7 @@ CREDS=$(aws sts assume-role \
   --output text)
 
 export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s" $CREDS)
+set -x
 
 CURRENT_ACCOUNT=$(aws sts get-caller-identity --region "$STS_REGION" --query Account --output text)
 echo "Now operating as: ${CURRENT_ACCOUNT}"
