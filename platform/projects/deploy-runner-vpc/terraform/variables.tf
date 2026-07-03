@@ -12,7 +12,8 @@ variable "vpc_id" {
 
 variable "subnet_ids" {
   type        = list(string)
-  description = "Private subnet IDs where CodeBuild will run (needs NAT or VPC endpoints for AWS APIs)."
+  description = "Private subnet IDs where CodeBuild will run (needs NAT or VPC endpoints for AWS APIs). If empty, resolved from subnet_ids_json + subnet_tier."
+  default     = []
 }
 
 # ── Pipeline inputs (JSON subnet map) ─────────────────────────────────────────
