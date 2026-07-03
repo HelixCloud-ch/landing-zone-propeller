@@ -1,23 +1,14 @@
 #!/usr/bin/env bash
 # Runs a bootstrap script inside the CodeBuild bootstrap project.
-#
-# Prerequisites — set once in your CloudShell session:
-#   export TARGET_REGION=eu-central-2
-#   export LZP_VERSION=v0.0.1
-#   export LZP_ZIP_URL="https://github.com/HelixCloud-ch/landing-zone-propeller/archive/refs/tags/${LZP_VERSION}.zip"
-#   export CB_PROJECT=$(aws cloudformation describe-stacks \
-#     --region "$TARGET_REGION" --stack-name bootstrap \
-#     --query 'Stacks[0].Outputs[?OutputKey==`CodeBuildProjectName`].OutputValue' \
-#     --output text)
+# See bootstrap/README.md for setup instructions.
 #
 # Usage:
-#   ./bootstrap/scripts/run.sh <script-name> [KEY=VALUE ...]
+#   $RUN <script-name> [KEY=VALUE ...]
 #
 # Examples:
-#   ./bootstrap/scripts/run.sh create-portfolio.sh
-#   ./bootstrap/scripts/run.sh share-portfolio.sh
-#   ./bootstrap/scripts/run.sh create-operations-account.sh OPERATIONS_EMAIL=ops@acme.com
-#   ./bootstrap/scripts/run.sh provision-product-mpa.sh
+#   $RUN deploy-autopilot.sh
+#   $RUN create-operations-account.sh OPERATIONS_EMAIL=ops@acme.com
+#   $RUN provision-product-mpa.sh
 
 set -euo pipefail
 
