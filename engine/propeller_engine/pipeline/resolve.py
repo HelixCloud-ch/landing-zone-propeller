@@ -174,6 +174,10 @@ def _attach_propeller_tags(pipeline: Pipeline, project_index: dict[str, dict]) -
         for step in stage.steps:
             project_yaml = _load_project_yaml_for_step(step, project_index)
             step.propeller_tags = _propeller_tags_for_step(step, pipeline, project_yaml)
+            # Inject sleep config from project.yaml into the step for runtime use
+            sleep_block = project_yaml.get("sleep")
+            if sleep_block:
+                step.sleep_config = sleep_block
 
 
 SSM_PREFIX = "/propeller"
@@ -371,6 +375,10 @@ def _step_to_dict(step: Step) -> dict:
         d["timeout"] = step.timeout
     if step.runner:
         d["runner"] = step.runner
+    if step.sleep:
+        d["sleep"] = step.sleep
+    if step.sleep_config:
+        d["sleep_config"] = step.sleep_config
     return d
 
 
