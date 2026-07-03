@@ -31,6 +31,8 @@ class Step(BaseModel):
     propeller_tags: dict[str, str] = Field(default_factory=dict)
     timeout: int | None = None
     runner: str | None = None
+    sleep: bool = False
+    sleep_config: dict | None = None
 
 
 class Stage(BaseModel):
