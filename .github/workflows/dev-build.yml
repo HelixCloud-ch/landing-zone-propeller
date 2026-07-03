@@ -48,6 +48,7 @@ jobs:
             propeller-${{ steps.version.outputs.version }}.zip \
             --title "Dev: ${{ steps.version.outputs.version }}" \
             --notes "Dev build from \`${{ github.ref_name }}\` at ${{ github.sha }}" \
+            --target "${{ github.sha }}" \
             --prerelease
 
       - uses: astral-sh/setup-uv@v7
