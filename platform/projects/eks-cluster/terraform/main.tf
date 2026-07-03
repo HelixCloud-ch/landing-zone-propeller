@@ -61,3 +61,36 @@ module "fargate_profiles" {
   pod_execution_roles = local.pod_execution_roles
   fargate_profiles    = local.fargate_profiles_resolved
 }
+
+# ── Additional cluster admin access entries ───────────────────────────────────
+
+locals {
+  additional_admin_arns = toset(concat(
+    var.additional_admin_arns,
+    [for name in var.additional_admin_role_names : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${name}"]
+  ))
+}
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_eks_access_entry" "additional_admins" {
+  for_each = local.additional_admin_arns
+
+  cluster_name  = module.cluster.cluster_name
+  principal_arn = each.value
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "additional_admins" {
+  for_each = local.additional_admin_arns
+
+  cluster_name  = module.cluster.cluster_name
+  principal_arn = each.value
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.additional_admins]
+}
