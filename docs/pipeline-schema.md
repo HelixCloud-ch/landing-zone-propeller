@@ -53,6 +53,9 @@ stages:
 - `depends_on` - projects that must complete first (within the same stage)
 - `timeout` - CodeBuild timeout override in minutes (default: CodeBuild project
   setting, typically 60). Use for long-running steps like cluster provisioning.
+- `runner` - CodeBuild project name to use for this step (default:
+  `deploy-runner`). Set to the name of a VPC-attached CodeBuild project when the
+  step needs private network access (e.g. deploying into a private EKS cluster).
 - `inputs` - values to read from SSM before deploy
 - `outputs` - values to write to SSM after deploy
 

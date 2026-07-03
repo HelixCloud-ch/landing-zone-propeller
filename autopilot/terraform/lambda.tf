@@ -59,7 +59,7 @@ resource "aws_iam_role_policy" "lambda" {
       {
         Effect   = "Allow"
         Action   = ["sts:AssumeRole"]
-        Resource = "arn:aws:iam::*:role/deploy-runner-run-role"
+        Resource = "arn:aws:iam::*:role/deploy-runner*-run-role"
       },
       {
         Effect   = "Allow"

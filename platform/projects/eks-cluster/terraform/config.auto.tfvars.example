@@ -58,3 +58,14 @@ cluster_subnet_tiers = ["app"]
 # Alternatively, when a centralized security-group plane owns SG lifecycle,
 # supply pre-created SG IDs here and leave api_server_ingress_cidrs empty.
 # additional_security_group_ids = ["sg-0123456789abcdef0"]
+
+# ── Additional cluster admin access ──────────────────────────────────────────
+# Grant extra IAM principals AmazonEKSClusterAdmin access via EKS access
+# entries. The cluster creator (default deploy-runner) gets implicit admin
+# access; use these for VPC-attached deploy runners or operator roles.
+
+# Same-account roles (no account ID needed, resolved automatically):
+# additional_admin_role_names = ["deploy-runner-vpc-app-service-role"]
+
+# Cross-account or full ARNs:
+# additional_admin_arns = ["arn:aws:iam::111111111111:role/some-role"]

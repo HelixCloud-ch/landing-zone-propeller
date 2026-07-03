@@ -66,6 +66,7 @@ echo "OPERATIONS_ACCOUNT_ID=${OPERATIONS_ACCOUNT_ID}"
 echo "--- Checking if ${AWS_REGION} needs opt-in in operations account ---"
 
 ROLE_ARN="arn:aws:iam::${OPERATIONS_ACCOUNT_ID}:role/${OPERATIONS_ROLE_NAME}"
+set +x
 CREDS=$(aws sts assume-role \
   --region "$STS_REGION" \
   --role-arn "$ROLE_ARN" \
@@ -79,6 +80,7 @@ ORIG_AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-}"
 ORIG_AWS_SESSION_TOKEN="${AWS_SESSION_TOKEN:-}"
 
 export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s" $CREDS)
+set -x
 
 REGION_STATUS=$(aws account get-region-opt-status \
   --region-name "$AWS_REGION" \

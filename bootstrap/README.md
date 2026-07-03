@@ -82,6 +82,7 @@ Select the target Region before enabling, and choose the **organization instance
 The CodeBuild project uses `NO_SOURCE` — source code is downloaded at runtime.
 
 ```bash
+rm -rf /tmp/lzp.zip /tmp/landing-zone-propeller-*
 curl -sL "$LZP_ZIP_URL" -o /tmp/lzp.zip
 unzip -qo /tmp/lzp.zip "landing-zone-propeller-*/bootstrap/cloudformation/bootstrap.yaml" -d /tmp
 TEMPLATE=$(find /tmp/landing-zone-propeller-* -name bootstrap.yaml -path '*/bootstrap/cloudformation/*')

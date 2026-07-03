@@ -107,6 +107,20 @@ variable "additional_security_group_ids" {
   default     = []
 }
 
+# ── Access entries ─────────────────────────────────────────────────────────────
+
+variable "additional_admin_arns" {
+  type        = list(string)
+  description = "IAM principal ARNs to grant AmazonEKSClusterAdmin access via EKS access entries. Use this for VPC-attached deploy runners or other roles that need full cluster access but didn't create the cluster."
+  default     = []
+}
+
+variable "additional_admin_role_names" {
+  type        = list(string)
+  description = "IAM role names (in the same account) to grant AmazonEKSClusterAdmin access. Resolved to full ARNs automatically."
+  default     = []
+}
+
 # ── Tagging ────────────────────────────────────────────────────────────────────
 
 variable "tags" {
