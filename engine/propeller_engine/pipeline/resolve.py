@@ -369,6 +369,8 @@ def _step_to_dict(step: Step) -> dict:
         d["propeller_tags"] = dict(step.propeller_tags)
     if step.timeout:
         d["timeout"] = step.timeout
+    if step.runner:
+        d["runner"] = step.runner
     return d
 
 
