@@ -76,6 +76,7 @@ resource "helm_release" "this" {
   chart      = "aws-load-balancer-controller"
   version    = var.chart_version
   namespace  = var.namespace
+  replace    = true
 
   set = [
     {
