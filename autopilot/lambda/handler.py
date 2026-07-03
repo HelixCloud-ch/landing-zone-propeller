@@ -11,6 +11,7 @@ from aws_durable_execution_sdk_python import (
     BatchResult,
     DurableContext,
     StepContext,
+    __version__ as _durable_sdk_version,
     durable_execution,
 )
 from aws_durable_execution_sdk_python.config import (
@@ -18,6 +19,8 @@ from aws_durable_execution_sdk_python.config import (
     Duration,
     ParallelConfig,
 )
+
+print(f"[propeller] Durable Execution SDK version: {_durable_sdk_version}")
 
 ssm = boto3.client("ssm")
 sts = boto3.client("sts")
