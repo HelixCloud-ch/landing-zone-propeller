@@ -20,29 +20,49 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
         pipeline: The resolved pipeline.
         highlight: Optional list of project names to visually highlight
                    (e.g. when using the ONLY filter).
-        action: Optional deploy action (plan, apply, destroy) to determine
-                highlight style.
+        action: Optional deploy action (plan, apply, destroy, sleep, wake) to
+                determine styling.
     """
     highlighted = set(highlight or [])
-    lines = ["graph TD"]
+    is_sleep_wake = action in ("sleep", "wake")
 
-    # Define highlight style class based on action
-    if highlighted:
+    # Use bottom-to-top for sleep (reverse execution), top-down otherwise
+    direction = "BT" if action == "sleep" else "TD"
+    lines = [f"graph {direction}"]
+
+    # Define style classes
+    if is_sleep_wake:
+        if action == "sleep":
+            lines.append("  classDef destroy fill:#ef5350,stroke:#c62828,stroke-width:2px,color:#fff")
+            lines.append("  classDef command fill:#ab47bc,stroke:#6a1b9a,stroke-width:2px,color:#fff")
+        else:  # wake
+            lines.append("  classDef destroy fill:#66bb6a,stroke:#2e7d32,stroke-width:2px,color:#fff")
+            lines.append("  classDef command fill:#ab47bc,stroke:#6a1b9a,stroke-width:2px,color:#fff")
+        lines.append("  classDef skip fill:none,stroke:#9e9e9e,stroke-dasharray:5 5,color:#9e9e9e")
+    elif highlighted:
         if action == "destroy":
             lines.append("  classDef highlighted fill:#ef5350,stroke:#c62828,stroke-width:2px,color:#fff")
         else:
             lines.append("  classDef highlighted fill:#f9a825,stroke:#f57f17,stroke-width:2px,color:#000")
         lines.append("  classDef dimmed fill:none,stroke:#9e9e9e,stroke-dasharray:5 5,color:#9e9e9e")
 
-    for i, stage in enumerate(pipeline.stages):
+    # Build step lookup for sleep_config
+    step_lookup: dict[str, object] = {}
+    for stage in pipeline.stages:
+        for step in stage.steps:
+            step_lookup[step.project] = step
+
+    # Render stages (reversed visually for sleep)
+    render_stages = list(reversed(pipeline.stages)) if action == "sleep" else pipeline.stages
+
+    for i, stage in enumerate(render_stages):
         stage_node = f"stage_{stage.name}"
         lines.append(f"  {stage_node}([{stage.name}])")
 
         # Connect previous stage's steps to this stage node
         if i > 0:
-            prev_stage = pipeline.stages[i - 1]
+            prev_stage = render_stages[i - 1]
             for step in prev_stage.steps:
-                # Only leaf steps (no one in the stage depends on them)
                 dependents = {
                     s.project for s in prev_stage.steps if step.project in s.depends_on
                 }
@@ -59,8 +79,20 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
             for dep in step.depends_on:
                 lines.append(f"  {dep} --> {step.project}")
 
-    # Apply highlight class to targeted projects, dim the rest
-    if highlighted:
+    # Apply classes
+    if is_sleep_wake:
+        for project, step in step_lookup.items():
+            if not step.sleep:
+                lines.append(f"  class {project} skip")
+            elif step.sleep_config:
+                sleep_action = step.sleep_config.get("action", "skip")
+                if sleep_action in ("destroy", "command"):
+                    lines.append(f"  class {project} {sleep_action}")
+                else:
+                    lines.append(f"  class {project} skip")
+            else:
+                lines.append(f"  class {project} skip")
+    elif highlighted:
         all_projects = {step.project for stage in pipeline.stages for step in stage.steps}
         for project in highlighted:
             lines.append(f"  class {project} highlighted")

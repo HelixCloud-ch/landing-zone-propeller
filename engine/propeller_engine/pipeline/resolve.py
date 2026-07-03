@@ -336,6 +336,14 @@ def resolve(
     propeller_version = version or "dev"
 
     project_index = _discover_projects(propeller_dir)
+    # Also discover consumer projects adjacent to the pipeline file
+    consumer_projects_dir = base_path.parent / "projects"
+    if consumer_projects_dir.is_dir():
+        for project_yaml in consumer_projects_dir.rglob("project.yaml"):
+            data = yaml.safe_load(project_yaml.read_text())
+            name = data.get("name")
+            if name and name not in project_index:
+                project_index[name] = {"path": str(project_yaml.parent), "yaml": data}
     _set_default_sources(pipeline, project_index, propeller_dir)
     _expand_step_io(pipeline)
     _apply_targets(pipeline, targets)
