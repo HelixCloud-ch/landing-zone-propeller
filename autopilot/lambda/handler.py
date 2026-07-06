@@ -241,8 +241,13 @@ def _prepare(step: dict) -> dict:
                 blob_cache[key] = json.loads(_get_parameter(key))["outputs"]
             inputs[inp["var"]] = str(blob_cache[key].get(field, ""))
         else:
-            raw = _get_parameter(inp["key"])
-            inputs[inp["var"]] = "" if raw == EMPTY_SENTINEL else raw
+            raw = _get_parameter_optional(inp["key"])
+            if raw is None:
+                inputs[inp["var"]] = ""
+            elif raw == EMPTY_SENTINEL:
+                inputs[inp["var"]] = ""
+            else:
+                inputs[inp["var"]] = raw
     config["inputs"] = inputs
     return config
 
