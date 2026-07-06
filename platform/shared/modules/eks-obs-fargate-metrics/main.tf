@@ -7,14 +7,11 @@
 # Fargate pod can reach. A single Collector Deployment can discover all Fargate
 # worker nodes via Kubernetes service discovery (role: node).
 #
-# The collector pipeline:
-#   Prometheus receiver (cAdvisor via API-server proxy)
-#     → filter processor (drop unwanted metrics)
-#     → metrics transform processor (rename/aggregate)
-#     → cumulative-to-delta processor (convert cumulative sums)
-#     → delta-to-rate processor (convert deltas to rates)
-#     → metrics generation processor (derive utilization % metrics)
-#     → awsemf exporter (CloudWatch Logs via PutLogEvents in EMF format)
+# The collector pipeline is defined in collector-config.yaml.tpl. Two values are
+# interpolated at plan time: region and cluster_name. Everything else is static.
+# templatefile() renders the template; yamldecode() parses it into a Terraform
+# object; yamlencode() re-serializes it as the Helm chart `config:` value (the
+# chart schema requires an object, not a string).
 #
 # The eight pod metrics emitted to CloudWatch (namespace: ContainerInsights):
 #   pod_cpu_utilization_over_pod_limit, pod_cpu_usage_total, pod_cpu_limit,
@@ -32,136 +29,6 @@
 
 locals {
   role_name = coalesce(var.role_name, "${var.cluster_name}-adot-collector-metrics")
-
-  # The collector_config object is the value of the chart's `config:` key.
-  # It must be a YAML object, not a string — the chart schema rejects strings.
-  # Terraform interpolates var.region and var.cluster_name at plan time;
-  # the resulting object is passed to yamlencode which renders it as proper YAML.
-  collector_config = {
-    receivers = {
-      prometheus = {
-        config = {
-          global = {
-            scrape_interval = "60s"
-          }
-          scrape_configs = [
-            {
-              job_name             = "kubernetes-pod-resources"
-              scheme               = "https"
-              metrics_path         = "/metrics/cadvisor"
-              bearer_token_file    = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-              tls_config = {
-                ca_file              = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-                insecure_skip_verify = true
-              }
-              kubernetes_sd_configs = [{ role = "node" }]
-              relabel_configs = [
-                {
-                  action = "labelmap"
-                  regex  = "__meta_kubernetes_node_label_(.+)"
-                },
-                {
-                  source_labels = ["__address__"]
-                  action        = "replace"
-                  target_label  = "__address__"
-                  regex         = "([^:]+)(?::\\d+)?"
-                  replacement   = "$1:10250"
-                },
-                {
-                  source_labels = ["__meta_kubernetes_node_label_eks_amazonaws_com_compute_type"]
-                  action        = "keep"
-                  regex         = "fargate"
-                },
-              ]
-            }
-          ]
-        }
-      }
-    }
-
-    processors = {
-      filter = {
-        metrics = {
-          include = {
-            match_type   = "regexp"
-            metric_names = [
-              "container_cpu_usage_seconds_total",
-              "container_memory_working_set_bytes",
-              "container_network_receive_bytes_total",
-              "container_network_transmit_bytes_total",
-              "container_spec_cpu_quota",
-              "container_spec_memory_limit_bytes",
-            ]
-          }
-        }
-      }
-      metricstransform = {
-        transforms = [
-          { include = "container_cpu_usage_seconds_total",      match_type = "strict", action = "update", new_name = "pod_cpu_usage_total" },
-          { include = "container_memory_working_set_bytes",     match_type = "strict", action = "update", new_name = "pod_memory_working_set" },
-          { include = "container_network_receive_bytes_total",  match_type = "strict", action = "update", new_name = "pod_network_rx_bytes" },
-          { include = "container_network_transmit_bytes_total", match_type = "strict", action = "update", new_name = "pod_network_tx_bytes" },
-          { include = "container_spec_cpu_quota",               match_type = "strict", action = "update", new_name = "pod_cpu_limit" },
-          { include = "container_spec_memory_limit_bytes",      match_type = "strict", action = "update", new_name = "pod_memory_limit" },
-        ]
-      }
-      cumulativetodelta = {
-        include = {
-          match_type = "strict"
-          metrics    = ["pod_cpu_usage_total", "pod_network_rx_bytes", "pod_network_tx_bytes"]
-        }
-      }
-      deltatorate = {
-        metrics = ["pod_cpu_usage_total", "pod_network_rx_bytes", "pod_network_tx_bytes"]
-      }
-      experimental_metricsgeneration = {
-        rules = [
-          { name = "pod_cpu_utilization_over_pod_limit",    type = "calculate", metric1 = "pod_cpu_usage_total",    metric2 = "pod_cpu_limit",    operation = "percent" },
-          { name = "pod_memory_utilization_over_pod_limit", type = "calculate", metric1 = "pod_memory_working_set", metric2 = "pod_memory_limit", operation = "percent" },
-        ]
-      }
-      batch = {}
-    }
-
-    exporters = {
-      awsemf = {
-        region                  = var.region
-        log_group_name          = "/aws/containerinsights/${var.cluster_name}/performance"
-        log_stream_name         = "fargate"
-        namespace               = "ContainerInsights"
-        dimension_rollup_option = "NoDimensionRollup"
-        metric_declarations = [
-          {
-            dimensions = [
-              ["ClusterName", "LaunchType"],
-              ["ClusterName", "Namespace", "LaunchType"],
-              ["ClusterName", "Namespace", "PodName", "LaunchType"],
-            ]
-            metric_name_selectors = [
-              "pod_cpu_utilization_over_pod_limit",
-              "pod_cpu_usage_total",
-              "pod_cpu_limit",
-              "pod_memory_utilization_over_pod_limit",
-              "pod_memory_working_set",
-              "pod_memory_limit",
-              "pod_network_rx_bytes",
-              "pod_network_tx_bytes",
-            ]
-          }
-        ]
-      }
-    }
-
-    service = {
-      pipelines = {
-        metrics = {
-          receivers  = ["prometheus"]
-          processors = ["filter", "metricstransform", "cumulativetodelta", "deltatorate", "experimental_metricsgeneration", "batch"]
-          exporters  = ["awsemf"]
-        }
-      }
-    }
-  }
 }
 
 # ── IRSA role ─────────────────────────────────────────────────────────────────
@@ -251,9 +118,16 @@ resource "helm_release" "adot_collector" {
     },
   ]
 
+  # templatefile renders collector-config.yaml.tpl with region and cluster_name
+  # interpolated. yamldecode parses the result into a Terraform object so that
+  # yamlencode produces a proper YAML map under the `config` key — the chart
+  # schema requires an object, not a string.
   values = [
     yamlencode({
-      config = local.collector_config
+      config = yamldecode(templatefile("${path.module}/collector-config.yaml.tpl", {
+        region       = var.region
+        cluster_name = var.cluster_name
+      }))
     })
   ]
 
