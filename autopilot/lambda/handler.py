@@ -663,13 +663,12 @@ def _make_sleep_command_branch(step: dict, pctx: PipelineCtx, is_wake: bool):
                 # Prepare config for the deploy runner
                 config = _prepare(step)
 
-                # Build a synthetic buildspec that just runs the command
-                command_buildspec = f"""version: 0.2
+                # Pass the command via env var to avoid YAML escaping issues
+                command_buildspec = """version: 0.2
 phases:
   build:
     commands:
-      - |
-        {resolved_cmd}
+      - eval "$PROPELLER_SLEEP_COMMAND"
 """
                 cb = _get_codebuild_client(
                     config["accountId"], config["region"], config.get("runner")
@@ -697,6 +696,11 @@ phases:
                     {
                         "name": "AWS_REGION",
                         "value": config["region"],
+                        "type": "PLAINTEXT",
+                    },
+                    {
+                        "name": "PROPELLER_SLEEP_COMMAND",
+                        "value": resolved_cmd,
                         "type": "PLAINTEXT",
                     },
                 ]
@@ -769,6 +773,10 @@ def _make_sleep_destroy_branch(step: dict, pctx: PipelineCtx, is_wake: bool):
         git_sha=pctx.git_sha,
         consumer_tags=pctx.consumer_tags,
     )
+    # Apply sleep_config timeout if the step doesn't already have one
+    sleep_config = step.get("sleep_config") or {}
+    if sleep_config.get("timeout") and not step.get("timeout"):
+        step = {**step, "timeout": sleep_config["timeout"]}
     return _make_step_branch(step, override_pctx)
 
 
