@@ -146,12 +146,34 @@ resource "helm_release" "adot_collector" {
   # interpolated. yamldecode parses the result into a Terraform object so that
   # yamlencode produces a proper YAML map under the `config` key — the chart
   # schema requires an object, not a string.
+  #
+  # clusterRole grants the collector's ServiceAccount cluster-scoped access to
+  # discover nodes (Prometheus role: node service discovery) and to read
+  # cAdvisor metrics through the API-server proxy (nodes/proxy). Without this
+  # the collector logs "nodes is forbidden ... cannot list resource nodes at
+  # the cluster scope" and no metrics are scraped. Rules mirror the AWS ADOT
+  # EKS Fargate reference manifest. The chart creates the ClusterRole and binds
+  # it to the ServiceAccount when clusterRole.create = true.
   values = [
     yamlencode({
       config = yamldecode(templatefile("${path.module}/collector-config.yaml.tpl", {
         region       = var.region
         cluster_name = var.cluster_name
       }))
+      clusterRole = {
+        create = true
+        rules = [
+          {
+            apiGroups = [""]
+            resources = ["nodes", "nodes/proxy", "nodes/metrics"]
+            verbs     = ["get", "list", "watch"]
+          },
+          {
+            nonResourceURLs = ["/metrics", "/metrics/cadvisor"]
+            verbs           = ["get"]
+          },
+        ]
+      }
     })
   ]
 

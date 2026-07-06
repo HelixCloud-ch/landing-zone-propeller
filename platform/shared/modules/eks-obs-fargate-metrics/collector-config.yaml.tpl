@@ -8,22 +8,26 @@ receivers:
           scheme: https
           tls_config:
             ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-            insecure_skip_verify: true
           bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
           kubernetes_sd_configs:
             - role: node
           relabel_configs:
             - action: labelmap
               regex: __meta_kubernetes_node_label_(.+)
-            - source_labels: [__address__]
-              action: replace
-              target_label: __address__
-              regex: '([^:]+)(?::\d+)?'
-              replacement: '$1:10250'
             - source_labels: [__meta_kubernetes_node_label_eks_amazonaws_com_compute_type]
               action: keep
               regex: fargate
-          metrics_path: /metrics/cadvisor
+            # On Fargate a pod cannot reach the kubelet directly, so scrape
+            # cAdvisor through the API-server proxy instead of the node's
+            # kubelet port. $$${1} renders to $${1}; the collector's expand
+            # converter then yields ${1}, the Prometheus backreference to the
+            # node name captured below.
+            - target_label: __address__
+              replacement: kubernetes.default.svc:443
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: (.+)
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/$$${1}/proxy/metrics/cadvisor
 
 processors:
   filter:
