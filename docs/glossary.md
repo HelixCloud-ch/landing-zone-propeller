@@ -9,8 +9,8 @@ called _vending_ (matching AFT terminology).
 
 **Autopilot** - the Lambda in the Operations account that orchestrates a
 pipeline run. Receives a bundle reference, walks the resolved pipeline, and
-triggers CodeBuild jobs that run the project deploys. Supports both `plan` and
-`apply` actions; manual approval gates between them are planned.
+triggers CodeBuild jobs that run the project deploys. Supports `plan`, `apply`,
+`destroy`, `sleep`, and `wake` actions.
 
 **Bundle** - the deployment artifact. Mainly a zip of resolved pipeline +
 project sources + consumer overlays, uploaded to S3 and consumed by the
