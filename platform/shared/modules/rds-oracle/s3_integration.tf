@@ -61,6 +61,7 @@ data "aws_iam_policy_document" "rds_s3_access" {
   count = var.enable_s3_integration ? 1 : 0
 
   statement {
+    sid    = "s3integration"
     effect = "Allow"
     actions = [
       "s3:GetObject",
@@ -99,4 +100,6 @@ resource "aws_db_instance_role_association" "s3" {
   db_instance_identifier = aws_db_instance.this.identifier
   feature_name           = "S3_INTEGRATION"
   role_arn               = aws_iam_role.rds_s3[0].arn
+
+  depends_on = [aws_db_option_group.this]
 }

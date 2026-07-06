@@ -184,6 +184,12 @@ variable "enable_s3_integration" {
   default     = false
 }
 
+variable "enable_jvm" {
+  type        = bool
+  description = "Enable Oracle JVM (required for Spatial, Java stored procedures, and other features that depend on the JVM)."
+  default     = false
+}
+
 # ── Tags ─────────────────────────────────────────────────────────────────────
 
 variable "tags" {
