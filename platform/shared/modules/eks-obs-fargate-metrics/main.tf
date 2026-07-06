@@ -94,6 +94,7 @@ resource "helm_release" "adot_collector" {
   namespace  = var.namespace
 
   create_namespace = true
+  cleanup_on_fail  = true
 
   # image.repository is required since chart 0.89.0. We use the contrib distro
   # because otelcol-k8s does not include the awsemf exporter (AWS-specific).
