@@ -6,5 +6,12 @@ locals {
     settings    = []
   }] : []
 
-  all_options = concat(local.s3_option, var.additional_options)
+  jvm_option = var.enable_jvm ? [{
+    option_name = "JVM"
+    version     = null
+    port        = null
+    settings    = []
+  }] : []
+
+  all_options = concat(local.s3_option, local.jvm_option, var.additional_options)
 }

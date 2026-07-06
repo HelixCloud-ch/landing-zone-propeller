@@ -1,3 +1,33 @@
+# ── Ensure DB is started before modifications ─────────────────────────────────
+# If the instance was stopped (e.g. by sleep/wake), terraform apply would fail.
+# This runs on every apply and starts the instance if it's stopped.
+
+resource "terraform_data" "start_instance" {
+  triggers_replace = {
+    always_run = plantimestamp()
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+      DBID="${var.identifier}"
+      if ! aws rds describe-db-instances --db-instance-identifier "$DBID" >/dev/null 2>&1; then
+        echo "DB $DBID does not exist yet, nothing to start."
+        exit 0
+      fi
+      STATUS=$(aws rds describe-db-instances --db-instance-identifier "$DBID" \
+        --query "DBInstances[0].DBInstanceStatus" --output text)
+      echo "DB $DBID status: $STATUS"
+      if [ "$STATUS" = "stopped" ]; then
+        echo "Starting DB $DBID..."
+        aws rds start-db-instance --db-instance-identifier "$DBID"
+        aws rds wait db-instance-available --db-instance-identifier "$DBID"
+      fi
+    EOT
+  }
+}
+
 # ── DB Subnet Group ───────────────────────────────────────────────────────────
 
 resource "aws_db_subnet_group" "this" {
@@ -49,6 +79,8 @@ resource "aws_security_group_rule" "ingress_sgs" {
 
 resource "aws_db_instance" "this" {
   identifier = var.identifier
+
+  depends_on = [terraform_data.start_instance]
 
   # Engine
   engine         = var.engine

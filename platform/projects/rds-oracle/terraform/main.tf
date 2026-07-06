@@ -54,4 +54,7 @@ module "rds_oracle" {
 
   # S3 Integration
   enable_s3_integration = var.enable_s3_integration
+
+  # JVM
+  enable_jvm = var.enable_jvm
 }

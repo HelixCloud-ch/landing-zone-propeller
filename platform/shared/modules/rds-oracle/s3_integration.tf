@@ -61,6 +61,7 @@ data "aws_iam_policy_document" "rds_s3_access" {
   count = var.enable_s3_integration ? 1 : 0
 
   statement {
+    sid    = "s3integration"
     effect = "Allow"
     actions = [
       "s3:GetObject",
