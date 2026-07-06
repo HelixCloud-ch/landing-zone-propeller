@@ -42,15 +42,16 @@ module "fargate_metrics" {
   count  = (local.is_fargate && var.install_fargate_metrics) ? 1 : 0
   source = "../../../shared/modules/eks-obs-fargate-metrics"
 
-  cluster_name         = var.cluster_name
-  region               = var.region
-  oidc_provider_arn    = var.oidc_provider_arn
-  oidc_provider_url    = var.oidc_provider_url
-  namespace            = var.metrics_collector_namespace
-  chart_version        = var.metrics_chart_version
-  chart_repository     = var.metrics_chart_repository
-  collector_replicas   = var.metrics_collector_replicas
-  role_name            = var.metrics_role_name
+  cluster_name              = var.cluster_name
+  region                    = var.region
+  oidc_provider_arn         = var.oidc_provider_arn
+  oidc_provider_url         = var.oidc_provider_url
+  namespace                 = var.metrics_collector_namespace
+  chart_version             = var.metrics_chart_version
+  chart_repository          = var.metrics_chart_repository
+  collector_image_repository = var.metrics_image_repository
+  collector_replicas        = var.metrics_collector_replicas
+  role_name                 = var.metrics_role_name
 }
 
 # ── Tracing backend — account/region-scoped ───────────────────────────────────

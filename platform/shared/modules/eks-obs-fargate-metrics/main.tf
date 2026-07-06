@@ -29,6 +29,21 @@
 
 locals {
   role_name = coalesce(var.role_name, "${var.cluster_name}-adot-collector-metrics")
+
+  # Upstream default image — contrib distro is required because otelcol-k8s
+  # does not include the awsemf exporter. ghcr.io is used since Docker Hub
+  # was discontinued for this image at chart 0.122.0.
+  # Override collector_image_repository to an ECR mirror in air-gapped envs.
+  effective_image_repository = coalesce(
+    var.collector_image_repository,
+    "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib"
+  )
+
+  # Upstream default chart repository. Override to an internal Helm mirror.
+  effective_chart_repository = coalesce(
+    var.chart_repository,
+    "https://open-telemetry.github.io/opentelemetry-helm-charts"
+  )
 }
 
 # ── IRSA role ─────────────────────────────────────────────────────────────────
@@ -73,22 +88,23 @@ resource "aws_iam_role_policy_attachment" "cloudwatch" {
 
 resource "helm_release" "adot_collector" {
   name       = "adot-collector-fargate-metrics"
-  repository = var.chart_repository
+  repository = local.effective_chart_repository
   chart      = "opentelemetry-collector"
   version    = var.chart_version
   namespace  = var.namespace
 
   create_namespace = true
 
-  # mode=deployment: one or more replicas; not a DaemonSet (which cannot run
-  # on Fargate). A single replica scrapes all nodes via the API-server proxy.
   # image.repository is required since chart 0.89.0. We use the contrib distro
   # because otelcol-k8s does not include the awsemf exporter (AWS-specific).
-  # Docker Hub was discontinued for this image at 0.122.0; use ghcr.io.
+  # Docker Hub was discontinued at 0.122.0; default is ghcr.io contrib.
+  # Override collector_image_repository to an ECR mirror in air-gapped envs.
+  # mode=deployment: Fargate has no nodes for a DaemonSet; a single Deployment
+  # replica scrapes all Fargate worker nodes via the API-server proxy.
   set = [
     {
       name  = "image.repository"
-      value = "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib"
+      value = local.effective_image_repository
     },
     {
       name  = "mode"

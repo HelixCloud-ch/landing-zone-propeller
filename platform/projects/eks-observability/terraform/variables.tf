@@ -101,8 +101,8 @@ variable "metrics_chart_version" {
 
 variable "metrics_chart_repository" {
   type        = string
-  description = "Helm repository for the OpenTelemetry Collector chart."
-  default     = "https://open-telemetry.github.io/opentelemetry-helm-charts"
+  description = "Helm repository for the OpenTelemetry Collector chart. Override to an internal mirror in air-gapped environments. Defaults to the upstream open-telemetry Helm charts repository when null."
+  default     = null
 }
 
 variable "metrics_collector_replicas" {
@@ -114,6 +114,12 @@ variable "metrics_collector_replicas" {
 variable "metrics_role_name" {
   type        = string
   description = "Override for the IRSA role name of the ADOT Collector. Defaults to '<cluster_name>-adot-collector-metrics' when null."
+  default     = null
+}
+
+variable "metrics_image_repository" {
+  type        = string
+  description = "Container image repository for the ADOT Collector. Defaults to the upstream ghcr.io contrib release. Override to an ECR mirror in air-gapped or restricted environments."
   default     = null
 }
 

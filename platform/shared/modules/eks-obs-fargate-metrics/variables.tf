@@ -49,8 +49,14 @@ variable "chart_version" {
 
 variable "chart_repository" {
   type        = string
-  description = "Helm repository for the OpenTelemetry Collector chart."
-  default     = "https://open-telemetry.github.io/opentelemetry-helm-charts"
+  description = "Helm repository for the OpenTelemetry Collector chart. Override to an internal mirror (e.g. an OCI registry in ECR or an S3-backed Helm repo) in air-gapped or restricted environments. Defaults to the upstream open-telemetry Helm charts repository when null."
+  default     = null
+}
+
+variable "collector_image_repository" {
+  type        = string
+  description = "Container image repository for the ADOT Collector. Defaults to the upstream ghcr.io contrib release. Override to an ECR mirror (e.g. '<account>.dkr.ecr.<region>.amazonaws.com/opentelemetry-collector-contrib') when pulling from public registries is restricted. Must include the awsemf exporter — otelcol-k8s is not suitable."
+  default     = null
 }
 
 variable "collector_replicas" {
