@@ -34,6 +34,7 @@ module "fargate_logs" {
   log_retention_days         = var.logs_retention_days
   region                     = var.region
   ship_fluentbit_process_logs = var.logs_ship_fluentbit_process_logs
+  pod_execution_role_name    = var.pod_execution_role_name
 }
 
 # ── Fargate: ADOT Collector metrics ───────────────────────────────────────────

@@ -34,6 +34,12 @@ variable "oidc_provider_url" {
   default     = null
 }
 
+variable "pod_execution_role_name" {
+  type        = string
+  description = "Name of the Fargate pod execution role, sourced from the eks-cluster project output. The native Fargate log router writes to CloudWatch under this role, so the log module attaches the required CloudWatch Logs permissions to it. Required when install_fargate_logs = true."
+  default     = null
+}
+
 # ── Compute topology ──────────────────────────────────────────────────────────
 
 variable "compute_topology" {

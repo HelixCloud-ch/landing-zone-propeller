@@ -12,11 +12,10 @@
 # configures the log router accordingly. Changes only apply to new pods —
 # existing pods must be restarted to pick up ConfigMap changes.
 #
-# IAM note: the CloudWatch destination requires the pod execution role to have
-# permissions to create/put log events. Attach the eks-fargate-logging-policy
-# (or equivalent inline policy) to the Fargate pod execution role — that is
-# done outside this module (in the cluster project) because the role is owned
-# by eks-fargate-profiles, not by this module.
+# IAM: the CloudWatch destination requires the pod execution role to have
+# permissions to create and write the log group, because the built-in Fluent
+# Bit log router runs under the Fargate pod execution role (not an IRSA role).
+# When pod_execution_role_name is set, this module attaches those permissions.
 #
 # References:
 #   https://docs.aws.amazon.com/eks/latest/userguide/fargate-logging.html
@@ -92,4 +91,40 @@ resource "kubernetes_config_map_v1" "aws_logging" {
           Time_Format %Y-%m-%dT%H:%M:%S.%L%z
     PARSERS
   }
+}
+
+# ── Pod execution role logging policy ─────────────────────────────────────────
+#
+# The Fargate native log router writes to CloudWatch under the pod execution
+# role. Grant it the minimum permissions to create the log group/stream and put
+# events, scoped to the configured log group. Attached only when a role name is
+# supplied (always the case for the CloudWatch destination).
+
+data "aws_caller_identity" "current" {
+  count = var.pod_execution_role_name != null ? 1 : 0
+}
+
+resource "aws_iam_role_policy" "fargate_logging" {
+  count = var.pod_execution_role_name != null ? 1 : 0
+
+  name = "fargate-log-router-cloudwatch"
+  role = var.pod_execution_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "FargateLogRouterCloudWatchLogs"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:DescribeLogStreams",
+          "logs:PutLogEvents",
+          "logs:PutRetentionPolicy",
+        ]
+        Resource = "arn:aws:logs:${var.region}:${data.aws_caller_identity.current[0].account_id}:log-group:${var.log_group_name}:*"
+      }
+    ]
+  })
 }

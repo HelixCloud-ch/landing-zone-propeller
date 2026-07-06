@@ -46,6 +46,19 @@ variable "region" {
   description = "AWS region of the cluster and the log destination. Required when destination = 'cloudwatch'."
 }
 
+# ── Pod execution role IAM (Fargate log router) ───────────────────────────────
+
+variable "pod_execution_role_name" {
+  type        = string
+  description = "Name of the Fargate pod execution role that the native log router runs under. When set, this module attaches an inline policy granting the CloudWatch Logs permissions the router needs to create and write the log group. Required for the CloudWatch destination to work — the built-in Fluent Bit uses the pod execution role, not an IRSA role. Leave null only when the role already carries equivalent logging permissions."
+  default     = null
+
+  validation {
+    condition     = var.destination != "cloudwatch" || (var.pod_execution_role_name != null && length(var.pod_execution_role_name) > 0)
+    error_message = "pod_execution_role_name is required when destination = 'cloudwatch' (the log router writes to CloudWatch using the pod execution role)."
+  }
+}
+
 # ── Fluent Bit process log shipping (optional, adds cost) ─────────────────────
 
 variable "ship_fluentbit_process_logs" {
