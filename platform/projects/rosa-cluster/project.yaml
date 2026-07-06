@@ -11,3 +11,7 @@ deploy:
       bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
       key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
       region: "${AWS_REGION}"
+
+sleep:
+  action: destroy
+  timeout: 120

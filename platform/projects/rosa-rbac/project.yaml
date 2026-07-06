@@ -6,3 +6,6 @@ metadata:
 
 deploy:
   type: script
+
+sleep:
+  action: destroy
