@@ -62,7 +62,6 @@ module "tracing" {
   source = "../../../shared/modules/eks-obs-tracing"
 
   enable_transaction_search          = var.enable_tracing
-  account_id                         = var.tracing_account_id
   region                             = var.region
   spans_indexing_sampling_percentage = var.tracing_spans_indexing_percentage
 }

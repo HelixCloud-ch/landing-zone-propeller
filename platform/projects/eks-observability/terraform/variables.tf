@@ -125,12 +125,6 @@ variable "enable_tracing" {
   default     = true
 }
 
-variable "tracing_account_id" {
-  type        = string
-  description = "AWS account ID. Required when enable_tracing = true. Used in the resource-based policy that authorises X-Ray to write spans to CloudWatch Logs."
-  default     = null
-}
-
 variable "tracing_spans_indexing_percentage" {
   type        = number
   description = "Percentage of trace spans to index as trace summaries (0–100). 1% is provided free; increasing this incurs cost. All spans are stored in aws/spans regardless of this value."

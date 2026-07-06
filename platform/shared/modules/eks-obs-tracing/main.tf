@@ -59,6 +59,11 @@ resource "aws_xray_indexing_rule" "default" {
 # Required when enabling via API (the CloudWatch console configures this
 # automatically). Without this policy X-Ray cannot write to aws/spans and
 # the spans will fail to land.
+#
+# The account ID is resolved at plan time from the AWS provider credentials via
+# data.aws_caller_identity — no need to pass it as a variable.
+
+data "aws_caller_identity" "current" {}
 
 resource "aws_cloudwatch_log_resource_policy" "xray_spans" {
   count = var.enable_transaction_search ? 1 : 0
@@ -76,15 +81,15 @@ resource "aws_cloudwatch_log_resource_policy" "xray_spans" {
         }
         Action = "logs:PutLogEvents"
         Resource = [
-          "arn:aws:logs:${var.region}:${var.account_id}:log-group:aws/spans:*",
-          "arn:aws:logs:${var.region}:${var.account_id}:log-group:/aws/application-signals/data:*",
+          "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:aws/spans:*",
+          "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/application-signals/data:*",
         ]
         Condition = {
           ArnLike = {
-            "aws:SourceArn" = "arn:aws:xray:${var.region}:${var.account_id}:*"
+            "aws:SourceArn" = "arn:aws:xray:${var.region}:${data.aws_caller_identity.current.account_id}:*"
           }
           StringEquals = {
-            "aws:SourceAccount" = var.account_id
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
           }
         }
       }

@@ -24,17 +24,6 @@ variable "spans_indexing_sampling_percentage" {
 
 # ── Resource-based log policy (required for API-based enablement) ─────────────
 
-variable "account_id" {
-  type        = string
-  description = "AWS account ID. Used in the resource-based policy that authorises X-Ray to write spans to CloudWatch Logs. Required when enable_transaction_search = true."
-  default     = null
-
-  validation {
-    condition     = !var.enable_transaction_search || (var.account_id != null && length(var.account_id) > 0)
-    error_message = "account_id is required when enable_transaction_search = true."
-  }
-}
-
 variable "region" {
   type        = string
   description = "AWS region. Used in the resource-based policy ARNs for the 'aws/spans' and '/aws/application-signals/data' log groups."
