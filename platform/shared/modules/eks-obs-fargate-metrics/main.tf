@@ -82,7 +82,14 @@ resource "helm_release" "adot_collector" {
 
   # mode=deployment: one or more replicas; not a DaemonSet (which cannot run
   # on Fargate). A single replica scrapes all nodes via the API-server proxy.
+  # image.repository is required since chart 0.89.0. We use the contrib distro
+  # because otelcol-k8s does not include the awsemf exporter (AWS-specific).
+  # Docker Hub was discontinued for this image at 0.122.0; use ghcr.io.
   set = [
+    {
+      name  = "image.repository"
+      value = "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib"
+    },
     {
       name  = "mode"
       value = "deployment"
