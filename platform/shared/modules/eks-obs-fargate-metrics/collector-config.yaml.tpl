@@ -75,7 +75,7 @@ processors:
       - pod_cpu_usage_total
       - pod_network_rx_bytes
       - pod_network_tx_bytes
-  experimental_metricsgeneration:
+  metricsgeneration:
     rules:
       - name: pod_cpu_utilization_over_pod_limit
         type: calculate
@@ -115,5 +115,5 @@ service:
   pipelines:
     metrics:
       receivers: [prometheus]
-      processors: [filter, metricstransform, cumulativetodelta, deltatorate, experimental_metricsgeneration, batch]
+      processors: [filter, metricstransform, cumulativetodelta, deltatorate, metricsgeneration, batch]
       exporters: [awsemf]
