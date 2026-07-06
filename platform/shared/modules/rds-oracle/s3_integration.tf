@@ -18,7 +18,7 @@ resource "aws_s3_bucket_versioning" "oracle_data" {
   bucket = aws_s3_bucket.oracle_data[0].id
 
   versioning_configuration {
-    status = "Enabled"
+    status = "Disabled"
   }
 }
 
