@@ -174,6 +174,10 @@ def _attach_propeller_tags(pipeline: Pipeline, project_index: dict[str, dict]) -
         for step in stage.steps:
             project_yaml = _load_project_yaml_for_step(step, project_index)
             step.propeller_tags = _propeller_tags_for_step(step, pipeline, project_yaml)
+            # Inject sleep config from project.yaml into the step for runtime use
+            sleep_block = project_yaml.get("sleep")
+            if sleep_block:
+                step.sleep_config = sleep_block
 
 
 SSM_PREFIX = "/propeller"
@@ -332,6 +336,14 @@ def resolve(
     propeller_version = version or "dev"
 
     project_index = _discover_projects(propeller_dir)
+    # Also discover consumer projects adjacent to the pipeline file
+    consumer_projects_dir = base_path.parent / "projects"
+    if consumer_projects_dir.is_dir():
+        for project_yaml in consumer_projects_dir.rglob("project.yaml"):
+            data = yaml.safe_load(project_yaml.read_text())
+            name = data.get("name")
+            if name and name not in project_index:
+                project_index[name] = {"path": str(project_yaml.parent), "yaml": data}
     _set_default_sources(pipeline, project_index, propeller_dir)
     _expand_step_io(pipeline)
     _apply_targets(pipeline, targets)
@@ -371,6 +383,10 @@ def _step_to_dict(step: Step) -> dict:
         d["timeout"] = step.timeout
     if step.runner:
         d["runner"] = step.runner
+    if step.sleep:
+        d["sleep"] = step.sleep
+    if step.sleep_config:
+        d["sleep_config"] = step.sleep_config
     return d
 
 

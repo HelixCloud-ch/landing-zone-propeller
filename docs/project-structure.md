@@ -133,6 +133,116 @@ deploy:
   time.
 - `deploy.cloudformation.{stack_name,region,template}` - all optional; sensible
   defaults apply.
+- `sleep` - optional block declaring the project's sleep/wake capability. See
+  [Sleep / Wake](#sleep--wake) below.
+
+## Sleep / Wake
+
+The `sleep:` block in `project.yaml` declares what should happen when the
+platform enters sleep mode (cost optimization) and what happens on wake.
+
+### Schema
+
+```yaml
+sleep:
+  action: destroy | command | skip
+  timeout: 120                       # optional, seconds (default: 60)
+  command: |                         # required if action: command
+    aws rds stop-db-instance ...
+  wake_command: |                    # required if action: command
+    aws rds start-db-instance ...
+```
+
+### Actions
+
+| Action | On sleep | On wake | Use case |
+|--------|----------|---------|----------|
+| `destroy` | `terraform destroy` | `terraform apply` (recreate) | Clusters, caches, NAT gateways |
+| `command` | Runs `sleep.command` | Runs `sleep.wake_command` | RDS stop/start, Oracle, Aurora |
+| `skip` | No-op | No-op | VPCs, security groups, DNS |
+
+If a project has no `sleep:` block, it has no sleep capability and cannot be
+opted into sleep from the pipeline.
+
+### How it works
+
+1. The framework project declares the **capability** (how to sleep).
+2. The consumer's pipeline step opts in with `sleep: true`.
+3. On `DEPLOY_ACTION=sleep`, the engine reverses stage order and executes each
+   project's declared sleep action.
+4. On `DEPLOY_ACTION=wake`, the engine runs stages forward and recreates or
+   restarts each project.
+
+### Command variable resolution
+
+Commands support `${VAR}` substitution. Available variables:
+
+| Variable | Source |
+|----------|--------|
+| `${AWS_REGION}` | Target account region |
+| `${AWS_ACCOUNT_ID}` | Target account ID |
+| `${TF_OUTPUT_<name>}` | Terraform output from the project's own state |
+| `${PROPELLER_NAMESPACE}` | Pipeline namespace |
+| `${PROJECT_NAME}` | Project name |
+
+### Examples
+
+**Destroy/recreate** (EKS cluster, ElastiCache):
+
+```yaml
+name: eks-cluster
+deploy:
+  type: terraform
+sleep:
+  action: destroy
+  timeout: 120
+```
+
+**Command** (RDS Oracle — stop/start via API):
+
+```yaml
+name: rds-oracle
+deploy:
+  type: terraform
+sleep:
+  action: command
+  command: |
+    aws rds stop-db-instance \
+      --db-instance-identifier ${TF_OUTPUT_db_instance_identifier} \
+      --region ${AWS_REGION}
+  wake_command: |
+    aws rds start-db-instance \
+      --db-instance-identifier ${TF_OUTPUT_db_instance_identifier} \
+      --region ${AWS_REGION}
+    aws rds wait db-instance-available \
+      --db-instance-identifier ${TF_OUTPUT_db_instance_identifier} \
+      --region ${AWS_REGION}
+```
+
+**Pipeline step opt-in:**
+
+```yaml
+stages:
+  - name: cluster
+    steps:
+      - project: eks-cluster-1
+        source: eks-cluster
+        target: my-account
+        sleep: true              # participates in sleep/wake
+```
+
+### Triggering sleep/wake
+
+```bash
+# Sleep the platform
+DEPLOY_ACTION=sleep just platform-deploy my-platform
+
+# Wake the platform
+DEPLOY_ACTION=wake just platform-deploy my-platform
+
+# Sleep a single project
+DEPLOY_ACTION=sleep ONLY=eks-cluster-1 just platform-deploy my-platform
+```
 
 ## Environment-variable substitution
 

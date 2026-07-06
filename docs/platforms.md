@@ -108,6 +108,20 @@ independent Autopilot run. Platforms don't block each other.
 `DEPLOY_ACTION=plan just platform-deploy acme-prod` runs a plan instead of an
 apply.
 
+`DEPLOY_ACTION=sleep just platform-deploy acme-prod` puts the platform to sleep
+(reverse stage order, destroys or stops sleepable resources). Use
+`DEPLOY_ACTION=wake` to bring it back. Only steps with `sleep: true` are
+affected; all others are skipped. See
+[project structure — sleep/wake](project-structure.md#sleep--wake) for details.
+
+## VPC deploy runner
+
+Steps that need private network access (e.g. deploying into a private EKS
+cluster with helm/kubernetes providers) can specify `runner:` to use a
+VPC-attached CodeBuild project instead of the default deploy-runner. See
+[pipeline schema — runner](pipeline-schema.md) and the `deploy-runner-vpc`
+platform project.
+
 ## See also
 
 - [Pipeline schema](pipeline-schema.md) - the pipeline-side wiring.
