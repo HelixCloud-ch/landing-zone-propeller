@@ -27,3 +27,8 @@ output "s3_bucket_name" {
   description = "S3 bucket for Oracle Data Pump import/export (null if S3 integration disabled)."
   value       = module.rds_oracle.s3_bucket_name
 }
+
+output "db_instance_identifier" {
+  description = "RDS instance identifier."
+  value       = var.identifier
+}
