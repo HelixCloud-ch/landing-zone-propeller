@@ -90,6 +90,7 @@ No providers.
 | ---- | ------ | ------- |
 | <a name="module_fargate_logs"></a> [fargate\_logs](#module\_fargate\_logs) | ../../../shared/modules/eks-obs-fargate-logs | n/a |
 | <a name="module_fargate_metrics"></a> [fargate\_metrics](#module\_fargate\_metrics) | ../../../shared/modules/eks-obs-fargate-metrics | n/a |
+| <a name="module_traces_collector"></a> [traces\_collector](#module\_traces\_collector) | ../../../shared/modules/eks-obs-traces | n/a |
 | <a name="module_tracing"></a> [tracing](#module\_tracing) | ../../../shared/modules/eks-obs-tracing | n/a |
 
 ## Resources
@@ -108,6 +109,7 @@ No resources.
 | <a name="input_enable_tracing"></a> [enable\_tracing](#input\_enable\_tracing) | Whether to configure the Transaction Search tracing backend. Enables aws\_xray\_trace\_segment\_destination → CloudWatchLogs, the default indexing rule, and the required CloudWatch Logs resource-based policy. Account/region-scoped: affects all workloads sending spans in the account, not only this cluster. | `bool` | `true` | no |
 | <a name="input_install_fargate_logs"></a> [install\_fargate\_logs](#input\_install\_fargate\_logs) | Whether to install the native Fargate log router (aws-observability namespace + aws-logging ConfigMap). Applies when compute\_topology = 'fargate'. | `bool` | `true` | no |
 | <a name="input_install_fargate_metrics"></a> [install\_fargate\_metrics](#input\_install\_fargate\_metrics) | Whether to install the ADOT Collector for Fargate Container Insights metrics (cAdvisor scrape via API-server proxy → CloudWatch EMF). Applies when compute\_topology = 'fargate'. | `bool` | `true` | no |
+| <a name="input_install_traces_collector"></a> [install\_traces\_collector](#input\_install\_traces\_collector) | Whether to deploy the ADOT traces collector (OTLP receiver → awsxray exporter). Gives application pods an in-cluster OTLP endpoint whose spans reach X-Ray / Transaction Search. Opt-in: requires application OTel-SDK instrumentation to be useful, and enable\_tracing (the backend) to be true. | `bool` | `false` | no |
 | <a name="input_logs_log_group_name"></a> [logs\_log\_group\_name](#input\_logs\_log\_group\_name) | CloudWatch Logs log group for container (application) logs. Convention: '/aws/eks/<cluster\_name>/application'. Required when install\_fargate\_logs = true. | `string` | `null` | no |
 | <a name="input_logs_log_stream_prefix"></a> [logs\_log\_stream\_prefix](#input\_logs\_log\_stream\_prefix) | Prefix for CloudWatch Logs log stream names. Each pod's log stream is '<prefix><pod-name>'. | `string` | `"from-fargate-"` | no |
 | <a name="input_logs_retention_days"></a> [logs\_retention\_days](#input\_logs\_retention\_days) | CloudWatch Logs retention in days for the application log group. 0 = never expire. | `number` | `30` | no |
@@ -124,6 +126,12 @@ No resources.
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | Propeller framework tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region where the EKS cluster is deployed. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Base tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
+| <a name="input_traces_chart_repository"></a> [traces\_chart\_repository](#input\_traces\_chart\_repository) | Helm repository for the traces collector chart. Override to an internal mirror in air-gapped environments. Defaults to the upstream open-telemetry Helm charts repository when null. | `string` | `null` | no |
+| <a name="input_traces_chart_version"></a> [traces\_chart\_version](#input\_traces\_chart\_version) | Version of the opentelemetry-collector Helm chart for the traces collector. Required when install\_traces\_collector = true. | `string` | `null` | no |
+| <a name="input_traces_collector_namespace"></a> [traces\_collector\_namespace](#input\_traces\_collector\_namespace) | Namespace to deploy the traces collector into. Must be covered by a Fargate profile on pure-Fargate clusters. Defaults to the shared observability namespace used by the metrics collector. | `string` | `"fargate-container-insights"` | no |
+| <a name="input_traces_collector_replicas"></a> [traces\_collector\_replicas](#input\_traces\_collector\_replicas) | Number of traces collector replicas. Increase for HA / higher trace throughput. | `number` | `1` | no |
+| <a name="input_traces_image_repository"></a> [traces\_image\_repository](#input\_traces\_image\_repository) | Container image repository for the traces collector. Defaults to the upstream ghcr.io contrib release. Override to an ECR mirror in restricted environments. | `string` | `null` | no |
+| <a name="input_traces_role_name"></a> [traces\_role\_name](#input\_traces\_role\_name) | Override for the IRSA role name of the traces collector. Defaults to '<cluster\_name>-adot-traces-collector' when null. | `string` | `null` | no |
 | <a name="input_tracing_spans_indexing_percentage"></a> [tracing\_spans\_indexing\_percentage](#input\_tracing\_spans\_indexing\_percentage) | Percentage of trace spans to index as trace summaries (0–100). 1% is provided free; increasing this incurs cost. All spans are stored in aws/spans regardless of this value. | `number` | `1` | no |
 
 ## Outputs
@@ -136,4 +144,7 @@ No resources.
 | <a name="output_metrics_log_group"></a> [metrics\_log\_group](#output\_metrics\_log\_group) | CloudWatch Logs log group for Container Insights EMF performance events. Null when install\_fargate\_metrics = false. |
 | <a name="output_spans_log_group_name"></a> [spans\_log\_group\_name](#output\_spans\_log\_group\_name) | CloudWatch Logs log group where X-Ray spans land. Null when tracing is disabled. |
 | <a name="output_trace_segment_destination"></a> [trace\_segment\_destination](#output\_trace\_segment\_destination) | X-Ray trace segment destination. 'CloudWatchLogs' when Transaction Search is enabled, null otherwise. |
+| <a name="output_traces_collector_role_arn"></a> [traces\_collector\_role\_arn](#output\_traces\_collector\_role\_arn) | ARN of the IRSA role for the traces collector. Null when install\_traces\_collector = false. |
+| <a name="output_traces_otlp_grpc_endpoint"></a> [traces\_otlp\_grpc\_endpoint](#output\_traces\_otlp\_grpc\_endpoint) | In-cluster OTLP gRPC endpoint apps send spans to. Null when install\_traces\_collector = false. |
+| <a name="output_traces_otlp_http_endpoint"></a> [traces\_otlp\_http\_endpoint](#output\_traces\_otlp\_http\_endpoint) | In-cluster OTLP HTTP endpoint apps send spans to (POST to <endpoint>/v1/traces). Null when install\_traces\_collector = false. |
 <!-- END_TF_DOCS -->

@@ -67,3 +67,23 @@ module "tracing" {
   region                             = var.region
   spans_indexing_sampling_percentage = var.tracing_spans_indexing_percentage
 }
+
+# ── Traces collector — OTLP → X-Ray ───────────────────────────────────────────
+# Gives apps an in-cluster OTLP endpoint whose spans reach X-Ray / Transaction
+# Search. Compute-agnostic; on Fargate the namespace needs a profile.
+
+module "traces_collector" {
+  count  = var.install_traces_collector ? 1 : 0
+  source = "../../../shared/modules/eks-obs-traces"
+
+  cluster_name               = var.cluster_name
+  region                     = var.region
+  oidc_provider_arn          = var.oidc_provider_arn
+  oidc_provider_url          = var.oidc_provider_url
+  namespace                  = var.traces_collector_namespace
+  chart_version              = var.traces_chart_version
+  chart_repository           = var.traces_chart_repository
+  collector_image_repository = var.traces_image_repository
+  collector_replicas         = var.traces_collector_replicas
+  role_name                  = var.traces_role_name
+}

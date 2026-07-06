@@ -33,3 +33,20 @@ output "spans_log_group_name" {
   description = "CloudWatch Logs log group where X-Ray spans land. Null when tracing is disabled."
   value       = one(module.tracing[*].spans_log_group_name)
 }
+
+# ── Traces collector (OTLP → X-Ray) ───────────────────────────────────────────
+
+output "traces_collector_role_arn" {
+  description = "ARN of the IRSA role for the traces collector. Null when install_traces_collector = false."
+  value       = one(module.traces_collector[*].role_arn)
+}
+
+output "traces_otlp_grpc_endpoint" {
+  description = "In-cluster OTLP gRPC endpoint apps send spans to. Null when install_traces_collector = false."
+  value       = one(module.traces_collector[*].otlp_grpc_endpoint)
+}
+
+output "traces_otlp_http_endpoint" {
+  description = "In-cluster OTLP HTTP endpoint apps send spans to (POST to <endpoint>/v1/traces). Null when install_traces_collector = false."
+  value       = one(module.traces_collector[*].otlp_http_endpoint)
+}

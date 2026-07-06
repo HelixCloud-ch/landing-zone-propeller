@@ -143,6 +143,50 @@ variable "tracing_spans_indexing_percentage" {
   default     = 1
 }
 
+# ── Traces collector (eks-obs-traces) — OTLP → X-Ray ─────────────────────────
+
+variable "install_traces_collector" {
+  type        = bool
+  description = "Whether to deploy the ADOT traces collector (OTLP receiver → awsxray exporter). Gives application pods an in-cluster OTLP endpoint whose spans reach X-Ray / Transaction Search. Opt-in: requires application OTel-SDK instrumentation to be useful, and enable_tracing (the backend) to be true."
+  default     = false
+}
+
+variable "traces_collector_namespace" {
+  type        = string
+  description = "Namespace to deploy the traces collector into. Must be covered by a Fargate profile on pure-Fargate clusters. Defaults to the shared observability namespace used by the metrics collector."
+  default     = "fargate-container-insights"
+}
+
+variable "traces_chart_version" {
+  type        = string
+  description = "Version of the opentelemetry-collector Helm chart for the traces collector. Required when install_traces_collector = true."
+  default     = null
+}
+
+variable "traces_chart_repository" {
+  type        = string
+  description = "Helm repository for the traces collector chart. Override to an internal mirror in air-gapped environments. Defaults to the upstream open-telemetry Helm charts repository when null."
+  default     = null
+}
+
+variable "traces_image_repository" {
+  type        = string
+  description = "Container image repository for the traces collector. Defaults to the upstream ghcr.io contrib release. Override to an ECR mirror in restricted environments."
+  default     = null
+}
+
+variable "traces_collector_replicas" {
+  type        = number
+  description = "Number of traces collector replicas. Increase for HA / higher trace throughput."
+  default     = 1
+}
+
+variable "traces_role_name" {
+  type        = string
+  description = "Override for the IRSA role name of the traces collector. Defaults to '<cluster_name>-adot-traces-collector' when null."
+  default     = null
+}
+
 # ── Tagging ────────────────────────────────────────────────────────────────────
 
 variable "tags" {
