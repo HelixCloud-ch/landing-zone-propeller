@@ -51,28 +51,26 @@ resource "aws_security_group" "this" {
   }
 }
 
-resource "aws_security_group_rule" "ingress_cidrs" {
-  count = length(var.allowed_cidrs) > 0 ? 1 : 0
+resource "aws_vpc_security_group_ingress_rule" "ingress_cidrs" {
+  for_each = toset(var.allowed_cidrs)
 
-  type              = "ingress"
+  security_group_id = aws_security_group.this.id
   from_port         = var.port
   to_port           = var.port
-  protocol          = "tcp"
-  cidr_blocks       = var.allowed_cidrs
-  security_group_id = aws_security_group.this.id
-  description       = "Oracle access from allowed CIDRs"
+  ip_protocol       = "tcp"
+  cidr_ipv4         = each.value
+  description       = "Oracle access from ${each.value}"
 }
 
-resource "aws_security_group_rule" "ingress_sgs" {
+resource "aws_vpc_security_group_ingress_rule" "ingress_sgs" {
   for_each = toset(var.allowed_security_group_ids)
 
-  type                     = "ingress"
-  from_port                = var.port
-  to_port                  = var.port
-  protocol                 = "tcp"
-  source_security_group_id = each.value
-  security_group_id        = aws_security_group.this.id
-  description              = "Oracle access from ${each.value}"
+  security_group_id            = aws_security_group.this.id
+  from_port                    = var.port
+  to_port                      = var.port
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = each.value
+  description                  = "Oracle access from ${each.value}"
 }
 
 # ── RDS Oracle Instance ───────────────────────────────────────────────────────

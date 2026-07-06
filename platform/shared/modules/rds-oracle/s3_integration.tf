@@ -6,7 +6,8 @@
 resource "aws_s3_bucket" "oracle_data" {
   count = var.enable_s3_integration ? 1 : 0
 
-  bucket = "${var.identifier}-oracle-data-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}-an"
+  bucket           = "${var.identifier}-oracle-data-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}-an"
+  bucket_namespace = "account-regional"
 
   tags = {
     Name = "${var.identifier}-oracle-data"
