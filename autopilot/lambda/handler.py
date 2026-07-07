@@ -616,7 +616,7 @@ def _determine_sleep_behavior(step: dict) -> str:
 
 
 def _resolve_command_vars(command: str, step: dict, pctx: PipelineCtx) -> str:
-    """Resolve ${TF_OUTPUT_*}, ${AWS_REGION}, ${AWS_ACCOUNT_ID}, etc. in a command string."""
+    """Resolve ${TF_OUTPUT_*}, ${INPUT_*}, ${AWS_REGION}, ${AWS_ACCOUNT_ID}, etc. in a command string."""
     # Resolve basic variables
     target = step.get("target", "default")
     prefix = f"{ACCOUNTS_SSM_PREFIX}/{target}"
@@ -627,6 +627,11 @@ def _resolve_command_vars(command: str, step: dict, pctx: PipelineCtx) -> str:
     command = command.replace("${AWS_ACCOUNT_ID}", account_id)
     command = command.replace("${PROPELLER_NAMESPACE}", pctx.namespace)
     command = command.replace("${PROJECT_NAME}", step["project"])
+
+    # Resolve ${INPUT_*} from the step's freshly-resolved inputs
+    config = _prepare(step)
+    for var_name, value in config.get("inputs", {}).items():
+        command = command.replace(f"${{INPUT_{var_name}}}", str(value))
 
     # Resolve ${TF_OUTPUT_*} from the project's SSM blob
     if "${TF_OUTPUT_" in command:
@@ -873,17 +878,19 @@ def handler(event: dict, context: DurableContext):
     skipped_count = sum(1 for r in all_results if r["status"] == "skipped")
 
     # Step 4: Write pipeline state to SSM after completion
-    if pctx.deploy_action in ("sleep", "wake") and pctx.namespace:
-        final_state = "sleeping" if pctx.deploy_action == "sleep" else "running"
-        if failed_count == 0:
+    if pctx.namespace and failed_count == 0:
+        if pctx.deploy_action in ("sleep", "wake", "apply"):
+            final_state = "sleeping" if pctx.deploy_action == "sleep" else "running"
             _write_pipeline_state(pctx.namespace, final_state)
             context.logger.info(
                 f"Pipeline state written: /propeller/{pctx.namespace}/state = {final_state}"
             )
-        else:
-            context.logger.warning(
-                f"Pipeline had failures — state not updated (remains as-is)"
-            )
+        elif pctx.deploy_action in ("sleep", "wake"):
+            pass  # already handled above
+    elif pctx.deploy_action in ("sleep", "wake") and pctx.namespace and failed_count > 0:
+        context.logger.warning(
+            f"Pipeline had failures — state not updated (remains as-is)"
+        )
 
     return {
         "status": "failed" if failed_count > 0 else "succeeded",
