@@ -34,12 +34,19 @@ sso_region = "eu-central-2"
 # }
 
 # ── Direct ARN access entries ─────────────────────────────────────────────────
-# For IAM roles or users whose ARN is already known (CI/CD roles, break-glass
-# IAM users, cross-account roles). These bypass SSO role discovery entirely.
+# For IAM roles or users whose ARN is already known and that are not created by
+# IAM Identity Center. Deploy runner roles belong in eks-cluster via
+# additional_admin_role_names, not here.
+#
+# Typical uses:
+#   - A break-glass IAM user that needs read-only cluster access for emergencies
+#   - An external monitoring or security tool (e.g. a SIEM agent role) that
+#     needs view access independently of SSO
+#   - A cross-account role from a central operations account
 #
 # direct_access_entries = {
-#   cicd = {
-#     principal_arn = "arn:aws:iam::123456789012:role/my-cicd-role"
-#     policy_arns   = ["arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"]
+#   break_glass = {
+#     principal_arn = "arn:aws:iam::123456789012:user/break-glass-operator"
+#     policy_arns   = ["arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"]
 #   }
 # }

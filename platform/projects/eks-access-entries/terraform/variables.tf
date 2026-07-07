@@ -81,7 +81,9 @@ variable "direct_access_entries" {
     Map of key → { principal_arn, policy_arns } for IAM principals whose ARN is
     known directly (not discovered via IAM Identity Center). Accepts both role
     ARNs (arn:aws:iam::<id>:role/<name>) and user ARNs (...:user/<name>).
-    Use for CI/CD service roles, break-glass IAM users, or cross-account roles.
+    Typical uses: break-glass IAM users, external monitoring tool roles,
+    cross-account roles from a central operations account.
+    Deploy runner roles belong in eks-cluster (additional_admin_role_names), not here.
 
     For available policy ARNs see:
     https://docs.aws.amazon.com/eks/latest/userguide/access-policy-permissions.html
