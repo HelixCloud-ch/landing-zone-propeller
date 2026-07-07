@@ -1,0 +1,19 @@
+name: eks-observability
+description: >-
+  EKS observability — composable signal collection for Fargate and EC2
+  clusters. Installs the native Fargate log router (aws-observability namespace
+  + aws-logging ConfigMap → CloudWatch Logs) and the ADOT Collector for
+  Container Insights metrics (cAdvisor scrape via API-server proxy → CloudWatch
+  EMF). Compute topology is controlled by a single toggle; Fargate and EC2
+  paths are independently composable modules.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
