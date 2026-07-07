@@ -1,0 +1,45 @@
+region = "eu-central-2"
+
+# cluster_name is injected by the pipeline from the eks-cluster project output.
+# Do NOT set it here.
+
+# ── IAM Identity Center home region ──────────────────────────────────────────
+# Must match the region where IAM Identity Center is homed for your organization.
+# The AWSReservedSSO_* role path prefix includes this region (except us-east-1).
+sso_region = "eu-central-2"
+
+# ── SSO-discovered access entries ─────────────────────────────────────────────
+# The default map (ReadOnly/PowerUser/Admin → View/Edit/ClusterAdmin) matches the
+# base-sso project. Override to rename keys, use different permission set names,
+# or change the access policies. Add entries for any extra permission sets.
+# Multiple policies can be listed per entry — permissions are additive.
+#
+# Note: AWS does not support custom EKS access policies. For custom Kubernetes
+# RBAC, specify kubernetesGroups on the access entry (not managed here) and
+# create ClusterRole/ClusterRoleBinding objects in the cluster.
+#
+# sso_access_entries = {
+#   readonly = {
+#     permission_set_name = "ReadOnly"
+#     policy_arns         = ["arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"]
+#   }
+#   poweruser = {
+#     permission_set_name = "PowerUser"
+#     policy_arns         = ["arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"]
+#   }
+#   admin = {
+#     permission_set_name = "Admin"
+#     policy_arns         = ["arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"]
+#   }
+# }
+
+# ── Direct ARN access entries ─────────────────────────────────────────────────
+# For IAM roles or users whose ARN is already known (CI/CD roles, break-glass
+# IAM users, cross-account roles). These bypass SSO role discovery entirely.
+#
+# direct_access_entries = {
+#   cicd = {
+#     principal_arn = "arn:aws:iam::123456789012:role/my-cicd-role"
+#     policy_arns   = ["arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"]
+#   }
+# }

@@ -1,0 +1,17 @@
+name: eks-access-entries
+description: >-
+  EKS access entries for IAM Identity Center permission sets. Discovers the
+  AWSReservedSSO_* roles created by IAM Identity Center in the workload account
+  and maps them to EKS cluster-access policies (View, Edit, ClusterAdmin) via
+  the EKS access entry API.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: terraform
+  terraform:
+    backend:
+      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
+      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
+      region: "${AWS_REGION}"
