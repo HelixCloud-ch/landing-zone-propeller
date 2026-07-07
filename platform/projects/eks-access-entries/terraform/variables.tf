@@ -53,7 +53,7 @@ variable "sso_access_entries" {
     }
     poweruser = {
       permission_set_name = "PowerUser"
-      policy_arns         = ["arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"]
+      policy_arns         = ["arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"]
     }
     admin = {
       permission_set_name = "Admin"
