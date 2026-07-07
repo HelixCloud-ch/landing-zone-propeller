@@ -35,9 +35,13 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
         if action == "sleep":
             lines.append("  classDef destroy fill:#ef5350,stroke:#c62828,stroke-width:2px,color:#fff")
             lines.append("  classDef command fill:#ab47bc,stroke:#6a1b9a,stroke-width:2px,color:#fff")
+            lines.append("  classDef destroyDimmed fill:none,stroke:#c62828,stroke-width:2px,stroke-dasharray:5 5,color:#c62828")
+            lines.append("  classDef commandDimmed fill:none,stroke:#6a1b9a,stroke-width:2px,stroke-dasharray:5 5,color:#6a1b9a")
         else:  # wake
             lines.append("  classDef destroy fill:#66bb6a,stroke:#2e7d32,stroke-width:2px,color:#fff")
             lines.append("  classDef command fill:#ab47bc,stroke:#6a1b9a,stroke-width:2px,color:#fff")
+            lines.append("  classDef destroyDimmed fill:none,stroke:#2e7d32,stroke-width:2px,stroke-dasharray:5 5,color:#2e7d32")
+            lines.append("  classDef commandDimmed fill:none,stroke:#6a1b9a,stroke-width:2px,stroke-dasharray:5 5,color:#6a1b9a")
         lines.append("  classDef skip fill:none,stroke:#9e9e9e,stroke-dasharray:5 5,color:#9e9e9e")
     elif highlighted:
         if action == "destroy":
@@ -82,12 +86,16 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
     # Apply classes
     if is_sleep_wake:
         for project, step in step_lookup.items():
+            is_targeted = not highlighted or project in highlighted
             if not step.sleep:
                 lines.append(f"  class {project} skip")
             elif step.sleep_config:
                 sleep_action = step.sleep_config.get("action", "skip")
                 if sleep_action in ("destroy", "command"):
-                    lines.append(f"  class {project} {sleep_action}")
+                    if is_targeted:
+                        lines.append(f"  class {project} {sleep_action}")
+                    else:
+                        lines.append(f"  class {project} {sleep_action}Dimmed")
                 else:
                     lines.append(f"  class {project} skip")
             else:
