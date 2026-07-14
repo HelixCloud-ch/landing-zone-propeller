@@ -18,7 +18,7 @@ export interface AWSClients {
 
 export function createClients(overrides?: Partial<AWSClients>): AWSClients {
   return {
-    ssm: overrides?.ssm ?? new SSMClient({}),
+    ssm: overrides?.ssm ?? new SSMClient({ maxAttempts: 5, retryMode: "adaptive" }),
     sts: overrides?.sts ?? new STSClient({}),
   };
 }
