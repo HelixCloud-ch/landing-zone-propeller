@@ -1,7 +1,7 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: ["src/handler.ts"],
+  entry: { index: "src/handler.ts" },
   format: "esm",
   target: "node22",
   outDir: "dist",

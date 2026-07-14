@@ -6,6 +6,7 @@
  */
 
 import type { DurableContext } from "@aws/durable-execution-sdk-js";
+import { PutParameterCommand } from "@aws-sdk/client-ssm";
 import { POLL_INTERVAL_SECONDS, TERMINAL_BUILD_STATUSES } from "../constants.js";
 import type { AWSClients } from "../services/aws.js";
 import { createCloudWatchLogsClient, createCodeBuildClient } from "../services/aws.js";
@@ -126,9 +127,28 @@ export async function executeStep(
 
     // Approval gate: if supervised or step requires approval, run plan first then wait
     if (pctx.deployAction === "apply" && requiresApproval(step, pctx)) {
-      // The build above was a plan — now wait for human approval
-      const signal = await durableCtx.waitForSignal(`approve:${project}`);
-      const approved = (signal as any)?.approved !== false;
+      // The build above was a plan — now wait for human approval via callback
+      const callbackResult = await durableCtx.waitForCallback(
+        `approve:${project}`,
+        async (callbackId, _ctx) => {
+          // Store the callback ID in SSM so the approval UI can invoke it
+          await clients.ssm.send(
+            new PutParameterCommand({
+              Name: `/propeller/${pctx.namespace}/approvals/${project}`,
+              Value: JSON.stringify({
+                callbackId,
+                project,
+                executionId: pctx.executionId,
+                buildId,
+                requestedAt: new Date().toISOString(),
+              }),
+              Type: "String",
+              Overwrite: true,
+            }),
+          );
+        },
+      );
+      const approved = callbackResult !== "rejected";
 
       if (!approved) {
         return {

@@ -6,17 +6,14 @@ import type { PipelineEvent } from "./types.js";
 // --- SDK Mocks ---
 
 vi.mock("@aws-sdk/client-codebuild", () => ({
-  // biome-ignore lint/complexity/useArrowFunction: vitest mock constructors
   StartBuildCommand: vi.fn(function (this: any, input: any) {
     this._type = "StartBuild";
     this.input = input;
   }),
-  // biome-ignore lint/complexity/useArrowFunction: vitest mock constructors
   BatchGetBuildsCommand: vi.fn(function (this: any, input: any) {
     this._type = "BatchGetBuilds";
     this.input = input;
   }),
-  // biome-ignore lint/complexity/useArrowFunction: vitest mock constructors
   CodeBuildClient: vi.fn(function () {
     return {
       send: vi.fn(async (cmd: any) => {
@@ -43,26 +40,21 @@ vi.mock("@aws-sdk/client-codebuild", () => ({
 }));
 
 vi.mock("@aws-sdk/client-s3", () => ({
-  // biome-ignore lint/complexity/useArrowFunction: vitest mock constructors
   CopyObjectCommand: vi.fn(function (this: any, input: any) {
     this.input = input;
   }),
-  // biome-ignore lint/complexity/useArrowFunction: vitest mock constructors
   PutObjectCommand: vi.fn(function (this: any, input: any) {
     this.input = input;
   }),
-  // biome-ignore lint/complexity/useArrowFunction: vitest mock constructors
   S3Client: vi.fn(function () {
     return { send: vi.fn(async () => ({})) };
   }),
 }));
 
 vi.mock("@aws-sdk/client-cloudwatch-logs", () => ({
-  // biome-ignore lint/complexity/useArrowFunction: vitest mock constructors
   GetLogEventsCommand: vi.fn(function (this: any, input: any) {
     this.input = input;
   }),
-  // biome-ignore lint/complexity/useArrowFunction: vitest mock constructors
   CloudWatchLogsClient: vi.fn(function () {
     return {
       send: vi.fn(async () => ({
@@ -116,7 +108,12 @@ function createMockDurableContext(): DurableContext {
       },
     ),
     wait: vi.fn(async () => {}),
-    waitForSignal: vi.fn(async () => ({ approved: true })),
+    waitForCallback: vi.fn(
+      async (_name: string, submitter: (id: string, ctx: any) => Promise<void>) => {
+        await submitter("mock-callback-id", {});
+        return "approved";
+      },
+    ),
     runInChildContext: vi.fn(async (_name: string, fn: (child: DurableContext) => Promise<any>) =>
       fn(ctx),
     ),
@@ -336,7 +333,7 @@ describe("execute", () => {
     expect(result.error).toContain("empty or missing");
   });
 
-  it("supervised mode pauses for approval via waitForSignal", async () => {
+  it("supervised mode pauses for approval via waitForCallback", async () => {
     const ctx = createMockDurableContext();
     const event: PipelineEvent = {
       ...makeSimpleApplyEvent(),
@@ -349,11 +346,11 @@ describe("execute", () => {
     });
 
     expect(result.status).toBe("succeeded");
-    // waitForSignal should have been called for each project
-    const signalCalls = (ctx.waitForSignal as any).mock.calls;
-    expect(signalCalls.length).toBe(2);
-    expect(signalCalls[0][0]).toBe("approve:project-a");
-    expect(signalCalls[1][0]).toBe("approve:project-b");
+    // waitForCallback should have been called for each project
+    const callbackCalls = (ctx as any).waitForCallback.mock.calls;
+    expect(callbackCalls.length).toBe(2);
+    expect(callbackCalls[0][0]).toBe("approve:project-a");
+    expect(callbackCalls[1][0]).toBe("approve:project-b");
   });
 
   it("assumes role in the correct target account", async () => {
@@ -363,10 +360,10 @@ describe("execute", () => {
       sts: mockSTS as any,
     });
 
-    const stsCalls = mockSTS.send.mock.calls;
+    const stsCalls = mockSTS.send.mock.calls as any[][];
     // Every STS call should target account 111111111111 (the resolved account-alpha ID)
-    for (const [cmd] of stsCalls) {
-      expect(cmd.input.RoleArn).toContain("111111111111");
+    for (const call of stsCalls) {
+      expect(call[0].input.RoleArn).toContain("111111111111");
     }
     expect(stsCalls.length).toBeGreaterThan(0);
   });

@@ -108,12 +108,8 @@ export async function execute(
       await writePipelineState(clients.ssm, pctx.namespace, finalState);
     }
 
-    // Promote bundle to active (only on full success)
-    if (
-      pctx.deployAction === "apply" ||
-      pctx.deployAction === "sleep" ||
-      pctx.deployAction === "wake"
-    ) {
+    // Promote bundle to active (only on successful apply)
+    if (pctx.deployAction === "apply") {
       await promoteActiveBundle(pctx);
     }
   }
@@ -143,7 +139,7 @@ async function promoteActiveBundle(pctx: PipelineContext): Promise<void> {
   await s3.send(
     new CopyObjectCommand({
       Bucket: bucket,
-      CopySource: `/${sourceUri}`,
+      CopySource: sourceUri,
       Key: activeKey,
       MetadataDirective: "REPLACE",
       Metadata: {
