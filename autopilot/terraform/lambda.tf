@@ -1,14 +1,14 @@
 data "archive_file" "autopilot" {
   type        = "zip"
-  source_dir  = "${path.module}/../lambda"
+  source_dir  = "${path.module}/../dist"
   output_path = "${path.module}/.build/autopilot.zip"
 }
 
 resource "aws_lambda_function" "autopilot" {
   function_name    = "propeller-autopilot"
   role             = aws_iam_role.lambda.arn
-  handler          = "handler.handler"
-  runtime          = "python3.14"
+  handler          = "index.handler"
+  runtime          = "nodejs24.x"
   timeout          = 900
   memory_size      = 1024
   filename         = data.archive_file.autopilot.output_path
@@ -60,6 +60,11 @@ resource "aws_iam_role_policy" "lambda" {
         Effect   = "Allow"
         Action   = ["sts:AssumeRole"]
         Resource = "arn:aws:iam::*:role/deploy-runner*-run-role"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:CopyObject"]
+        Resource = "arn:aws:s3:::propeller-source-*/*"
       },
       {
         Effect   = "Allow"

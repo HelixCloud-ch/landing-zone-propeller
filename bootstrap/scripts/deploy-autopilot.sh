@@ -85,6 +85,18 @@ if [ ! -d "$TF_DIR" ]; then
   exit 1
 fi
 
+# ── Build autopilot Lambda ───────────────────────────────────────────────────
+echo "--- Building autopilot TypeScript ---"
+AUTOPILOT_DIR=$(dirname "$TF_DIR")
+if [ -f "$AUTOPILOT_DIR/package.json" ]; then
+  if ! command -v node &>/dev/null; then
+    echo "--- Installing Node.js 24 ---"
+    curl -fsSL https://nodejs.org/dist/v24.1.0/node-v24.1.0-linux-x64.tar.xz | tar -xJ -C /usr/local --strip-components=1
+  fi
+  npm install -g pnpm
+  (cd "$AUTOPILOT_DIR" && pnpm install --frozen-lockfile && pnpm run build)
+fi
+
 # ── Run Terraform ────────────────────────────────────────────────────────────
 echo "--- Terraform init ---"
 terraform -chdir="$TF_DIR" init \
