@@ -64,7 +64,6 @@ phases:
       - |
         if [ -f "$PROJECT_DIR/justfile" ]; then
           cd "$PROJECT_DIR"
-          just init
           just $DEPLOY_ACTION
         else
           # Legacy path — remove once all projects have justfiles
