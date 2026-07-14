@@ -14,7 +14,7 @@ lambda_function := env("PROPELLER_LAMBDA_ARN", "")
 
 # Repo-wide framework version pin.
 
-propeller_version := shell("yq '.propeller.version' landing-zone/propeller.overrides.yaml")
+propeller_version := shell("cat .propeller-version 2>/dev/null || yq '.propeller.version' landing-zone/propeller.overrides.yaml")
 
 # ── Landing zone ──────────────────────────────────────────────────────────────
 
