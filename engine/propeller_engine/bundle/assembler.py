@@ -128,6 +128,17 @@ def create_bundle(
         if engine_src.is_dir():
             shutil.copytree(engine_src, build / "engine", ignore=_IGNORE)
 
+        # Shared recipes (justfile imports). Lives at the framework root as
+        # shared/recipes/. Copied into the bundle so project justfiles can
+        # import "../../shared/recipes/terraform.just".
+        shared_src = (
+            propeller_dir.parent / "shared"
+            if (propeller_dir.parent / "shared").is_dir()
+            else propeller_dir / "shared"
+        )
+        if shared_src.is_dir():
+            shutil.copytree(shared_src, build / "shared", ignore=_IGNORE)
+
         # Rewrite step sources to bundle-relative paths so the runner can
         # locate each project by source path inside the bundle. Both the YAML
         # and JSON lock files carry the rewritten sources.
