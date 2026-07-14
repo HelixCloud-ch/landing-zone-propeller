@@ -37,7 +37,7 @@ export async function getParameterOptional(
 export async function resolveInputs(
   client: SSMClient,
   step: StepConfig,
-  namespace: string,
+  _namespace: string,
 ): Promise<Record<string, string>> {
   const inputs: Record<string, string> = {};
   const blobCache: Map<string, Record<string, string>> = new Map();

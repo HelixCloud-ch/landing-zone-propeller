@@ -85,9 +85,10 @@ export async function executeStep(
     );
 
     // If approval is needed, first build runs as "plan"
-    const effectivePctx = (pctx.deployAction === "apply" && requiresApproval(step, pctx))
-      ? { ...pctx, deployAction: "plan" as const }
-      : pctx;
+    const effectivePctx =
+      pctx.deployAction === "apply" && requiresApproval(step, pctx)
+        ? { ...pctx, deployAction: "plan" as const }
+        : pctx;
 
     const buildId: string = await durableCtx.step(`start-build`, () =>
       startBuild(cbClient, step, config, effectivePctx),
@@ -153,14 +154,28 @@ export async function executeStep(
       }
 
       if (applyPoll.status !== "SUCCEEDED") {
-        return { status: "failed", project, target: step.target, account_id: config.accountId, error: `Apply build ${applyPoll.status}`, build_id: applyBuildId };
+        return {
+          status: "failed",
+          project,
+          target: step.target,
+          account_id: config.accountId,
+          error: `Apply build ${applyPoll.status}`,
+          build_id: applyBuildId,
+        };
       }
 
       await durableCtx.step(`outputs`, () =>
         writeOutputs(clients.ssm, step, applyPoll.exportedVars, applyBuildId, pctx),
       );
 
-      return { status: "succeeded", project, target: step.target, account_id: config.accountId, build_id: applyBuildId, logs };
+      return {
+        status: "succeeded",
+        project,
+        target: step.target,
+        account_id: config.accountId,
+        build_id: applyBuildId,
+        logs,
+      };
     }
 
     if (pctx.deployAction === "apply") {

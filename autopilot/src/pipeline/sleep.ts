@@ -24,7 +24,6 @@ import {
   getParameterOptional,
   prepareBuildConfig,
   readProjectBlob,
-  resolveInputs,
 } from "../services/ssm.js";
 import type {
   BuildConfig,
