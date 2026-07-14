@@ -141,6 +141,8 @@ _trigger pipeline:
     FUNCTION_ARN="{{ lambda_function }}:\$LATEST"
     GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
     BUNDLE_URI="s3://{{ bundle_s3_bucket }}/bundles/{{ pipeline }}/${GIT_SHA}.zip"
+    TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
+    EXEC_NAME="{{ pipeline }}__${DEPLOY_ACTION}__${GIT_SHA}__${TIMESTAMP}"
     ONLY_ARGS=""
     if [[ -n "${ONLY:-}" ]]; then
         ONLY_ARGS=$(jq -n --arg only "$ONLY" '{only: [$only]}')
@@ -154,9 +156,11 @@ _trigger pipeline:
         --argjson only_filter "${ONLY_ARGS:-null}" \
         '{pipeline: $pipeline, bundle_s3_uri: $bundle_s3_uri, deploy_action: $deploy_action, deploy_mode: $deploy_mode, git_sha: $git_sha} + (if $only_filter then $only_filter else {} end)')
     echo "Invoking ${FUNCTION_ARN} ({{ pipeline }}, ${DEPLOY_ACTION})${ONLY:+ [only: $ONLY]}..."
+    echo "Execution: ${EXEC_NAME}"
     aws lambda invoke \
         --function-name "$FUNCTION_ARN" \
         --invocation-type Event \
+        --durable-execution-name "$EXEC_NAME" \
         --payload "$PAYLOAD" \
         --cli-binary-format raw-in-base64-out \
         /dev/null
