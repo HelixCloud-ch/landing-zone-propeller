@@ -12,7 +12,13 @@ import { runStage } from "./pipeline/stage.js";
 import type { AWSClients } from "./services/aws.js";
 import { createClients } from "./services/aws.js";
 import { writePipelineState } from "./services/ssm.js";
-import type { PipelineContext, PipelineEvent, PipelineResult, StepResult } from "./types.js";
+import type {
+  PipelineContext,
+  PipelineErrorCode,
+  PipelineEvent,
+  PipelineResult,
+  StepResult,
+} from "./types.js";
 
 export const handler = withDurableExecution(
   async (event: PipelineEvent, context: DurableContext): Promise<PipelineResult> => {
@@ -25,16 +31,18 @@ export async function execute(
   context: DurableContext,
   clientOverrides?: Partial<AWSClients>,
 ): Promise<PipelineResult> {
-  const fail = (error: string): PipelineResult => ({
+  const fail = (error: string, errorCode?: PipelineErrorCode): PipelineResult => ({
     status: "failed",
     summary: { succeeded: 0, failed: 0, skipped: 0 },
     results: [],
     error,
+    errorCode,
   });
 
-  if (!event.pipeline?.stages?.length) return fail("pipeline.stages is empty or missing");
-  if (!event.bundle_s3_uri) return fail("bundle_s3_uri is required");
-  if (!event.deploy_action) return fail("deploy_action is required");
+  if (!event.pipeline?.stages?.length)
+    return fail("pipeline.stages is empty or missing", "VALIDATION_ERROR");
+  if (!event.bundle_s3_uri) return fail("bundle_s3_uri is required", "VALIDATION_ERROR");
+  if (!event.deploy_action) return fail("deploy_action is required", "VALIDATION_ERROR");
 
   const pipeline = event.pipeline;
   const only = new Set(event.only ?? []);
@@ -49,6 +57,17 @@ export async function execute(
     executionId: (context as any).executionId ?? "",
     supervised: event.deploy_mode === "supervised",
   };
+
+  // Prevent concurrent executions of the same namespace
+  if (pctx.namespace) {
+    const conflict = await checkConcurrentExecution(pctx.namespace, pctx.executionId);
+    if (conflict) {
+      return fail(
+        `Namespace '${pctx.namespace}' already has a running execution: ${conflict}`,
+        "CONCURRENT_EXECUTION",
+      );
+    }
+  }
 
   // Filter pipeline to only the specified projects (if set)
   if (only.size > 0) {
@@ -126,6 +145,40 @@ export async function execute(
 }
 
 export type { PipelineEvent, PipelineResult };
+
+declare const process: { env: Record<string, string | undefined> };
+
+async function checkConcurrentExecution(
+  namespace: string,
+  currentExecutionId: string,
+): Promise<string | null> {
+  try {
+    const { LambdaClient, ListDurableExecutionsByFunctionCommand } = await import(
+      "@aws-sdk/client-lambda"
+    );
+    const lambda = new LambdaClient({});
+    const functionName = process.env.AWS_LAMBDA_FUNCTION_NAME;
+    if (!functionName) return null;
+
+    const resp = await lambda.send(
+      new ListDurableExecutionsByFunctionCommand({
+        FunctionName: `${functionName}:$LATEST`,
+        DurableExecutionName: `${namespace}__`,
+        Statuses: ["RUNNING"],
+        MaxItems: 5,
+      }),
+    );
+
+    const others =
+      resp.DurableExecutions?.filter((e) => !e.DurableExecutionArn?.includes(currentExecutionId)) ??
+      [];
+
+    return others.length > 0 ? (others[0]!.DurableExecutionName ?? "unknown") : null;
+  } catch {
+    // If the check fails (permissions, API issue), don't block execution
+    return null;
+  }
+}
 
 async function promoteActiveBundle(pctx: PipelineContext): Promise<void> {
   const { S3Client, CopyObjectCommand } = await import("@aws-sdk/client-s3");

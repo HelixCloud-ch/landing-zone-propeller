@@ -193,8 +193,19 @@ export interface PipelineResult {
     skipped: number;
   };
   results: StepResult[];
+  /** Human-readable error description. */
   error?: string;
+  /** Machine-readable error code for UI/automation consumption. */
+  errorCode?: PipelineErrorCode;
 }
+
+/** Structured error codes for machine-readable failure classification. */
+export type PipelineErrorCode =
+  | "VALIDATION_ERROR"
+  | "CONCURRENT_EXECUTION"
+  | "STAGE_FAILED"
+  | "APPROVAL_REJECTED"
+  | "INTERNAL_ERROR";
 
 // --- DAG ---
 
