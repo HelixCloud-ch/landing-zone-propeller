@@ -182,20 +182,28 @@ async function checkConcurrentExecution(
 
     const resp = await lambda.send(
       new ListDurableExecutionsByFunctionCommand({
-        FunctionName: `${functionName}:$LATEST`,
-        DurableExecutionName: `${namespace}__`,
+        FunctionName: functionName,
         Statuses: ["RUNNING"],
-        MaxItems: 5,
+        MaxItems: 100,
       }),
     );
 
-    const others =
-      resp.DurableExecutions?.filter((e) => !e.DurableExecutionArn?.includes(currentExecutionId)) ??
-      [];
+    const executions = resp.DurableExecutions ?? [];
+    const others = executions.filter(
+      (e) =>
+        e.DurableExecutionName?.startsWith(`${namespace}__`) &&
+        e.DurableExecutionArn &&
+        !e.DurableExecutionArn.includes(currentExecutionId),
+    );
 
     return others.length > 0 ? (others[0]!.DurableExecutionName ?? "unknown") : null;
-  } catch {
-    // If the check fails (permissions, API issue), don't block execution
+  } catch (err: unknown) {
+    // Log but don't block — if the check fails, allow execution to proceed
+    // eslint-disable-next-line no-console
+    (globalThis as any).console?.warn?.(
+      "[concurrent-check] Failed:",
+      err instanceof Error ? err.message : String(err),
+    );
     return null;
   }
 }
