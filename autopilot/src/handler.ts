@@ -58,8 +58,8 @@ export async function execute(
     supervised: event.deploy_mode === "supervised",
   };
 
-  // Prevent concurrent executions of the same namespace
-  if (pctx.namespace) {
+  // Prevent concurrent full-pipeline executions of the same namespace
+  if (pctx.namespace && only.size === 0) {
     const conflict = await checkConcurrentExecution(pctx.namespace, pctx.executionId);
     if (conflict) {
       return fail(
