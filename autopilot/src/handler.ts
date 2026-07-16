@@ -54,7 +54,7 @@ export async function execute(
     propellerVersion: pipeline.propeller_version ?? "unknown",
     gitSha: event.git_sha ?? "",
     consumerTags: pipeline.consumer_tags ?? {},
-    executionId: (context as any).executionId ?? "",
+    executionId: extractExecutionId(context),
     supervised: event.deploy_mode === "supervised",
   };
 
@@ -156,6 +156,17 @@ export async function execute(
 export type { PipelineEvent, PipelineResult };
 
 declare const process: { env: Record<string, string | undefined> };
+
+function extractExecutionId(context: DurableContext): string {
+  try {
+    const arn = context.executionContext.durableExecutionArn;
+    // ARN format: arn:aws:lambda:{region}:{account}:function:{name}:{qualifier}/durable-execution/{execName}/{execId}
+    const parts = arn.split("/");
+    return parts[parts.length - 1] ?? "";
+  } catch {
+    return "";
+  }
+}
 
 async function checkConcurrentExecution(
   namespace: string,
