@@ -102,8 +102,13 @@ function createMockDurableContext(): DurableContext {
     executionId: "exec-mock-001",
     step: vi.fn(async (_name: string, fn: () => any) => fn()),
     parallel: vi.fn(
-      async (_name: string, branches: Array<(ctx: DurableContext) => Promise<any>>) => {
-        const results = await Promise.all(branches.map((b) => b(ctx)));
+      async (_name: string, branches: Array<any>) => {
+        const results = await Promise.all(
+          branches.map((b: any) => {
+            const fn = typeof b === "function" ? b : b.func;
+            return fn(ctx);
+          }),
+        );
         return { getResults: () => results };
       },
     ),
@@ -349,8 +354,8 @@ describe("execute", () => {
     // waitForCallback should have been called for each project
     const callbackCalls = (ctx as any).waitForCallback.mock.calls;
     expect(callbackCalls.length).toBe(2);
-    expect(callbackCalls[0][0]).toBe("approve:project-a");
-    expect(callbackCalls[1][0]).toBe("approve:project-b");
+    expect(callbackCalls[0][0]).toBe("approval");
+    expect(callbackCalls[1][0]).toBe("approval");
   });
 
   it("assumes role in the correct target account", async () => {

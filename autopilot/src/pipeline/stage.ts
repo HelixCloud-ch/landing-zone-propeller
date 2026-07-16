@@ -3,6 +3,14 @@
  *
  * Handles wave-based parallel execution within stages, respecting
  * the DAG ordering and propagating failures to dependents.
+ *
+ * Execution timeline shape:
+ *
+ *   wave:<stage>:<n> (Parallel)
+ *     <project> (NamedBranch)
+ *       plan (RunInChildContext)
+ *       approval (WaitForCallback)   ← only when approval required
+ *       apply (RunInChildContext)     ← only when approval required
  */
 
 import type { DurableContext } from "@aws/durable-execution-sdk-js";
@@ -35,11 +43,13 @@ export async function runStage(
     const ready = findReady(dag, completed, failed, skipped);
     if (ready.length === 0) break;
 
-    const branches = ready.map((project) => async (branchCtx: DurableContext) => {
-      return await branchCtx.runInChildContext(project, async (childCtx) => {
-        return await executeStep(stepMap.get(project)!, pctx, clients, childCtx);
-      });
-    });
+    const branches = ready.map((project) => ({
+      name: project,
+      func: async (branchCtx: DurableContext): Promise<StepResult> => {
+        const step = stepMap.get(project)!;
+        return executeStep(step, pctx, clients, branchCtx);
+      },
+    }));
 
     const batchResults = await durableCtx.parallel(`wave:${stage.name}:${waveNum}`, branches);
     const batchArray = batchResults.getResults() as StepResult[];
@@ -68,16 +78,51 @@ export async function runStage(
   return [...results.values()];
 }
 
+/**
+ * Executes a single project step with plan/approval/apply as sibling contexts.
+ *
+ * When approval is required, the timeline shows:
+ *   plan → approval (waitForCallback) → apply
+ * as three distinct operations at the branch level.
+ *
+ * When no approval is needed, a single child context wraps the full action.
+ */
 export async function executeStep(
   step: StepConfig,
   pctx: PipelineContext,
   clients: AWSClients,
-  durableCtx: DurableContext,
+  branchCtx: DurableContext,
 ): Promise<StepResult> {
   const project = step.project;
 
   try {
-    const config: BuildConfig = await durableCtx.step(`prepare`, () =>
+    if (pctx.deployAction === "apply" && requiresApproval(step, pctx)) {
+      return await executeSupervisedStep(step, pctx, clients, branchCtx);
+    }
+    return await executeDirectStep(step, pctx, clients, branchCtx);
+  } catch (err: unknown) {
+    return {
+      status: "failed",
+      project,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Direct execution: single child context for the full deploy action (plan, apply, destroy, etc).
+ * Used when no approval gate is needed.
+ */
+async function executeDirectStep(
+  step: StepConfig,
+  pctx: PipelineContext,
+  clients: AWSClients,
+  branchCtx: DurableContext,
+): Promise<StepResult> {
+  const project = step.project;
+
+  return branchCtx.runInChildContext(`${pctx.deployAction}`, async (ctx) => {
+    const config: BuildConfig = await ctx.step(`prepare`, () =>
       prepareBuildConfig(clients.ssm, step, pctx.namespace),
     );
 
@@ -88,24 +133,17 @@ export async function executeStep(
       config.runner,
     );
 
-    // If approval is needed, first build runs as "plan"
-    const effectivePctx =
-      pctx.deployAction === "apply" && requiresApproval(step, pctx)
-        ? { ...pctx, deployAction: "plan" as const }
-        : pctx;
-
-    const buildId: string = await durableCtx.step(`build:${effectivePctx.deployAction}`, () =>
-      startBuild(cbClient, step, config, effectivePctx),
+    const buildId: string = await ctx.step(`build`, () =>
+      startBuild(cbClient, step, config, pctx),
     );
 
-    let pollResult = await durableCtx.step(`poll`, () => pollBuild(cbClient, buildId));
-
+    let pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
     while (!TERMINAL_BUILD_STATUSES.has(pollResult.status)) {
-      await durableCtx.wait(`poll-wait`, { seconds: POLL_INTERVAL_SECONDS });
-      pollResult = await durableCtx.step(`poll`, () => pollBuild(cbClient, buildId));
+      await ctx.wait(`poll-wait`, { seconds: POLL_INTERVAL_SECONDS });
+      pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
     }
 
-    // Fetch logs
+    // Fetch logs (best-effort)
     let logs = "";
     try {
       const logsClient = await createCloudWatchLogsClient(
@@ -113,14 +151,14 @@ export async function executeStep(
         config.accountId,
         config.region,
       );
-      logs = await durableCtx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
+      logs = await ctx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
     } catch {
-      // Log fetching is best-effort
+      // best-effort
     }
 
     if (pollResult.status !== "SUCCEEDED") {
       return {
-        status: "failed",
+        status: "failed" as const,
         project,
         target: step.target,
         account_id: config.accountId,
@@ -130,100 +168,179 @@ export async function executeStep(
       };
     }
 
-    // Approval gate: if supervised or step requires approval, run plan first then wait
-    if (pctx.deployAction === "apply" && requiresApproval(step, pctx)) {
-      // The build above was a plan — now wait for human approval via callback
-      const callbackResult = await durableCtx.waitForCallback(
-        `approve:${project}`,
-        async (callbackId, _ctx) => {
-          // Store the callback ID in SSM so the approval UI can invoke it
-          await clients.ssm.send(
-            new PutParameterCommand({
-              Name: `/propeller/${pctx.namespace}/approvals/${project}`,
-              Value: JSON.stringify({
-                callbackId,
-                project,
-                executionId: pctx.executionId,
-                buildId,
-                requestedAt: new Date().toISOString(),
-              }),
-              Type: "String",
-              Overwrite: true,
-            }),
-          );
-        },
-      );
-      const approved = callbackResult !== "rejected";
-
-      if (!approved) {
-        return {
-          status: "failed",
-          project,
-          target: step.target,
-          account_id: config.accountId,
-          error: "Rejected by approver",
-          build_id: buildId,
-          logs,
-        };
-      }
-
-      // Run the actual apply build
-      const applyBuildId: string = await durableCtx.step(`apply-build`, () =>
-        startBuild(cbClient, step, config, pctx),
-      );
-
-      let applyPoll = await durableCtx.step(`apply-poll`, () => pollBuild(cbClient, applyBuildId));
-      while (!TERMINAL_BUILD_STATUSES.has(applyPoll.status)) {
-        await durableCtx.wait(`apply-poll-wait`, { seconds: POLL_INTERVAL_SECONDS });
-        applyPoll = await durableCtx.step(`apply-poll`, () => pollBuild(cbClient, applyBuildId));
-      }
-
-      if (applyPoll.status !== "SUCCEEDED") {
-        return {
-          status: "failed",
-          project,
-          target: step.target,
-          account_id: config.accountId,
-          error: `Apply build ${applyPoll.status}`,
-          build_id: applyBuildId,
-        };
-      }
-
-      await durableCtx.step(`outputs`, () =>
-        writeOutputs(clients.ssm, step, applyPoll.exportedVars, applyBuildId, pctx),
-      );
-
-      return {
-        status: "succeeded",
-        project,
-        target: step.target,
-        account_id: config.accountId,
-        build_id: applyBuildId,
-        logs,
-      };
-    }
-
     if (pctx.deployAction === "apply") {
-      await durableCtx.step(`outputs`, () =>
+      await ctx.step(`outputs`, () =>
         writeOutputs(clients.ssm, step, pollResult.exportedVars, buildId, pctx),
       );
     }
 
     return {
-      status: "succeeded",
+      status: "succeeded" as const,
       project,
       target: step.target,
       account_id: config.accountId,
       build_id: buildId,
       logs,
     };
-  } catch (err: unknown) {
+  });
+}
+
+/**
+ * Supervised execution: plan, approval, and apply as sibling contexts within
+ * the branch. Each phase is independently checkpointed and observable.
+ */
+async function executeSupervisedStep(
+  step: StepConfig,
+  pctx: PipelineContext,
+  clients: AWSClients,
+  branchCtx: DurableContext,
+): Promise<StepResult> {
+  const project = step.project;
+
+  // Phase 1: Plan
+  const planResult = await branchCtx.runInChildContext(`plan`, async (ctx) => {
+    const config: BuildConfig = await ctx.step(`prepare`, () =>
+      prepareBuildConfig(clients.ssm, step, pctx.namespace),
+    );
+
+    const cbClient = await createCodeBuildClient(
+      clients.sts,
+      config.accountId,
+      config.region,
+      config.runner,
+    );
+
+    const planPctx = { ...pctx, deployAction: "plan" as const };
+    const buildId: string = await ctx.step(`build`, () =>
+      startBuild(cbClient, step, config, planPctx),
+    );
+
+    let pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
+    while (!TERMINAL_BUILD_STATUSES.has(pollResult.status)) {
+      await ctx.wait(`poll-wait`, { seconds: POLL_INTERVAL_SECONDS });
+      pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
+    }
+
+    // Fetch logs (best-effort)
+    let logs = "";
+    try {
+      const logsClient = await createCloudWatchLogsClient(
+        clients.sts,
+        config.accountId,
+        config.region,
+      );
+      logs = await ctx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
+    } catch {
+      // best-effort
+    }
+
+    return {
+      succeeded: pollResult.status === "SUCCEEDED",
+      buildId,
+      config,
+      logs,
+    };
+  });
+
+  if (!planResult.succeeded) {
     return {
       status: "failed",
       project,
-      error: err instanceof Error ? err.message : String(err),
+      target: step.target,
+      account_id: planResult.config.accountId,
+      error: "Plan build failed",
+      build_id: planResult.buildId,
+      logs: planResult.logs,
     };
   }
+
+  // Phase 2: Approval (at branch level — visible as sibling to plan/apply)
+  try {
+    await branchCtx.waitForCallback(
+      `approval`,
+      async (callbackId, _ctx) => {
+        await clients.ssm.send(
+          new PutParameterCommand({
+            Name: `/propeller/${pctx.namespace}/approvals/${project}`,
+            Value: JSON.stringify({
+              callbackId,
+              project,
+              executionId: pctx.executionId,
+              buildId: planResult.buildId,
+              requestedAt: new Date().toISOString(),
+            }),
+            Type: "String",
+            Overwrite: true,
+          }),
+        );
+      },
+    );
+  } catch {
+    // SendDurableExecutionCallbackFailure throws CallbackError
+    return {
+      status: "failed",
+      project,
+      target: step.target,
+      account_id: planResult.config.accountId,
+      error: "Rejected by approver",
+      build_id: planResult.buildId,
+      logs: planResult.logs,
+    };
+  }
+
+  // Phase 3: Apply
+  const applyResult = await branchCtx.runInChildContext(`apply`, async (ctx) => {
+    const cbClient = await createCodeBuildClient(
+      clients.sts,
+      planResult.config.accountId,
+      planResult.config.region,
+      planResult.config.runner,
+    );
+
+    const buildId: string = await ctx.step(`build`, () =>
+      startBuild(cbClient, step, planResult.config, pctx),
+    );
+
+    let pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
+    while (!TERMINAL_BUILD_STATUSES.has(pollResult.status)) {
+      await ctx.wait(`poll-wait`, { seconds: POLL_INTERVAL_SECONDS });
+      pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
+    }
+
+    if (pollResult.status !== "SUCCEEDED") {
+      return {
+        succeeded: false as const,
+        buildId,
+        error: `Apply build ${pollResult.status}`,
+      };
+    }
+
+    await ctx.step(`outputs`, () =>
+      writeOutputs(clients.ssm, step, pollResult.exportedVars, buildId, pctx),
+    );
+
+    return { succeeded: true as const, buildId };
+  });
+
+  if (!applyResult.succeeded) {
+    return {
+      status: "failed",
+      project,
+      target: step.target,
+      account_id: planResult.config.accountId,
+      error: applyResult.error,
+      build_id: applyResult.buildId,
+    };
+  }
+
+  return {
+    status: "succeeded",
+    project,
+    target: step.target,
+    account_id: planResult.config.accountId,
+    build_id: applyResult.buildId,
+    logs: planResult.logs,
+  };
 }
 
 function requiresApproval(step: StepConfig, pctx: PipelineContext): boolean {
