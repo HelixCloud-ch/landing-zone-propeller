@@ -64,7 +64,7 @@ resource "aws_iam_role_policy" "lambda" {
       {
         Effect   = "Allow"
         Action   = ["s3:GetObject", "s3:PutObject", "s3:CopyObject"]
-        Resource = "arn:aws:s3:::propeller-source-*/*"
+        Resource = "arn:aws:s3:::source-*/*"
       },
       {
         Effect   = "Allow"
