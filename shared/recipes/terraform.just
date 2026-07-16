@@ -41,7 +41,7 @@ tf-plan: tf-init
     terraform plan -out=tfplan $(just _propeller-vars)
     # Save plan binary to state bucket for deterministic apply in supervised mode
     if [[ -n "{{ _execution_id }}" ]]; then
-      PLAN_KEY="propeller/{{ _namespace }}/{{ _project }}/plans/{{ _execution_id }}.tfplan"
+      PLAN_KEY="propeller-plans/{{ _namespace }}/{{ _project }}/{{ _execution_id }}.tfplan"
       aws s3 cp tfplan "s3://{{ _state_bucket }}/${PLAN_KEY}"
     fi
     # Store plan JSON for approval review (opt-in, centralized bucket)
@@ -65,7 +65,7 @@ tf-apply: tf-init
     cd {{ _tf_dir }}
     if [[ "${PROPELLER_SAVED_PLAN:-}" == "1" && -n "{{ _execution_id }}" ]]; then
       # Supervised mode: apply the saved plan from the plan phase
-      PLAN_KEY="propeller/{{ _namespace }}/{{ _project }}/plans/{{ _execution_id }}.tfplan"
+      PLAN_KEY="propeller-plans/{{ _namespace }}/{{ _project }}/{{ _execution_id }}.tfplan"
       aws s3 cp "s3://{{ _state_bucket }}/${PLAN_KEY}" tfplan
       terraform apply -auto-approve tfplan
       rm -f tfplan
