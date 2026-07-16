@@ -117,6 +117,8 @@ export async function execute(
 
   // Write pipeline state and promote active bundle on success
   const totalFailed = allResults.filter((r) => r.status === "failed").length;
+  const warnings: string[] = [];
+
   if (pctx.namespace && totalFailed === 0) {
     if (
       pctx.deployAction === "sleep" ||
@@ -129,7 +131,13 @@ export async function execute(
 
     // Promote bundle to active (only on successful apply)
     if (pctx.deployAction === "apply") {
-      await promoteActiveBundle(pctx);
+      try {
+        await promoteActiveBundle(pctx);
+      } catch (err: unknown) {
+        warnings.push(
+          `Bundle promotion failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
   }
 
@@ -141,6 +149,7 @@ export async function execute(
       skipped: allResults.filter((r) => r.status === "skipped").length,
     },
     results: allResults,
+    ...(warnings.length > 0 && { warnings }),
   };
 }
 

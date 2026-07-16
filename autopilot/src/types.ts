@@ -197,6 +197,8 @@ export interface PipelineResult {
   error?: string;
   /** Machine-readable error code for UI/automation consumption. */
   errorCode?: PipelineErrorCode;
+  /** Non-fatal warnings (e.g. promotion failure, best-effort operations). */
+  warnings?: string[];
 }
 
 /** Structured error codes for machine-readable failure classification. */
