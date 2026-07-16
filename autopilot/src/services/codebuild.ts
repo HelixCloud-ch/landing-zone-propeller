@@ -23,6 +23,7 @@ export async function startBuild(
   step: StepConfig,
   config: BuildConfig,
   pctx: PipelineContext,
+  extraEnvVars?: { name: string; value: string }[],
 ): Promise<string> {
   const s3Parts = pctx.bundleS3Uri.replace("s3://", "").split("/", 1);
   const s3Location = `${s3Parts[0]}/${pctx.bundleS3Uri.replace("s3://", "").slice(s3Parts[0]!.length + 1)}`;
@@ -52,6 +53,12 @@ export async function startBuild(
       value,
       type: "PLAINTEXT" as const,
     });
+  }
+
+  if (extraEnvVars) {
+    for (const v of extraEnvVars) {
+      envVars.push({ name: v.name, value: v.value, type: "PLAINTEXT" as const });
+    }
   }
 
   const buildParams: Record<string, unknown> = {

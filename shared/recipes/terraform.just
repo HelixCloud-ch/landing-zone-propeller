@@ -39,7 +39,12 @@ tf-plan: tf-init
     set -euo pipefail
     cd {{ _tf_dir }}
     terraform plan -out=tfplan $(just _propeller-vars)
-    # Store plan for approval UI (opt-in)
+    # Save plan binary to state bucket for deterministic apply in supervised mode
+    if [[ -n "{{ _execution_id }}" ]]; then
+      PLAN_KEY="propeller/{{ _namespace }}/{{ _project }}/plans/{{ _execution_id }}.tfplan"
+      aws s3 cp tfplan "s3://{{ _state_bucket }}/${PLAN_KEY}"
+    fi
+    # Store plan JSON for approval review (opt-in, centralized bucket)
     if [[ -n "${PROPELLER_PLAN_BUCKET:-}" ]]; then
       terraform show -json tfplan > /tmp/plan.json
       PLAN_KEY="plans/{{ _namespace }}/{{ _project }}"
@@ -58,12 +63,16 @@ tf-apply: tf-init
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{ _tf_dir }}
-    terraform apply -auto-approve $(just _propeller-vars)
+    if [[ "${PROPELLER_SAVED_PLAN:-}" == "1" && -n "{{ _execution_id }}" ]]; then
+      # Supervised mode: apply the saved plan from the plan phase
+      PLAN_KEY="propeller/{{ _namespace }}/{{ _project }}/plans/{{ _execution_id }}.tfplan"
+      aws s3 cp "s3://{{ _state_bucket }}/${PLAN_KEY}" tfplan
+      terraform apply -auto-approve tfplan
+      rm -f tfplan
+    else
+      terraform apply -auto-approve $(just _propeller-vars)
+    fi
     just _propeller-outputs
-    # Archive state (opt-in, uncomment when UI data layer is ready)
-    # if [[ -n "${PROPELLER_ARCHIVE_BUCKET:-}" ]]; then
-    #   just _propeller-archive-state
-    # fi
 
 [private]
 tf-destroy: tf-init
@@ -97,7 +106,7 @@ tf-wake:
 _propeller-vars:
     #!/usr/bin/env bash
     # Collect PROPELLER_INPUT_* env vars into terraform -var flags
-    ARGS=""
+    ARGS="-var region=${AWS_REGION}"
     while IFS='=' read -r key value; do
       var_name="${key#PROPELLER_INPUT_}"
       ARGS="$ARGS -var ${var_name}=${value}"

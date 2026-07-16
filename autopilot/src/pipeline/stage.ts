@@ -298,7 +298,9 @@ async function executeSupervisedStep(
     );
 
     const buildId: string = await ctx.step(`build`, () =>
-      startBuild(cbClient, step, planResult.config, pctx),
+      startBuild(cbClient, step, planResult.config, pctx, [
+        { name: "PROPELLER_SAVED_PLAN", value: "1" },
+      ]),
     );
 
     let pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
