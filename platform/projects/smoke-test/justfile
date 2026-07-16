@@ -1,4 +1,4 @@
-import "../../shared/recipes/terraform.just"
+import "../../../shared/recipes/terraform.just"
 
 plan: tf-plan
 apply: tf-apply
