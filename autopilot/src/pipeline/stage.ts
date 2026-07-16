@@ -94,7 +94,7 @@ export async function executeStep(
         ? { ...pctx, deployAction: "plan" as const }
         : pctx;
 
-    const buildId: string = await durableCtx.step(`start-build`, () =>
+    const buildId: string = await durableCtx.step(`build:${effectivePctx.deployAction}`, () =>
       startBuild(cbClient, step, config, effectivePctx),
     );
 
