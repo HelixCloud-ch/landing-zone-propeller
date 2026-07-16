@@ -81,8 +81,11 @@ export async function executeStep(
       prepareBuildConfig(clients.ssm, step, pctx.namespace),
     );
 
-    const cbClient = await durableCtx.step(`assume-role`, () =>
-      createCodeBuildClient(clients.sts, config.accountId, config.region, config.runner),
+    const cbClient = await createCodeBuildClient(
+      clients.sts,
+      config.accountId,
+      config.region,
+      config.runner,
     );
 
     // If approval is needed, first build runs as "plan"
@@ -105,8 +108,10 @@ export async function executeStep(
     // Fetch logs
     let logs = "";
     try {
-      const logsClient = await durableCtx.step(`logs-client`, () =>
-        createCloudWatchLogsClient(clients.sts, config.accountId, config.region),
+      const logsClient = await createCloudWatchLogsClient(
+        clients.sts,
+        config.accountId,
+        config.region,
       );
       logs = await durableCtx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
     } catch {
