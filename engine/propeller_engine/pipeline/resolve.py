@@ -387,6 +387,8 @@ def _step_to_dict(step: Step) -> dict:
         d["sleep"] = step.sleep
     if step.sleep_config:
         d["sleep_config"] = step.sleep_config
+    if step.approval:
+        d["approval"] = step.approval
     return d
 
 
