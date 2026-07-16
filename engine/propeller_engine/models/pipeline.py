@@ -33,6 +33,7 @@ class Step(BaseModel):
     runner: str | None = None
     sleep: bool = False
     sleep_config: dict | None = None
+    approval: str | None = None
 
 
 class Stage(BaseModel):
