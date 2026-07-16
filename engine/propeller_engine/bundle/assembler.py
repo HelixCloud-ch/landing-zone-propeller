@@ -63,14 +63,22 @@ def _overlay_onto(dest: Path, overlay_project: Path) -> None:
 def _bundle_rel(source: Path, propeller_dir: Path, project: str) -> Path:
     """Bundle-relative path for a project source.
 
-    Framework projects keep their location within the mirrored pipeline tree.
-    Consumer-only projects (sources outside the framework tree) are placed
-    alongside framework projects so relative module references still resolve.
+    When a step's project name differs from its source directory name
+    (multiple instances of the same source), each gets its own path
+    under projects/{project} to avoid overlay collisions.
+
+    Framework projects whose name matches the source keep their original
+    location within the mirrored pipeline tree.
     """
     src = source.resolve()
     pdir = propeller_dir.resolve()
     try:
-        return Path(propeller_dir.name) / src.relative_to(pdir)
+        rel = src.relative_to(pdir)
+        # If the project name matches the source directory, keep original path
+        if rel.name == project:
+            return Path(propeller_dir.name) / rel
+        # Different project name = instance of a shared source → unique path
+        return Path(propeller_dir.name) / "projects" / project
     except ValueError:
         return Path(propeller_dir.name) / "projects" / project
 
@@ -108,9 +116,11 @@ def create_bundle(
                     step.project,
                 )
                 dest = build / rel
-                # Consumer-only project not already inside the mirrored tree.
-                if src and src.is_dir() and not dest.exists():
-                    shutil.copytree(src, dest, ignore=_IGNORE)
+                # Copy source to destination if not already there
+                if not dest.exists():
+                    source_path = src if src and src.is_dir() else propeller_dir / "projects" / step.project
+                    if source_path.is_dir():
+                        shutil.copytree(source_path, dest, ignore=_IGNORE)
                 if overlay_dir:
                     overlay_project = _find_overlay(overlay_dir, step.project)
                     if overlay_project is not None:
