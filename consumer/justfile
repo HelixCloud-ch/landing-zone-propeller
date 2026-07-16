@@ -145,7 +145,7 @@ _trigger pipeline:
     EXEC_NAME="{{ pipeline }}__${DEPLOY_ACTION}__${GIT_SHA}__${TIMESTAMP}"
     ONLY_ARGS=""
     if [[ -n "${ONLY:-}" ]]; then
-        ONLY_ARGS=$(jq -n --arg only "$ONLY" '{only: [$only]}')
+        ONLY_ARGS=$(jq -n --arg only "$ONLY" '{only: ($only | split(",") | map(gsub("^\\s+|\\s+$"; "")))}')
     fi
     PAYLOAD=$(jq -n \
         --argjson pipeline "$(jq '{namespace: .namespace, propeller_version: .propeller_version, consumer_tags: .consumer_tags, stages: .stages}' dist/{{ pipeline }}/pipeline.lock.json)" \
