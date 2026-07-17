@@ -6,6 +6,7 @@ _legacy_state_key := "bootstrap/autopilot/terraform.tfstate"
 build-lambda:
     #!/usr/bin/env bash
     set -euo pipefail
+    command -v pnpm || npm install -g pnpm
     if [[ ! -d "node_modules" ]]; then
       pnpm install --frozen-lockfile
     fi
