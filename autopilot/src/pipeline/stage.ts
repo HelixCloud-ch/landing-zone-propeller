@@ -49,7 +49,8 @@ export async function runStage(
     const branches = ready.map((project) => ({
       name: project,
       func: async (branchCtx: DurableContext): Promise<StepResult> => {
-        const step = stepMap.get(project)!;
+        const step = stepMap.get(project);
+        if (!step) return { status: "failed", project, error: "project not found in stage" };
         return executeStep(step, pctx, clients, branchCtx);
       },
     }));
