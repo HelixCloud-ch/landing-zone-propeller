@@ -16,7 +16,7 @@ set -x
 : "${TF_DIR:=autopilot/terraform}"
 : "${TF_VERSION:=1.14.9}"
 : "${STATE_BUCKET_PREFIX:=state-iac}"
-: "${TF_STATE_KEY:=bootstrap/autopilot/terraform.tfstate}"
+: "${TF_STATE_KEY:=propeller/autopilot-deploy/autopilot/terraform.tfstate}"
 
 # ── Resolve management account ID ────────────────────────────────────────────
 # The script is invoked from the management account, so grab its ID before we assume into operations.
@@ -97,6 +97,15 @@ if [ -f "$AUTOPILOT_DIR/package.json" ]; then
   (cd "$AUTOPILOT_DIR" && pnpm install --frozen-lockfile && pnpm run build)
 fi
 
+# ── Migrate state from legacy path (if needed) ──────────────────────────────
+LEGACY_KEY="bootstrap/autopilot/terraform.tfstate"
+if ! aws s3api head-object --bucket "${STATE_BUCKET}" --key "${TF_STATE_KEY}" &>/dev/null 2>&1; then
+  if aws s3api head-object --bucket "${STATE_BUCKET}" --key "${LEGACY_KEY}" &>/dev/null 2>&1; then
+    echo "--- Migrating state from ${LEGACY_KEY} to ${TF_STATE_KEY} ---"
+    aws s3 cp "s3://${STATE_BUCKET}/${LEGACY_KEY}" "s3://${STATE_BUCKET}/${TF_STATE_KEY}"
+  fi
+fi
+
 # ── Run Terraform ────────────────────────────────────────────────────────────
 echo "--- Terraform init ---"
 terraform -chdir="$TF_DIR" init \
@@ -106,7 +115,8 @@ terraform -chdir="$TF_DIR" init \
 
 echo "--- Terraform apply ---"
 terraform -chdir="$TF_DIR" apply -auto-approve \
-  -var="region=${AWS_REGION}"
+  -var="region=${AWS_REGION}" \
+  -var='propeller_tags={"propeller:pipeline":"bootstrap","propeller:project":"autopilot","propeller:deploy-type":"terraform"}'
 
 # ── Seed account registry SSM parameters ─────────────────────────────────────
 echo "--- Seeding account registry parameters ---"

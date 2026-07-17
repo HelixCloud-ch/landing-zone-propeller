@@ -1,7 +1,5 @@
 import "../../../shared/recipes/terraform.just"
 
-_legacy_state_key := "bootstrap/autopilot/terraform.tfstate"
-
 [private]
 build-lambda:
     #!/usr/bin/env bash
@@ -12,18 +10,6 @@ build-lambda:
     fi
     pnpm run build
 
-[private]
-migrate-state:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    # If state doesn't exist at the standard location, copy from legacy bootstrap path
-    if ! aws s3api head-object --bucket "{{ _state_bucket }}" --key "{{ _state_key }}" &>/dev/null; then
-      if aws s3api head-object --bucket "{{ _state_bucket }}" --key "{{ _legacy_state_key }}" &>/dev/null; then
-        echo "Migrating state from {{ _legacy_state_key }} to {{ _state_key }}"
-        aws s3 cp "s3://{{ _state_bucket }}/{{ _legacy_state_key }}" "s3://{{ _state_bucket }}/{{ _state_key }}"
-      fi
-    fi
-
-plan: build-lambda migrate-state tf-plan
-apply: build-lambda migrate-state tf-apply
+plan: build-lambda tf-plan
+apply: build-lambda tf-apply
 destroy: tf-destroy
