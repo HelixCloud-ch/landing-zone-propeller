@@ -1,4 +1,4 @@
-import "../../shared/recipes/terraform.just"
+import "../../../shared/recipes/terraform.just"
 
 _legacy_state_key := "bootstrap/autopilot/terraform.tfstate"
 
