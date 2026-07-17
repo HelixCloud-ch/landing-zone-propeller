@@ -114,6 +114,7 @@ def _discover_projects(propeller_dir: str) -> dict[str, dict]:
 def _set_default_sources(
     pipeline: Pipeline, project_index: dict[str, dict], propeller_dir: str
 ) -> None:
+    propeller_root = str(Path(propeller_dir).parent)
     for stage in pipeline.stages:
         for step in stage.steps:
             if step.source is None:
@@ -124,6 +125,10 @@ def _set_default_sources(
                     if entry
                     else f"{propeller_dir}/projects/{step.project}"
                 )
+            elif step.source.startswith("propeller://"):
+                # Explicit framework path - resolve relative to framework root
+                rel_path = step.source.removeprefix("propeller://")
+                step.source = str(Path(propeller_root) / rel_path)
             elif step.source in project_index:
                 # Source is a project name reference - resolve to path
                 step.source = project_index[step.source]["path"]

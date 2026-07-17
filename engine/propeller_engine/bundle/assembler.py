@@ -19,7 +19,7 @@ import yaml
 
 from ..models import Pipeline
 
-_IGNORE = shutil.ignore_patterns(".venv", "__pycache__", "*.pyc", ".terraform")
+_IGNORE = shutil.ignore_patterns(".venv", "__pycache__", "*.pyc", ".terraform", "node_modules", "dist")
 
 
 def _get_git_sha() -> str:
