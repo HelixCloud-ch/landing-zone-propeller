@@ -21,6 +21,8 @@ export interface PipelineEvent {
   only?: string[];
   /** Deploy mode: "supervised" pauses every project for approval after plan. */
   deploy_mode?: "autopilot" | "supervised";
+  /** When true, allows destroy action to target all projects (safety gate). */
+  destroy_all?: boolean;
 }
 
 export type DeployAction = "apply" | "plan" | "destroy" | "sleep" | "wake";

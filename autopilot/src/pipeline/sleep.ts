@@ -24,7 +24,7 @@ import type {
   StepConfig,
   StepResult,
 } from "../types.js";
-import { buildDag, findDependents, findReady } from "./dag.js";
+import { buildDag, findDependents, findReady, reverseDag } from "./dag.js";
 import { executeStep } from "./stage.js";
 
 const COMMAND_BUILDSPEC = `version: 0.2
@@ -43,7 +43,8 @@ export async function runStageSleepWake(
   const isWake = pctx.deployAction === "wake";
   const steps = stage.steps;
   const stepMap = new Map(steps.map((s) => [s.project, s]));
-  const dag = buildDag(steps);
+  const rawDag = buildDag(steps);
+  const dag = isWake ? rawDag : reverseDag(rawDag);
 
   const completed = new Set<string>();
   const failed = new Set<string>();

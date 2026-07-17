@@ -22,7 +22,7 @@ import { fetchBuildLogs, pollBuild, startBuild } from "../services/codebuild.js"
 import { writeLogs } from "../services/s3.js";
 import { prepareBuildConfig, writeOutputs } from "../services/ssm.js";
 import type { BuildConfig, PipelineContext, Stage, StepConfig, StepResult } from "../types.js";
-import { buildDag, findDependents, findReady } from "./dag.js";
+import { buildDag, findDependents, findReady, reverseDag } from "./dag.js";
 
 export async function runStage(
   stage: Stage,
@@ -32,7 +32,9 @@ export async function runStage(
 ): Promise<StepResult[]> {
   const steps = stage.steps;
   const stepMap = new Map(steps.map((s) => [s.project, s]));
-  const dag = buildDag(steps);
+  const rawDag = buildDag(steps);
+  const dag =
+    pctx.deployAction === "destroy" || pctx.deployAction === "sleep" ? reverseDag(rawDag) : rawDag;
 
   const completed = new Set<string>();
   const failed = new Set<string>();

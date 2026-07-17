@@ -70,8 +70,19 @@ export async function execute(
     pipeline.stages = pipeline.stages.filter((s) => s.steps.length > 0);
   }
 
-  // Reverse stage order for sleep (tear down in reverse dependency order)
-  const stages = pctx.deployAction === "sleep" ? [...pipeline.stages].reverse() : pipeline.stages;
+  // Destroy safety: require explicit project list or destroy_all flag
+  if (pctx.deployAction === "destroy" && only.size === 0 && !event.destroy_all) {
+    return fail(
+      "destroy requires 'only' (project list) or 'destroy_all: true' to destroy all projects",
+      "VALIDATION_ERROR",
+    );
+  }
+
+  // Reverse stage order for destructive actions (tear down in reverse dependency order)
+  const stages =
+    pctx.deployAction === "sleep" || pctx.deployAction === "destroy"
+      ? [...pipeline.stages].reverse()
+      : pipeline.stages;
 
   const clients = createClients(clientOverrides);
   const allResults = await runAllStages(stages, pctx, clients, context);

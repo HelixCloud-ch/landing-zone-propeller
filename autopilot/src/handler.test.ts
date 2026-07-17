@@ -385,4 +385,44 @@ describe("execute", () => {
     }
     expect(stsCalls.length).toBeGreaterThan(0);
   });
+
+  it("destroy without only or destroy_all returns validation error", async () => {
+    const event: PipelineEvent = {
+      ...makeSimpleApplyEvent(),
+      deploy_action: "destroy",
+    };
+    const result = await execute(event, createMockDurableContext(), {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+    expect(result.status).toBe("failed");
+    expect(result.errorCode).toBe("VALIDATION_ERROR");
+    expect(result.error).toContain("destroy requires");
+  });
+
+  it("destroy with only specified is allowed", async () => {
+    const event: PipelineEvent = {
+      ...makeSimpleApplyEvent(),
+      deploy_action: "destroy",
+      only: ["project-a"],
+    };
+    const result = await execute(event, createMockDurableContext(), {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+    expect(result.status).toBe("succeeded");
+  });
+
+  it("destroy with destroy_all is allowed", async () => {
+    const event: PipelineEvent = {
+      ...makeSimpleApplyEvent(),
+      deploy_action: "destroy",
+      destroy_all: true,
+    };
+    const result = await execute(event, createMockDurableContext(), {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+    expect(result.status).toBe("succeeded");
+  });
 });

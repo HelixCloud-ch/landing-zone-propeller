@@ -29,6 +29,32 @@ export function buildDag(steps: StepConfig[]): DependencyGraph {
 }
 
 /**
+ * Reverse a dependency graph (invert all edges).
+ *
+ * Used for destructive actions (destroy, sleep): if B depends on A during
+ * apply, then during destroy B must be torn down before A.
+ *
+ * @param dag - The original dependency graph.
+ * @returns A new graph with reversed edges.
+ */
+export function reverseDag(dag: DependencyGraph): DependencyGraph {
+  const reversed: DependencyGraph = new Map();
+
+  for (const project of dag.keys()) {
+    reversed.set(project, new Set());
+  }
+
+  for (const [project, deps] of dag) {
+    for (const dep of deps) {
+      const depSet = reversed.get(dep);
+      if (depSet) depSet.add(project);
+    }
+  }
+
+  return reversed;
+}
+
+/**
  * Find projects that are ready to execute (all dependencies satisfied).
  *
  * A project is ready when:

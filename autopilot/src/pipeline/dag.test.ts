@@ -91,3 +91,45 @@ describe("findDependents", () => {
     expect(findDependents(buildDag(steps), "a")).toEqual(new Set());
   });
 });
+
+import { reverseDag } from "./dag.js";
+
+describe("reverseDag", () => {
+  it("inverts edges (A→B becomes B→A)", () => {
+    const dag = buildDag(twoProjectsWithDep);
+    const reversed = reverseDag(dag);
+    // Original: B depends on A. Reversed: A depends on B.
+    expect(reversed.get("project-a")).toEqual(new Set(["project-b"]));
+    expect(reversed.get("project-b")).toEqual(new Set());
+  });
+
+  it("inverts fan-out into fan-in", () => {
+    const dag = buildDag(threeProjectsFanOut);
+    const reversed = reverseDag(dag);
+    // Original: B,C depend on A. Reversed: A depends on B and C.
+    expect(reversed.get("project-a")).toEqual(new Set(["project-b", "project-c"]));
+    expect(reversed.get("project-b")).toEqual(new Set());
+    expect(reversed.get("project-c")).toEqual(new Set());
+  });
+
+  it("preserves independent projects (no edges)", () => {
+    const steps: StepConfig[] = [
+      { project: "a", inputs: [], outputs: [] },
+      { project: "b", inputs: [], outputs: [] },
+    ];
+    const reversed = reverseDag(buildDag(steps));
+    expect(reversed.get("a")).toEqual(new Set());
+    expect(reversed.get("b")).toEqual(new Set());
+  });
+
+  it("reversed DAG executes dependents first in findReady", () => {
+    const dag = buildDag(twoProjectsWithDep);
+    const reversed = reverseDag(dag);
+    // In reversed DAG, project-b has no deps so it's ready first (destroy order)
+    expect(findReady(reversed, new Set(), new Set(), new Set())).toEqual(["project-b"]);
+    // After B completes, A becomes ready
+    expect(findReady(reversed, new Set(["project-b"]), new Set(), new Set())).toEqual([
+      "project-a",
+    ]);
+  });
+});
