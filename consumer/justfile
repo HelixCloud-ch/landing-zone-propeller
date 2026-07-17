@@ -30,9 +30,15 @@ resolve:
     if [[ -n "${DEPLOY_ACTION:-}" ]]; then
         resolve_args+=(--action "$DEPLOY_ACTION")
     fi
+    # Custom propeller.yaml (direct mode) or framework base + overrides
+    if [[ -f "landing-zone/propeller.yaml" ]]; then
+        BASE="landing-zone/propeller.yaml"
+    else
+        BASE=".propeller/landing-zone/propeller.yaml"
+        resolve_args+=(--overrides "landing-zone/propeller.overrides.yaml")
+    fi
     uv run --project .propeller/engine propeller-resolve \
-        --base .propeller/landing-zone/propeller.yaml \
-        --overrides landing-zone/propeller.overrides.yaml \
+        --base "$BASE" \
         --version "{{ propeller_version }}" \
         --output dist/landing-zone/pipeline.lock.yaml \
         --propeller-dir .propeller/landing-zone \
