@@ -178,8 +178,6 @@ export interface StepResult {
   account_id?: string;
   build_id?: string;
   error?: string;
-  /** Build logs (best-effort, may be empty if log fetching fails). */
-  logs?: string;
   /** Duration in seconds (from build start to completion). */
   duration?: number;
 }

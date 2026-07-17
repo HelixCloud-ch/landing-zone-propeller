@@ -65,6 +65,17 @@ vi.mock("@aws-sdk/client-cloudwatch-logs", () => ({
   }),
 }));
 
+vi.mock("@aws-sdk/client-lambda", () => ({
+  LambdaClient: vi.fn(function () {
+    return {
+      send: vi.fn(async () => ({ DurableExecutions: [] })),
+    };
+  }),
+  ListDurableExecutionsByFunctionCommand: vi.fn(function (this: any, input: any) {
+    this.input = input;
+  }),
+}));
+
 // --- Helpers ---
 
 function createMockSSMClient(params: Record<string, string>) {
@@ -100,18 +111,20 @@ function createMockSTSClient() {
 function createMockDurableContext(): DurableContext {
   const ctx: any = {
     executionId: "exec-mock-001",
+    executionContext: {
+      durableExecutionArn:
+        "arn:aws:lambda:eu-central-2:123456789012:function:autopilot:qual/durable-execution/test-platform__deploy/exec-001",
+    },
     step: vi.fn(async (_name: string, fn: () => any) => fn()),
-    parallel: vi.fn(
-      async (_name: string, branches: Array<any>) => {
-        const results = await Promise.all(
-          branches.map((b: any) => {
-            const fn = typeof b === "function" ? b : b.func;
-            return fn(ctx);
-          }),
-        );
-        return { getResults: () => results };
-      },
-    ),
+    parallel: vi.fn(async (_name: string, branches: Array<any>) => {
+      const results = await Promise.all(
+        branches.map((b: any) => {
+          const fn = typeof b === "function" ? b : b.func;
+          return fn(ctx);
+        }),
+      );
+      return { getResults: () => results };
+    }),
     wait: vi.fn(async () => {}),
     waitForCallback: vi.fn(
       async (_name: string, submitter: (id: string, ctx: any) => Promise<void>) => {

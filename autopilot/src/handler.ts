@@ -11,6 +11,8 @@ import { runStageSleepWake } from "./pipeline/sleep.js";
 import { runStage } from "./pipeline/stage.js";
 import type { AWSClients } from "./services/aws.js";
 import { createClients } from "./services/aws.js";
+import { checkConcurrentExecution } from "./services/lambda.js";
+import { promoteActiveBundle } from "./services/s3.js";
 import { writePipelineState } from "./services/ssm.js";
 import type {
   PipelineContext,
@@ -31,18 +33,8 @@ export async function execute(
   context: DurableContext,
   clientOverrides?: Partial<AWSClients>,
 ): Promise<PipelineResult> {
-  const fail = (error: string, errorCode?: PipelineErrorCode): PipelineResult => ({
-    status: "failed",
-    summary: { succeeded: 0, failed: 0, skipped: 0 },
-    results: [],
-    error,
-    errorCode,
-  });
-
-  if (!event.pipeline?.stages?.length)
-    return fail("pipeline.stages is empty or missing", "VALIDATION_ERROR");
-  if (!event.bundle_s3_uri) return fail("bundle_s3_uri is required", "VALIDATION_ERROR");
-  if (!event.deploy_action) return fail("deploy_action is required", "VALIDATION_ERROR");
+  const validationError = validateEvent(event);
+  if (validationError) return validationError;
 
   const pipeline = event.pipeline;
   const only = new Set(event.only ?? []);
@@ -60,7 +52,8 @@ export async function execute(
 
   // Prevent concurrent full-pipeline executions of the same namespace
   if (pctx.namespace && only.size === 0) {
-    const conflict = await checkConcurrentExecution(pctx.namespace, pctx.executionId);
+    const currentArn = extractExecutionArn(context);
+    const conflict = await checkConcurrentExecution(pctx.namespace, currentArn);
     if (conflict) {
       return fail(
         `Namespace '${pctx.namespace}' already has a running execution: ${conflict}`,
@@ -78,14 +71,44 @@ export async function execute(
   }
 
   // Reverse stage order for sleep (tear down in reverse dependency order)
-  let stages = pipeline.stages;
-  if (pctx.deployAction === "sleep") {
-    stages = [...stages].reverse();
-  }
+  const stages = pctx.deployAction === "sleep" ? [...pipeline.stages].reverse() : pipeline.stages;
 
+  const clients = createClients(clientOverrides);
+  const allResults = await runAllStages(stages, pctx, clients, context);
+
+  return buildResult(allResults, pctx, clients);
+}
+
+export type { PipelineEvent, PipelineResult };
+
+// ── Internals ──
+
+function validateEvent(event: PipelineEvent): PipelineResult | null {
+  if (!event.pipeline?.stages?.length)
+    return fail("pipeline.stages is empty or missing", "VALIDATION_ERROR");
+  if (!event.bundle_s3_uri) return fail("bundle_s3_uri is required", "VALIDATION_ERROR");
+  if (!event.deploy_action) return fail("deploy_action is required", "VALIDATION_ERROR");
+  return null;
+}
+
+function fail(error: string, errorCode?: PipelineErrorCode): PipelineResult {
+  return {
+    status: "failed",
+    summary: { succeeded: 0, failed: 0, skipped: 0 },
+    results: [],
+    error,
+    errorCode,
+  };
+}
+
+async function runAllStages(
+  stages: import("./types.js").Stage[],
+  pctx: PipelineContext,
+  clients: AWSClients,
+  context: DurableContext,
+): Promise<StepResult[]> {
   const allResults: StepResult[] = [];
   let stageFailed = false;
-  const clients = createClients(clientOverrides);
 
   for (const stage of stages) {
     if (stageFailed) {
@@ -99,23 +122,26 @@ export async function execute(
       continue;
     }
 
-    let stageResults: StepResult[];
-
-    if (pctx.deployAction === "sleep" || pctx.deployAction === "wake") {
-      stageResults = await runStageSleepWake(stage, pctx, clients, context);
-    } else {
-      stageResults = await runStage(stage, pctx, clients, context);
-    }
+    const stageResults =
+      pctx.deployAction === "sleep" || pctx.deployAction === "wake"
+        ? await runStageSleepWake(stage, pctx, clients, context)
+        : await runStage(stage, pctx, clients, context);
 
     allResults.push(...stageResults);
 
-    const failedCount = stageResults.filter((r) => r.status === "failed").length;
-    if (failedCount > 0) {
+    if (stageResults.some((r) => r.status === "failed")) {
       stageFailed = true;
     }
   }
 
-  // Write pipeline state and promote active bundle on success
+  return allResults;
+}
+
+async function buildResult(
+  allResults: StepResult[],
+  pctx: PipelineContext,
+  clients: AWSClients,
+): Promise<PipelineResult> {
   const totalFailed = allResults.filter((r) => r.status === "failed").length;
   const warnings: string[] = [];
 
@@ -129,7 +155,6 @@ export async function execute(
       await writePipelineState(clients.ssm, pctx.namespace, finalState);
     }
 
-    // Promote bundle to active (only on successful apply)
     if (pctx.deployAction === "apply") {
       try {
         await promoteActiveBundle(pctx);
@@ -153,84 +178,20 @@ export async function execute(
   };
 }
 
-export type { PipelineEvent, PipelineResult };
-
-declare const process: { env: Record<string, string | undefined> };
-
 function extractExecutionId(context: DurableContext): string {
   try {
     const arn = context.executionContext.durableExecutionArn;
-    // ARN format: arn:aws:lambda:{region}:{account}:function:{name}:{qualifier}/durable-execution/{execName}/{execId}
     const parts = arn.split("/");
-    return parts[parts.length - 1] ?? "";
+    return parts.length >= 3 ? parts[2]! : "";
   } catch {
     return "";
   }
 }
 
-async function checkConcurrentExecution(
-  namespace: string,
-  currentExecutionId: string,
-): Promise<string | null> {
+function extractExecutionArn(context: DurableContext): string {
   try {
-    const { LambdaClient, ListDurableExecutionsByFunctionCommand } = await import(
-      "@aws-sdk/client-lambda"
-    );
-    const lambda = new LambdaClient({});
-    const functionName = process.env.AWS_LAMBDA_FUNCTION_NAME;
-    if (!functionName) return null;
-
-    const resp = await lambda.send(
-      new ListDurableExecutionsByFunctionCommand({
-        FunctionName: functionName,
-        Statuses: ["RUNNING"],
-        MaxItems: 100,
-      }),
-    );
-
-    const executions = resp.DurableExecutions ?? [];
-    const others = executions.filter(
-      (e) =>
-        e.DurableExecutionName?.startsWith(`${namespace}__`) &&
-        e.DurableExecutionArn &&
-        !e.DurableExecutionArn.includes(currentExecutionId),
-    );
-
-    return others.length > 0 ? (others[0]!.DurableExecutionName ?? "unknown") : null;
-  } catch (err: unknown) {
-    // Log but don't block — if the check fails, allow execution to proceed
-    // eslint-disable-next-line no-console
-    (globalThis as any).console?.warn?.(
-      "[concurrent-check] Failed:",
-      err instanceof Error ? err.message : String(err),
-    );
-    return null;
+    return context.executionContext.durableExecutionArn;
+  } catch {
+    return "";
   }
-}
-
-async function promoteActiveBundle(pctx: PipelineContext): Promise<void> {
-  const { S3Client, CopyObjectCommand } = await import("@aws-sdk/client-s3");
-
-  const sourceUri = pctx.bundleS3Uri.replace("s3://", "");
-  const bucket = sourceUri.split("/")[0]!;
-  const activeKey = `active/${pctx.namespace}/bundle.zip`;
-
-  const s3 = new S3Client({});
-
-  await s3.send(
-    new CopyObjectCommand({
-      Bucket: bucket,
-      CopySource: sourceUri,
-      Key: activeKey,
-      MetadataDirective: "REPLACE",
-      Metadata: {
-        "bundle-s3-uri": pctx.bundleS3Uri,
-        "git-sha": pctx.gitSha,
-        "propeller-version": pctx.propellerVersion,
-        "execution-id": pctx.executionId,
-        "deploy-action": pctx.deployAction,
-        "promoted-at": new Date().toISOString(),
-      },
-    }),
-  );
 }

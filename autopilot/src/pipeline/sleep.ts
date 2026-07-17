@@ -11,20 +11,11 @@ import type { DurableContext } from "@aws/durable-execution-sdk-js";
 import type { CodeBuildClient } from "@aws-sdk/client-codebuild";
 import { StartBuildCommand } from "@aws-sdk/client-codebuild";
 import type { SSMClient } from "@aws-sdk/client-ssm";
-import {
-  ACCOUNTS_SSM_PREFIX,
-  POLL_INTERVAL_SECONDS,
-  TERMINAL_BUILD_STATUSES,
-} from "../constants.js";
+import { POLL_INTERVAL_SECONDS, TERMINAL_BUILD_STATUSES } from "../constants.js";
 import type { AWSClients } from "../services/aws.js";
 import { createCodeBuildClient } from "../services/aws.js";
 import { pollBuild } from "../services/codebuild.js";
-import {
-  getParameter,
-  getParameterOptional,
-  prepareBuildConfig,
-  readProjectBlob,
-} from "../services/ssm.js";
+import { prepareBuildConfig, readProjectBlob } from "../services/ssm.js";
 import type {
   BuildConfig,
   PipelineContext,
@@ -35,8 +26,6 @@ import type {
 } from "../types.js";
 import { buildDag, findDependents, findReady } from "./dag.js";
 import { executeStep } from "./stage.js";
-
-declare const process: { env: Record<string, string | undefined> };
 
 const COMMAND_BUILDSPEC = `version: 0.2
 phases:
@@ -67,7 +56,6 @@ export async function runStageSleepWake(
     if (ready.length === 0) break;
 
     const branches: Array<(ctx: DurableContext) => Promise<StepResult>> = [];
-    const readyProjects: string[] = [];
 
     for (const project of ready) {
       const step = stepMap.get(project)!;
@@ -87,7 +75,6 @@ export async function runStageSleepWake(
             return await executeSleepDestroy(capturedStep, pctx, clients, isWake, childCtx);
           });
         });
-        readyProjects.push(project);
       } else if (behavior === "command") {
         const capturedStep = step;
         branches.push(async (branchCtx: DurableContext) => {
@@ -95,7 +82,6 @@ export async function runStageSleepWake(
             return await executeSleepCommand(capturedStep, pctx, clients, isWake, childCtx);
           });
         });
-        readyProjects.push(project);
       }
     }
 
@@ -168,12 +154,12 @@ export async function executeSleepCommand(
   const rawCommand = isWake ? (sleepConfig.wake_command ?? "") : (sleepConfig.command ?? "");
 
   try {
-    const resolvedCmd = await durableCtx.step(`cmd-resolve:${project}`, () =>
-      resolveCommandVars(rawCommand, step, pctx, clients.ssm),
-    );
-
     const config: BuildConfig = await durableCtx.step(`cmd-prepare:${project}`, () =>
       prepareBuildConfig(clients.ssm, step, pctx.namespace),
+    );
+
+    const resolvedCmd = await durableCtx.step(`cmd-resolve:${project}`, () =>
+      resolveCommandVars(rawCommand, step, pctx, clients.ssm, config),
     );
 
     const cbClient = await durableCtx.step(`cmd-assume:${project}`, () =>
@@ -254,23 +240,15 @@ export async function resolveCommandVars(
   step: StepConfig,
   pctx: PipelineContext,
   ssmClient: SSMClient,
+  config: BuildConfig,
 ): Promise<string> {
-  const target = step.target ?? "default";
-  const prefix = `${ACCOUNTS_SSM_PREFIX}/${target}`;
-  const accountId = await getParameter(ssmClient, `${prefix}/id`);
-  const region =
-    (await getParameterOptional(ssmClient, `${prefix}/region`)) ??
-    process.env.AWS_REGION ??
-    "us-east-1";
-
   let result = command;
-  result = result.replace(/\$\{AWS_REGION\}/g, region);
-  result = result.replace(/\$\{AWS_ACCOUNT_ID\}/g, accountId);
+  result = result.replace(/\$\{AWS_REGION\}/g, config.region);
+  result = result.replace(/\$\{AWS_ACCOUNT_ID\}/g, config.accountId);
   result = result.replace(/\$\{PROPELLER_NAMESPACE\}/g, pctx.namespace);
   result = result.replace(/\$\{PROJECT_NAME\}/g, step.project);
 
-  // Resolve ${INPUT_*} from step inputs
-  const config = await prepareBuildConfig(ssmClient, step, pctx.namespace);
+  // Resolve ${INPUT_*} placeholders using resolved pipeline inputs
   for (const [varName, value] of Object.entries(config.inputs)) {
     result = result.replace(new RegExp(`\\$\\{INPUT_${varName}\\}`, "g"), String(value));
   }

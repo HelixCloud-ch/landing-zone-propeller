@@ -10,7 +10,7 @@
  *     <project> (NamedBranch)
  *       plan (RunInChildContext)
  *       approval (WaitForCallback)   ← only when approval required
- *       apply (RunInChildContext)     ← only when approval required
+ *       apply (RunInChildContext)
  */
 
 import type { DurableContext } from "@aws/durable-execution-sdk-js";
@@ -19,6 +19,7 @@ import { POLL_INTERVAL_SECONDS, TERMINAL_BUILD_STATUSES } from "../constants.js"
 import type { AWSClients } from "../services/aws.js";
 import { createCloudWatchLogsClient, createCodeBuildClient } from "../services/aws.js";
 import { fetchBuildLogs, pollBuild, startBuild } from "../services/codebuild.js";
+import { writeLogs } from "../services/s3.js";
 import { prepareBuildConfig, writeOutputs } from "../services/ssm.js";
 import type { BuildConfig, PipelineContext, Stage, StepConfig, StepResult } from "../types.js";
 import { buildDag, findDependents, findReady } from "./dag.js";
@@ -133,9 +134,7 @@ async function executeDirectStep(
       config.runner,
     );
 
-    const buildId: string = await ctx.step(`build`, () =>
-      startBuild(cbClient, step, config, pctx),
-    );
+    const buildId: string = await ctx.step(`build`, () => startBuild(cbClient, step, config, pctx));
 
     let pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
     while (!TERMINAL_BUILD_STATUSES.has(pollResult.status)) {
@@ -143,15 +142,15 @@ async function executeDirectStep(
       pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
     }
 
-    // Fetch logs (best-effort)
-    let logs = "";
+    // Fetch logs and archive to S3 (best-effort)
     try {
       const logsClient = await createCloudWatchLogsClient(
         clients.sts,
         config.accountId,
         config.region,
       );
-      logs = await ctx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
+      const logs = await ctx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
+      await writeLogs(pctx, `${project}.${pctx.deployAction}`, logs);
     } catch {
       // best-effort
     }
@@ -164,7 +163,6 @@ async function executeDirectStep(
         account_id: config.accountId,
         error: `Build ${pollResult.status}`,
         build_id: buildId,
-        logs,
       };
     }
 
@@ -180,7 +178,6 @@ async function executeDirectStep(
       target: step.target,
       account_id: config.accountId,
       build_id: buildId,
-      logs,
     };
   });
 }
@@ -221,7 +218,7 @@ async function executeSupervisedStep(
       pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
     }
 
-    // Fetch logs (best-effort)
+    // Fetch logs and archive to S3 (best-effort)
     let logs = "";
     try {
       const logsClient = await createCloudWatchLogsClient(
@@ -230,6 +227,7 @@ async function executeSupervisedStep(
         config.region,
       );
       logs = await ctx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
+      await writeLogs(pctx, `${step.project}.plan`, logs);
     } catch {
       // best-effort
     }
@@ -250,31 +248,27 @@ async function executeSupervisedStep(
       account_id: planResult.config.accountId,
       error: "Plan build failed",
       build_id: planResult.buildId,
-      logs: planResult.logs,
     };
   }
 
   // Phase 2: Approval (at branch level — visible as sibling to plan/apply)
   try {
-    await branchCtx.waitForCallback(
-      `approval`,
-      async (callbackId, _ctx) => {
-        await clients.ssm.send(
-          new PutParameterCommand({
-            Name: `/propeller/${pctx.namespace}/approvals/${project}`,
-            Value: JSON.stringify({
-              callbackId,
-              project,
-              executionId: pctx.executionId,
-              buildId: planResult.buildId,
-              requestedAt: new Date().toISOString(),
-            }),
-            Type: "String",
-            Overwrite: true,
+    await branchCtx.waitForCallback(`approval`, async (callbackId, _ctx) => {
+      await clients.ssm.send(
+        new PutParameterCommand({
+          Name: `/propeller/${pctx.namespace}/approvals/${project}`,
+          Value: JSON.stringify({
+            callbackId,
+            project,
+            executionId: pctx.executionId,
+            buildId: planResult.buildId,
+            requestedAt: new Date().toISOString(),
           }),
-        );
-      },
-    );
+          Type: "String",
+          Overwrite: true,
+        }),
+      );
+    });
   } catch {
     // SendDurableExecutionCallbackFailure throws CallbackError
     return {
@@ -284,7 +278,6 @@ async function executeSupervisedStep(
       account_id: planResult.config.accountId,
       error: "Rejected by approver",
       build_id: planResult.buildId,
-      logs: planResult.logs,
     };
   }
 
@@ -307,6 +300,19 @@ async function executeSupervisedStep(
     while (!TERMINAL_BUILD_STATUSES.has(pollResult.status)) {
       await ctx.wait(`poll-wait`, { seconds: POLL_INTERVAL_SECONDS });
       pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
+    }
+
+    // Fetch and archive apply logs (best-effort)
+    try {
+      const logsClient = await createCloudWatchLogsClient(
+        clients.sts,
+        planResult.config.accountId,
+        planResult.config.region,
+      );
+      const logs = await ctx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
+      await writeLogs(pctx, `${step.project}.apply`, logs);
+    } catch {
+      // best-effort
     }
 
     if (pollResult.status !== "SUCCEEDED") {
@@ -341,7 +347,6 @@ async function executeSupervisedStep(
     target: step.target,
     account_id: planResult.config.accountId,
     build_id: applyResult.buildId,
-    logs: planResult.logs,
   };
 }
 
