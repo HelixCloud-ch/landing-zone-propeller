@@ -16,6 +16,7 @@ import { promoteActiveBundle } from "./services/s3.js";
 import { writePipelineState } from "./services/ssm.js";
 import type {
   PipelineContext,
+  PipelineDefinition,
   PipelineErrorCode,
   PipelineEvent,
   PipelineResult,
@@ -87,7 +88,7 @@ export async function execute(
   const clients = createClients(clientOverrides);
   const allResults = await runAllStages(stages, pctx, clients, context);
 
-  return buildResult(allResults, pctx, clients);
+  return buildResult(allResults, pctx, clients, pipeline);
 }
 
 export type { PipelineEvent, PipelineResult };
@@ -152,6 +153,7 @@ async function buildResult(
   allResults: StepResult[],
   pctx: PipelineContext,
   clients: AWSClients,
+  pipeline: PipelineDefinition,
 ): Promise<PipelineResult> {
   const totalFailed = allResults.filter((r) => r.status === "failed").length;
   const warnings: string[] = [];
@@ -168,7 +170,7 @@ async function buildResult(
 
     if (pctx.deployAction === "apply") {
       try {
-        await promoteActiveBundle(pctx);
+        await promoteActiveBundle(pctx, pipeline);
       } catch (err: unknown) {
         warnings.push(
           `Bundle promotion failed: ${err instanceof Error ? err.message : String(err)}`,

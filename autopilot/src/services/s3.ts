@@ -35,12 +35,17 @@ export async function writeLogs(pctx: PipelineContext, label: string, logs: stri
 }
 
 /** Copy the deployed bundle to the active/ prefix so sleep/wake can find it. */
-export async function promoteActiveBundle(pctx: PipelineContext): Promise<void> {
+export async function promoteActiveBundle(
+  pctx: PipelineContext,
+  pipeline: object,
+): Promise<void> {
   const copySource = pctx.bundleS3Uri.replace("s3://", "");
   const bucket = extractBucket(pctx.bundleS3Uri);
   const activeKey = `active/${pctx.namespace}/bundle.zip`;
+  const pipelineKey = `active/${pctx.namespace}/pipeline.json`;
 
   const s3 = new S3Client({});
+
   await s3.send(
     new CopyObjectCommand({
       Bucket: bucket,
@@ -55,6 +60,15 @@ export async function promoteActiveBundle(pctx: PipelineContext): Promise<void> 
         "deploy-action": pctx.deployAction,
         "promoted-at": new Date().toISOString(),
       },
+    }),
+  );
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: pipelineKey,
+      Body: JSON.stringify(pipeline, null, 2),
+      ContentType: "application/json",
     }),
   );
 }
