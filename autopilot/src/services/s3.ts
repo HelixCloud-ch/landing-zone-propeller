@@ -19,7 +19,7 @@ export async function writeLogs(pctx: PipelineContext, label: string, logs: stri
   if (!logs || !pctx.executionId) return;
   try {
     const bucket = extractBucket(pctx.bundleS3Uri);
-    const key = `propeller-logs/${pctx.executionId}/${label}.log`;
+    const key = `logs/${pctx.executionId}/${label}.log`;
     const s3 = new S3Client({});
     await s3.send(
       new PutObjectCommand({
@@ -34,15 +34,15 @@ export async function writeLogs(pctx: PipelineContext, label: string, logs: stri
   }
 }
 
-/** Copy the deployed bundle to the active/ prefix so sleep/wake can find it. */
+/** Copy the deployed bundle to the bundles-active/ prefix so sleep/wake can find it. */
 export async function promoteActiveBundle(
   pctx: PipelineContext,
   pipeline: object,
 ): Promise<void> {
   const copySource = pctx.bundleS3Uri.replace("s3://", "");
   const bucket = extractBucket(pctx.bundleS3Uri);
-  const activeKey = `active/${pctx.namespace}/bundle.zip`;
-  const pipelineKey = `active/${pctx.namespace}/pipeline.json`;
+  const activeKey = `bundles-active/${pctx.namespace}/bundle.zip`;
+  const pipelineKey = `bundles-active/${pctx.namespace}/pipeline.json`;
 
   const s3 = new S3Client({});
 
