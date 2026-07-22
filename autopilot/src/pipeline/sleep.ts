@@ -1,38 +1,27 @@
 /**
  * Sleep/wake dispatch logic for the Propeller Autopilot.
  *
- * Handles the three sleep behaviors:
- * - destroy: runs terraform destroy (sleep) / terraform apply (wake)
- * - command: executes a custom shell command via CodeBuild
- * - skip: no-op, project doesn't participate in sleep/wake
+ * Uses preset-based mode resolution: projects listed in the active preset
+ * participate in sleep/wake, others are skipped. Each participating project
+ * receives PROPELLER_SLEEP_MODE as an env var and dispatches via its justfile.
  */
 
 import type { DurableContext } from "@aws/durable-execution-sdk-js";
-import type { CodeBuildClient } from "@aws-sdk/client-codebuild";
-import { StartBuildCommand } from "@aws-sdk/client-codebuild";
-import type { SSMClient } from "@aws-sdk/client-ssm";
 import { POLL_INTERVAL_SECONDS, TERMINAL_BUILD_STATUSES } from "../constants.js";
 import type { AWSClients } from "../services/aws.js";
 import { createCodeBuildClient } from "../services/aws.js";
-import { pollBuild } from "../services/codebuild.js";
-import { prepareBuildConfig, readProjectBlob } from "../services/ssm.js";
+import { pollBuild, startBuild } from "../services/codebuild.js";
+import { writeLogs } from "../services/s3.js";
+import { prepareBuildConfig, writeOutputs } from "../services/ssm.js";
+import { createCloudWatchLogsClient } from "../services/aws.js";
+import { fetchBuildLogs } from "../services/codebuild.js";
 import type {
-  BuildConfig,
   PipelineContext,
-  SleepAction,
   Stage,
   StepConfig,
   StepResult,
 } from "../types.js";
 import { buildDag, findDependents, findReady, reverseDag } from "./dag.js";
-import { executeStep } from "./stage.js";
-
-const COMMAND_BUILDSPEC = `version: 0.2
-phases:
-  build:
-    commands:
-      - eval "$PROPELLER_SLEEP_COMMAND"
-`;
 
 export async function runStageSleepWake(
   stage: Stage,
@@ -44,6 +33,8 @@ export async function runStageSleepWake(
   const steps = stage.steps;
   const stepMap = new Map(steps.map((s) => [s.project, s]));
   const rawDag = buildDag(steps);
+  // Sleep: reverse dependency order (tear down dependents first)
+  // Wake: normal dependency order (bring up dependencies first)
   const dag = isWake ? rawDag : reverseDag(rawDag);
 
   const completed = new Set<string>();
@@ -60,27 +51,22 @@ export async function runStageSleepWake(
 
     for (const project of ready) {
       const step = stepMap.get(project)!;
-      const behavior = determineSleepBehavior(step);
+      const mode = resolveSleepMode(step, pctx);
 
-      if (behavior === "skip") {
+      if (!mode) {
+        // Project not in preset — does not participate
         skipped.add(project);
         results.set(project, {
           status: "skipped",
           project,
-          error: "sleep: skip (not participating)",
+          error: "not in sleep preset",
         });
-      } else if (behavior === "destroy") {
+      } else {
         const capturedStep = step;
+        const capturedMode = mode;
         branches.push(async (branchCtx: DurableContext) => {
           return await branchCtx.runInChildContext(project, async (childCtx) => {
-            return await executeSleepDestroy(capturedStep, pctx, clients, isWake, childCtx);
-          });
-        });
-      } else if (behavior === "command") {
-        const capturedStep = step;
-        branches.push(async (branchCtx: DurableContext) => {
-          return await branchCtx.runInChildContext(project, async (childCtx) => {
-            return await executeSleepCommand(capturedStep, pctx, clients, isWake, childCtx);
+            return await executeSleepStep(capturedStep, pctx, clients, capturedMode, childCtx);
           });
         });
       }
@@ -115,89 +101,108 @@ export async function runStageSleepWake(
   return [...results.values()];
 }
 
-export function determineSleepBehavior(step: StepConfig): SleepAction {
-  if (!step.sleep) return "skip";
-  if (!step.sleep_config) return "skip";
-  return step.sleep_config.action ?? "skip";
-}
+/**
+ * Resolve the sleep mode for a project.
+ * Returns the mode string if the project participates, or null if it doesn't.
+ *
+ * Resolution: pctx.sleepModes (from preset) → legacy step.sleep_config → null
+ */
+function resolveSleepMode(step: StepConfig, pctx: PipelineContext): string | null {
+  // New path: preset-based modes
+  const presetMode = pctx.sleepModes[step.project];
+  if (presetMode) return presetMode;
 
-export async function executeSleepDestroy(
-  step: StepConfig,
-  pctx: PipelineContext,
-  clients: AWSClients,
-  isWake: boolean,
-  durableCtx: DurableContext,
-): Promise<StepResult> {
-  const overrideAction = isWake ? "apply" : "destroy";
-  const overridePctx: PipelineContext = {
-    ...pctx,
-    deployAction: overrideAction,
-  };
-
-  // Apply sleep_config timeout if step doesn't have one
-  let effectiveStep = step;
-  if (step.sleep_config?.timeout && !step.timeout) {
-    effectiveStep = { ...step, timeout: step.sleep_config.timeout };
+  // Legacy path: step.sleep + step.sleep_config (backwards compat)
+  if (step.sleep && step.sleep_config) {
+    if (step.sleep_config.action === "skip") return null;
+    return step.sleep_config.action === "destroy" ? "destroy" : "command";
   }
 
-  return executeStep(effectiveStep, overridePctx, clients, durableCtx);
+  return null;
 }
 
-export async function executeSleepCommand(
+/**
+ * Execute a sleep/wake step by running it through the standard CodeBuild
+ * pipeline with PROPELLER_SLEEP_MODE set. The project's justfile handles
+ * the actual sleep/wake logic based on the mode.
+ */
+async function executeSleepStep(
   step: StepConfig,
   pctx: PipelineContext,
   clients: AWSClients,
-  isWake: boolean,
-  durableCtx: DurableContext,
+  mode: string,
+  ctx: DurableContext,
 ): Promise<StepResult> {
   const project = step.project;
-  const sleepConfig = step.sleep_config!;
-  const rawCommand = isWake ? (sleepConfig.wake_command ?? "") : (sleepConfig.command ?? "");
 
   try {
-    const config: BuildConfig = await durableCtx.step(`cmd-prepare:${project}`, () =>
-      prepareBuildConfig(clients.ssm, step, pctx.namespace),
-    );
+    return await ctx.runInChildContext(`${pctx.deployAction}`, async (childCtx) => {
+      const config = await childCtx.step(`prepare`, () =>
+        prepareBuildConfig(clients.ssm, step, pctx.namespace),
+      );
 
-    const resolvedCmd = await durableCtx.step(`cmd-resolve:${project}`, () =>
-      resolveCommandVars(rawCommand, step, pctx, clients.ssm, config),
-    );
+      const cbClient = await createCodeBuildClient(
+        clients.sts,
+        config.accountId,
+        config.region,
+        config.runner,
+      );
 
-    const cbClient = await durableCtx.step(`cmd-assume:${project}`, () =>
-      createCodeBuildClient(clients.sts, config.accountId, config.region, config.runner),
-    );
+      const extraEnvVars = [
+        { name: "PROPELLER_SLEEP_MODE", value: mode },
+      ];
 
-    const s3Parts = pctx.bundleS3Uri.replace("s3://", "").split("/", 1);
-    const s3Location = `${s3Parts[0]}/${pctx.bundleS3Uri.replace("s3://", "").slice(s3Parts[0]!.length + 1)}`;
+      const buildId: string = await childCtx.step(`build`, () =>
+        startBuild(cbClient, step, config, pctx, extraEnvVars),
+      );
 
-    const buildId: string = await durableCtx.step(`cmd-start:${project}`, () =>
-      startCommandBuild(cbClient, project, pctx, config, resolvedCmd, s3Location),
-    );
+      let pollResult = await childCtx.step(`poll`, () => pollBuild(cbClient, buildId));
+      while (!TERMINAL_BUILD_STATUSES.has(pollResult.status)) {
+        await childCtx.wait(`poll-wait`, { seconds: POLL_INTERVAL_SECONDS });
+        pollResult = await childCtx.step(`poll`, () => pollBuild(cbClient, buildId));
+      }
 
-    let pollResult = await durableCtx.step(`cmd-poll:${project}`, () =>
-      pollBuild(cbClient, buildId),
-    );
+      // Fetch logs (best-effort)
+      try {
+        const logsClient = await createCloudWatchLogsClient(
+          clients.sts,
+          config.accountId,
+          config.region,
+        );
+        const logs = await childCtx.step(`logs`, () =>
+          fetchBuildLogs(cbClient, logsClient, buildId),
+        );
+        await writeLogs(pctx, `${project}.${pctx.deployAction}`, logs);
+      } catch {
+        // best-effort
+      }
 
-    while (!TERMINAL_BUILD_STATUSES.has(pollResult.status)) {
-      await durableCtx.wait(`cmd-poll-wait:${project}`, { seconds: POLL_INTERVAL_SECONDS });
-      pollResult = await durableCtx.step(`cmd-poll:${project}`, () => pollBuild(cbClient, buildId));
-    }
+      if (pollResult.status !== "SUCCEEDED") {
+        return {
+          status: "failed" as const,
+          project,
+          target: step.target,
+          account_id: config.accountId,
+          error: `${pctx.deployAction} (mode=${mode}) ${pollResult.status}`,
+          build_id: buildId,
+        };
+      }
 
-    if (pollResult.status !== "SUCCEEDED") {
-      const actionLabel = isWake ? "wake" : "sleep";
+      // Write outputs if the sleep/wake recipe produced any (e.g. snapshot ID)
+      if (pollResult.exportedVars.length > 0) {
+        await childCtx.step(`outputs`, () =>
+          writeOutputs(clients.ssm, step, pollResult.exportedVars, buildId, pctx),
+        );
+      }
+
       return {
-        status: "failed",
+        status: "succeeded" as const,
         project,
-        error: `${actionLabel} command ${pollResult.status}`,
+        target: step.target,
+        account_id: config.accountId,
         build_id: buildId,
       };
-    }
-
-    return {
-      status: "succeeded",
-      project,
-      build_id: buildId,
-    };
+    });
   } catch (err: unknown) {
     return {
       status: "failed",
@@ -205,68 +210,4 @@ export async function executeSleepCommand(
       error: err instanceof Error ? err.message : String(err),
     };
   }
-}
-
-async function startCommandBuild(
-  cbClient: CodeBuildClient,
-  project: string,
-  pctx: PipelineContext,
-  config: BuildConfig,
-  resolvedCmd: string,
-  s3Location: string,
-): Promise<string> {
-  const envVars = [
-    { name: "PROJECT_NAME", value: project, type: "PLAINTEXT" as const },
-    { name: "PROPELLER_NAMESPACE", value: pctx.namespace, type: "PLAINTEXT" as const },
-    { name: "AWS_ACCOUNT_ID", value: config.accountId, type: "PLAINTEXT" as const },
-    { name: "AWS_REGION", value: config.region, type: "PLAINTEXT" as const },
-    { name: "PROPELLER_SLEEP_COMMAND", value: resolvedCmd, type: "PLAINTEXT" as const },
-  ];
-
-  const resp = await cbClient.send(
-    new StartBuildCommand({
-      projectName: config.codebuildProject,
-      sourceTypeOverride: "S3",
-      sourceLocationOverride: s3Location,
-      buildspecOverride: COMMAND_BUILDSPEC,
-      environmentVariablesOverride: envVars,
-    }),
-  );
-
-  return resp.build!.id!;
-}
-
-export async function resolveCommandVars(
-  command: string,
-  step: StepConfig,
-  pctx: PipelineContext,
-  ssmClient: SSMClient,
-  config: BuildConfig,
-): Promise<string> {
-  let result = command;
-  result = result.replace(/\$\{AWS_REGION\}/g, config.region);
-  result = result.replace(/\$\{AWS_ACCOUNT_ID\}/g, config.accountId);
-  result = result.replace(/\$\{PROPELLER_NAMESPACE\}/g, pctx.namespace);
-  result = result.replace(/\$\{PROJECT_NAME\}/g, step.project);
-
-  // Resolve ${INPUT_*} placeholders using resolved pipeline inputs
-  for (const [varName, value] of Object.entries(config.inputs)) {
-    result = result.replace(new RegExp(`\\$\\{INPUT_${varName}\\}`, "g"), String(value));
-  }
-
-  // Resolve ${TF_OUTPUT_*} from the project's SSM blob
-  if (result.includes("${TF_OUTPUT_")) {
-    const blob = await readProjectBlob(ssmClient, pctx.namespace, step.project);
-    if (blob) {
-      const outputs = blob.outputs;
-      const matches = result.matchAll(/\$\{TF_OUTPUT_(\w+)\}/g);
-      for (const match of matches) {
-        const varName = match[1]!;
-        const value = outputs[varName] ?? "";
-        result = result.replace(match[0], String(value));
-      }
-    }
-  }
-
-  return result;
 }

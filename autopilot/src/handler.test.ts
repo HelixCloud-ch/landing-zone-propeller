@@ -242,7 +242,7 @@ describe("execute", () => {
       sts: createMockSTSClient() as any,
     });
 
-    expect(ssmParams["/propeller/test-platform/state"]).toBe("running");
+    expect(JSON.parse(ssmParams["/propeller/test-platform/state"]!)).toEqual({ state: "running" });
   });
 
   it("handles sleep mode with stage reversal", async () => {
@@ -424,5 +424,208 @@ describe("execute", () => {
       sts: createMockSTSClient() as any,
     });
     expect(result.status).toBe("succeeded");
+  });
+
+  it("barrier: false merges stages into a single execution group", async () => {
+    const ctx = createMockDurableContext();
+    const event: PipelineEvent = {
+      pipeline: {
+        version: "1",
+        namespace: "test-platform",
+        propeller_version: "0.14.0",
+        consumer_tags: {},
+        stages: [
+          {
+            name: "infra",
+            barrier: false,
+            steps: [{ project: "vpc", target: "account-alpha", inputs: [], outputs: [] }],
+          },
+          {
+            name: "data",
+            barrier: false,
+            steps: [{ project: "rds", target: "account-alpha", inputs: [], outputs: [] }],
+          },
+        ],
+      },
+      bundle_s3_uri: "s3://b/k.zip",
+      deploy_action: "apply",
+      git_sha: "sha",
+    };
+
+    const result = await execute(event, ctx, {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+
+    expect(result.status).toBe("succeeded");
+    expect(result.summary.succeeded).toBe(2);
+    // Both projects run in the same parallel wave (merged group)
+    const parallelCalls = (ctx.parallel as any).mock.calls;
+    expect(parallelCalls[0][0]).toBe("wave:infra+data:0");
+    expect(parallelCalls[0][1]).toHaveLength(2);
+  });
+
+  it("barrier: true (default) keeps stages sequential", async () => {
+    const ctx = createMockDurableContext();
+    const event: PipelineEvent = {
+      pipeline: {
+        version: "1",
+        namespace: "test-platform",
+        propeller_version: "0.14.0",
+        consumer_tags: {},
+        stages: [
+          {
+            name: "infra",
+            steps: [{ project: "vpc", target: "account-alpha", inputs: [], outputs: [] }],
+          },
+          {
+            name: "data",
+            steps: [{ project: "rds", target: "account-alpha", inputs: [], outputs: [] }],
+          },
+        ],
+      },
+      bundle_s3_uri: "s3://b/k.zip",
+      deploy_action: "apply",
+      git_sha: "sha",
+    };
+
+    await execute(event, ctx, {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+
+    const parallelCalls = (ctx.parallel as any).mock.calls;
+    expect(parallelCalls[0][0]).toBe("wave:infra:0");
+    expect(parallelCalls[1][0]).toBe("wave:data:0");
+  });
+
+  it("blocks apply on sleeping pipeline", async () => {
+    ssmParams["/propeller/test-platform/state"] = JSON.stringify({ state: "sleeping", sleep_preset: "deep" });
+
+    const result = await execute(makeSimpleApplyEvent(), createMockDurableContext(), {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.errorCode).toBe("SLEEPING_PIPELINE");
+  });
+
+  it("force: true bypasses sleeping pipeline guard", async () => {
+    ssmParams["/propeller/test-platform/state"] = JSON.stringify({ state: "sleeping", sleep_preset: "deep" });
+
+    const event: PipelineEvent = { ...makeSimpleApplyEvent(), force: true };
+    const result = await execute(event, createMockDurableContext(), {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+
+    expect(result.status).toBe("succeeded");
+  });
+
+  it("sleep without sleep_preset returns validation error when presets defined", async () => {
+    const event: PipelineEvent = {
+      pipeline: {
+        ...makeSimpleApplyEvent().pipeline,
+        sleep_presets: { light: { "project-a": "stop" } },
+      },
+      bundle_s3_uri: "s3://b/k.zip",
+      deploy_action: "sleep",
+      git_sha: "sha",
+    };
+
+    const result = await execute(event, createMockDurableContext(), {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("sleep requires a sleep_preset");
+  });
+
+  it("mixed barrier/non-barrier stages: non-barrier stages merge, barriers stay separate", async () => {
+    const ctx = createMockDurableContext();
+    const event: PipelineEvent = {
+      pipeline: {
+        version: "1",
+        namespace: "test-platform",
+        propeller_version: "0.14.0",
+        consumer_tags: {},
+        stages: [
+          {
+            name: "discover",
+            steps: [{ project: "vpc", target: "account-alpha", inputs: [], outputs: [] }],
+          },
+          {
+            name: "cluster",
+            barrier: false,
+            steps: [{ project: "eks", target: "account-alpha", inputs: [], outputs: [] }],
+          },
+          {
+            name: "databases",
+            barrier: false,
+            steps: [{ project: "rds", target: "account-alpha", inputs: [], outputs: [] }],
+          },
+          {
+            name: "apps",
+            steps: [{ project: "app", target: "account-alpha", inputs: [], outputs: [] }],
+          },
+        ],
+      },
+      bundle_s3_uri: "s3://b/k.zip",
+      deploy_action: "apply",
+      git_sha: "sha",
+    };
+
+    await execute(event, ctx, {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+
+    const parallelCalls = (ctx.parallel as any).mock.calls;
+    // Group 1: discover (barrier)
+    expect(parallelCalls[0][0]).toBe("wave:discover:0");
+    expect(parallelCalls[0][1]).toHaveLength(1);
+    // Group 2: cluster+databases (merged non-barrier)
+    expect(parallelCalls[1][0]).toBe("wave:cluster+databases:0");
+    expect(parallelCalls[1][1]).toHaveLength(2);
+    // Group 3: apps (barrier)
+    expect(parallelCalls[2][0]).toBe("wave:apps:0");
+    expect(parallelCalls[2][1]).toHaveLength(1);
+  });
+
+  it("sleep with valid preset resolves modes and executes", async () => {
+    const event: PipelineEvent = {
+      pipeline: {
+        version: "1",
+        namespace: "test-platform",
+        propeller_version: "0.14.0",
+        consumer_tags: {},
+        stages: [
+          {
+            name: "data",
+            steps: [
+              { project: "rds", target: "account-alpha", sleep: true, sleep_config: { action: "destroy" }, inputs: [], outputs: [] },
+              { project: "vpc", target: "account-alpha", inputs: [], outputs: [] },
+            ],
+          },
+        ],
+        sleep_presets: { deep: { rds: "destroy" } },
+      },
+      bundle_s3_uri: "s3://b/k.zip",
+      deploy_action: "sleep",
+      sleep_preset: "deep",
+      git_sha: "sha",
+    };
+
+    const result = await execute(event, createMockDurableContext(), {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+
+    expect(result.status).toBe("succeeded");
+    // rds participates (in preset), vpc is skipped (not in preset)
+    expect(result.results.find((r) => r.project === "rds")?.status).toBe("succeeded");
+    expect(result.results.find((r) => r.project === "vpc")?.status).toBe("skipped");
   });
 });

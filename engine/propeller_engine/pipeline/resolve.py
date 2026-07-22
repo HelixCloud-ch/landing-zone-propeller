@@ -407,11 +407,14 @@ def pipeline_to_dict(pipeline: Pipeline) -> dict:
     }
     if pipeline.consumer_tags:
         data["consumer_tags"] = dict(pipeline.consumer_tags)
+    if pipeline.sleep_presets:
+        data["sleep_presets"] = dict(pipeline.sleep_presets)
     for stage in pipeline.stages:
-        data["stages"].append(
-            {
-                "name": stage.name,
-                "steps": [_step_to_dict(s) for s in stage.steps],
-            }
-        )
+        stage_dict: dict = {
+            "name": stage.name,
+            "steps": [_step_to_dict(s) for s in stage.steps],
+        }
+        if not stage.barrier:
+            stage_dict["barrier"] = False
+        data["stages"].append(stage_dict)
     return data

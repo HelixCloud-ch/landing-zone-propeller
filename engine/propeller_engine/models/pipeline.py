@@ -39,6 +39,7 @@ class Step(BaseModel):
 class Stage(BaseModel):
     name: str
     steps: list[Step]
+    barrier: bool = True
 
 
 class Pipeline(BaseModel):
@@ -49,3 +50,4 @@ class Pipeline(BaseModel):
     stages: list[Stage]
     tags: dict[str, str] = Field(default_factory=dict)
     consumer_tags: dict[str, str] = Field(default_factory=dict)
+    sleep_presets: dict[str, dict[str, str]] = Field(default_factory=dict)

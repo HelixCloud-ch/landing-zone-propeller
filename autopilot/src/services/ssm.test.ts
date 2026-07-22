@@ -210,6 +210,7 @@ describe("writeOutputs", () => {
       consumerTags: {},
       executionId: "exec-test-123",
       supervised: false,
+      sleepModes: {},
     };
 
     const written = await writeOutputs(client, step, exportedVars, "build:123", pctx);
@@ -247,6 +248,7 @@ describe("writeOutputs", () => {
       consumerTags: {},
       executionId: "exec-test-123",
       supervised: false,
+      sleepModes: {},
     };
 
     await writeOutputs(client, step, exportedVars, "build:1", pctx);
@@ -280,6 +282,17 @@ describe("writePipelineState", () => {
     const client = createMockSSMClient(params);
 
     await writePipelineState(client, "test-ns", "running");
-    expect(params["/propeller/test-ns/state"]).toBe("running");
+    expect(JSON.parse(params["/propeller/test-ns/state"]!)).toEqual({ state: "running" });
+  });
+
+  it("stores sleep_preset when sleeping", async () => {
+    const params: Record<string, string> = {};
+    const client = createMockSSMClient(params);
+
+    await writePipelineState(client, "test-ns", "sleeping", "deep");
+    expect(JSON.parse(params["/propeller/test-ns/state"]!)).toEqual({
+      state: "sleeping",
+      sleep_preset: "deep",
+    });
   });
 });

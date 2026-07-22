@@ -8,20 +8,43 @@
 import type { DependencyGraph, StepConfig } from "../types.js";
 
 /**
- * Build a dependency graph for steps within a stage.
+ * Build a dependency graph for a set of steps.
  *
- * Only includes dependencies that exist within the same stage
- * (cross-stage deps are handled by stage ordering).
+ * Dependencies come from two sources:
+ * 1. Explicit `depends_on` fields
+ * 2. Implicit from `inputs` — if a step reads from "project-a.field",
+ *    it depends on project-a (only if project-a is in the same step set)
  *
- * @param steps - All steps in the current stage.
- * @returns A Map from project name to its set of in-stage dependencies.
+ * @param steps - Steps to build the DAG for.
+ * @returns A Map from project name to its set of dependencies.
  */
 export function buildDag(steps: StepConfig[]): DependencyGraph {
-  const stageProjects = new Set(steps.map((s) => s.project));
+  const knownProjects = new Set(steps.map((s) => s.project));
   const dag: DependencyGraph = new Map();
 
   for (const step of steps) {
-    const deps = new Set((step.depends_on ?? []).filter((d) => stageProjects.has(d)));
+    const deps = new Set<string>();
+
+    // Explicit depends_on
+    for (const d of step.depends_on ?? []) {
+      if (knownProjects.has(d)) deps.add(d);
+    }
+
+    // Implicit from inputs: extract source project from SSM key path
+    // Resolved inputs have key like "/propeller/{namespace}/{project}" or
+    // raw field-based reads from another project's blob.
+    for (const inp of step.inputs ?? []) {
+      // The key format is /propeller/{namespace}/{project} for blob reads
+      const keyParts = (inp.key ?? "").split("/").filter(Boolean);
+      // Pattern: ["propeller", namespace, project] → project is index 2
+      if (keyParts.length >= 3 && keyParts[0] === "propeller") {
+        const srcProject = keyParts[2]!;
+        if (knownProjects.has(srcProject) && srcProject !== step.project) {
+          deps.add(srcProject);
+        }
+      }
+    }
+
     dag.set(step.project, deps);
   }
 

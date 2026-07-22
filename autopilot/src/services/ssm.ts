@@ -174,15 +174,37 @@ export async function readProjectBlob(
   return JSON.parse(raw) as ProjectBlob;
 }
 
+export interface PipelineState {
+  state: "running" | "sleeping";
+  sleep_preset?: string;
+}
+
+export async function readPipelineState(
+  client: SSMClient,
+  namespace: string,
+): Promise<PipelineState | null> {
+  const raw = await getParameterOptional(client, `/propeller/${namespace}/state`);
+  if (raw === null) return null;
+  // Support legacy plain string format ("running", "sleeping")
+  try {
+    return JSON.parse(raw) as PipelineState;
+  } catch {
+    return { state: raw as "running" | "sleeping" };
+  }
+}
+
 export async function writePipelineState(
   client: SSMClient,
   namespace: string,
-  state: string,
+  state: "running" | "sleeping",
+  sleepPreset?: string,
 ): Promise<void> {
+  const value: PipelineState = { state };
+  if (sleepPreset) value.sleep_preset = sleepPreset;
   await client.send(
     new PutParameterCommand({
       Name: `/propeller/${namespace}/state`,
-      Value: state,
+      Value: JSON.stringify(value),
       Type: "String",
       Overwrite: true,
     }),

@@ -13,7 +13,7 @@ import type { AWSClients } from "./services/aws.js";
 import { createClients } from "./services/aws.js";
 import { checkConcurrentExecution } from "./services/lambda.js";
 import { promoteActiveBundle } from "./services/s3.js";
-import { writePipelineState } from "./services/ssm.js";
+import { readPipelineState, writePipelineState } from "./services/ssm.js";
 import type {
   PipelineContext,
   PipelineDefinition,
@@ -39,6 +39,7 @@ export async function execute(
 
   const pipeline = event.pipeline;
   const only = new Set(event.only ?? []);
+  const clients = createClients(clientOverrides);
 
   const pctx: PipelineContext = {
     bundleS3Uri: event.bundle_s3_uri,
@@ -49,7 +50,50 @@ export async function execute(
     consumerTags: pipeline.consumer_tags ?? {},
     executionId: extractExecutionId(context),
     supervised: event.deploy_mode === "supervised",
+    sleepModes: {},
   };
+
+  // Resolve sleep preset into per-project mode map
+  if (
+    (pctx.deployAction === "sleep" || pctx.deployAction === "wake") &&
+    pipeline.sleep_presets
+  ) {
+    const presetName = event.sleep_preset ?? "";
+    if (pctx.deployAction === "sleep" && !presetName) {
+      return fail("sleep requires a sleep_preset name", "VALIDATION_ERROR");
+    }
+    // On wake, fall back to stored preset if none specified
+    let resolvedPreset = presetName;
+    if (pctx.deployAction === "wake" && !resolvedPreset) {
+      const storedState = await readPipelineState(clients.ssm, pctx.namespace);
+      resolvedPreset = storedState?.sleep_preset ?? "";
+      if (!resolvedPreset) {
+        return fail(
+          "wake requires a sleep_preset (none stored from previous sleep)",
+          "VALIDATION_ERROR",
+        );
+      }
+    }
+    const modes = pipeline.sleep_presets[resolvedPreset];
+    if (!modes) {
+      return fail(
+        `sleep_preset '${resolvedPreset}' not found in pipeline.sleep_presets`,
+        "VALIDATION_ERROR",
+      );
+    }
+    pctx.sleepModes = modes;
+  }
+
+  // Block apply on sleeping pipelines unless force is set
+  if (pctx.deployAction === "apply" && !event.force && pctx.namespace) {
+    const state = await readPipelineState(clients.ssm, pctx.namespace);
+    if (state?.state === "sleeping") {
+      return fail(
+        `Pipeline '${pctx.namespace}' is sleeping. Wake first or pass force: true.`,
+        "SLEEPING_PIPELINE",
+      );
+    }
+  }
 
   // Prevent concurrent full-pipeline executions of the same namespace
   if (pctx.namespace && only.size === 0) {
@@ -85,10 +129,9 @@ export async function execute(
       ? [...pipeline.stages].reverse()
       : pipeline.stages;
 
-  const clients = createClients(clientOverrides);
   const allResults = await runAllStages(stages, pctx, clients, context);
 
-  return buildResult(allResults, pctx, clients, pipeline);
+  return buildResult(allResults, pctx, clients, pipeline, event.sleep_preset);
 }
 
 export type { PipelineEvent, PipelineResult };
@@ -120,33 +163,91 @@ async function runAllStages(
   context: DurableContext,
 ): Promise<StepResult[]> {
   const allResults: StepResult[] = [];
-  let stageFailed = false;
+  let groupFailed = false;
 
-  for (const stage of stages) {
-    if (stageFailed) {
-      for (const step of stage.steps) {
+  const groups = buildExecutionGroups(stages);
+
+  for (const group of groups) {
+    if (groupFailed) {
+      for (const step of group.steps) {
         allResults.push({
           status: "skipped",
           project: step.project,
-          error: "previous stage failed",
+          error: "previous group failed",
         });
       }
       continue;
     }
 
-    const stageResults =
+    const mergedStage: import("./types.js").Stage = {
+      name: group.name,
+      steps: group.steps,
+    };
+
+    const groupResults =
       pctx.deployAction === "sleep" || pctx.deployAction === "wake"
-        ? await runStageSleepWake(stage, pctx, clients, context)
-        : await runStage(stage, pctx, clients, context);
+        ? await runStageSleepWake(mergedStage, pctx, clients, context)
+        : await runStage(mergedStage, pctx, clients, context);
 
-    allResults.push(...stageResults);
+    allResults.push(...groupResults);
 
-    if (stageResults.some((r) => r.status === "failed")) {
-      stageFailed = true;
+    if (groupResults.some((r) => r.status === "failed")) {
+      groupFailed = true;
     }
   }
 
   return allResults;
+}
+
+interface ExecutionGroup {
+  name: string;
+  steps: import("./types.js").StepConfig[];
+}
+
+/**
+ * Build execution groups from stages.
+ *
+ * Consecutive stages with `barrier: false` are merged into a single group.
+ * Stages with `barrier: true` (default) form their own group.
+ * Within a merged group, the DAG handles all ordering.
+ */
+function buildExecutionGroups(stages: import("./types.js").Stage[]): ExecutionGroup[] {
+  const groups: ExecutionGroup[] = [];
+  let accumulator: { names: string[]; steps: import("./types.js").StepConfig[] } | null = null;
+
+  for (const stage of stages) {
+    const isBarrier = stage.barrier !== false; // default true
+
+    if (isBarrier) {
+      // Flush any accumulated non-barrier stages
+      if (accumulator) {
+        groups.push({
+          name: accumulator.names.join("+"),
+          steps: accumulator.steps,
+        });
+        accumulator = null;
+      }
+      // Barrier stage is its own group
+      groups.push({ name: stage.name, steps: stage.steps });
+    } else {
+      // Non-barrier: accumulate
+      if (!accumulator) {
+        accumulator = { names: [], steps: [] };
+      }
+      accumulator.names.push(stage.name);
+      accumulator.steps.push(...stage.steps);
+    }
+  }
+
+  // Flush remaining
+  if (accumulator) {
+    groups.push({
+      name: accumulator.names.join("+"),
+      steps: accumulator.steps,
+    });
+  }
+
+  return groups;
 }
 
 async function buildResult(
@@ -154,6 +255,7 @@ async function buildResult(
   pctx: PipelineContext,
   clients: AWSClients,
   pipeline: PipelineDefinition,
+  sleepPreset?: string,
 ): Promise<PipelineResult> {
   const totalFailed = allResults.filter((r) => r.status === "failed").length;
   const warnings: string[] = [];
@@ -165,7 +267,12 @@ async function buildResult(
       pctx.deployAction === "apply"
     ) {
       const finalState = pctx.deployAction === "sleep" ? "sleeping" : "running";
-      await writePipelineState(clients.ssm, pctx.namespace, finalState);
+      await writePipelineState(
+        clients.ssm,
+        pctx.namespace,
+        finalState,
+        pctx.deployAction === "sleep" ? sleepPreset : undefined,
+      );
     }
 
     if (pctx.deployAction === "apply") {

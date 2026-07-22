@@ -40,6 +40,47 @@ describe("buildDag", () => {
     expect(dag.get("a")).toEqual(new Set());
     expect(dag.get("b")).toEqual(new Set());
   });
+
+  it("infers dependencies from input SSM key paths", () => {
+    const steps: StepConfig[] = [
+      { project: "vpc", inputs: [], outputs: [] },
+      {
+        project: "cluster",
+        inputs: [{ key: "/propeller/test-ns/vpc", field: "vpc_id", var: "vpc_id" }],
+        outputs: [],
+      },
+    ];
+    const dag = buildDag(steps);
+    expect(dag.get("vpc")).toEqual(new Set());
+    expect(dag.get("cluster")).toEqual(new Set(["vpc"]));
+  });
+
+  it("does not infer self-dependency from own inputs", () => {
+    const steps: StepConfig[] = [
+      {
+        project: "rds",
+        inputs: [{ key: "/propeller/ns/rds", field: "snapshot_id", var: "snapshot_id" }],
+        outputs: [],
+      },
+    ];
+    const dag = buildDag(steps);
+    expect(dag.get("rds")).toEqual(new Set());
+  });
+
+  it("combines explicit depends_on with input-inferred deps", () => {
+    const steps: StepConfig[] = [
+      { project: "vpc", inputs: [], outputs: [] },
+      { project: "redis", inputs: [], outputs: [] },
+      {
+        project: "app",
+        depends_on: ["redis"],
+        inputs: [{ key: "/propeller/ns/vpc", field: "vpc_id", var: "vpc_id" }],
+        outputs: [],
+      },
+    ];
+    const dag = buildDag(steps);
+    expect(dag.get("app")).toEqual(new Set(["redis", "vpc"]));
+  });
 });
 
 describe("findReady", () => {

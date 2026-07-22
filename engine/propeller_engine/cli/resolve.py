@@ -56,32 +56,76 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
         for step in stage.steps:
             step_lookup[step.project] = step
 
-    # Render stages (reversed visually for sleep)
+    # Render stages as subgraphs with barrier nodes between blocking stages
     render_stages = list(reversed(pipeline.stages)) if action == "sleep" else pipeline.stages
 
     for i, stage in enumerate(render_stages):
-        stage_node = f"stage_{stage.name}"
-        lines.append(f"  {stage_node}([{stage.name}])")
-
-        # Connect previous stage's steps to this stage node
-        if i > 0:
-            prev_stage = render_stages[i - 1]
-            for step in prev_stage.steps:
-                dependents = {
-                    s.project for s in prev_stage.steps if step.project in s.depends_on
-                }
-                if not dependents:
-                    lines.append(f"  {step.project} --> {stage_node}")
-
-        # Connect stage node to root steps (no in-stage deps)
+        lines.append(f"  subgraph {stage.name}")
         for step in stage.steps:
-            if not step.depends_on:
-                lines.append(f"  {stage_node} --> {step.project}")
+            lines.append(f"    {step.project}")
+        lines.append("  end")
+        # Add barrier node after a blocking stage (if there's a next stage)
+        if stage.barrier is not False and i < len(render_stages) - 1:
+            barrier_id = f"barrier_{stage.name}"
+            lines.append(f"  {barrier_id}{{{{{stage.name}}}}}")
 
-        # In-stage dependency edges
+    # Collect all dependency edges (explicit depends_on + inferred from inputs)
+    all_projects = {s.project for st in pipeline.stages for s in st.steps}
+    edges: set[tuple[str, str]] = set()
+    for stage in pipeline.stages:
         for step in stage.steps:
             for dep in step.depends_on:
-                lines.append(f"  {dep} --> {step.project}")
+                if dep in all_projects:
+                    edges.add((dep, step.project))
+            for inp in step.inputs:
+                if isinstance(inp, dict):
+                    name = inp.get("name", "")
+                    src_project = name.split(".")[0] if "." in name else ""
+                    if src_project and not src_project.startswith("@") and not src_project.startswith("/"):
+                        if src_project in all_projects and src_project != step.project:
+                            edges.add((src_project, step.project))
+                else:
+                    key_parts = inp.key.strip("/").split("/")
+                    if len(key_parts) >= 3 and key_parts[0] == "propeller":
+                        src_project = key_parts[2]
+                        if src_project in all_projects and src_project != step.project:
+                            edges.add((src_project, step.project))
+
+    # Render barrier edges: all leaf projects in barrier stage → barrier node → next stage roots
+    for i, stage in enumerate(render_stages):
+        if stage.barrier is not False and i < len(render_stages) - 1:
+            barrier_id = f"barrier_{stage.name}"
+            stage_projects = {s.project for s in stage.steps}
+            next_stage = render_stages[i + 1]
+
+            # All projects in this stage feed into the barrier
+            for step in stage.steps:
+                lines.append(f"  {step.project} --> {barrier_id}")
+
+            # Barrier feeds into next stage's root projects (no deps within next stage)
+            next_stage_projects = {s.project for s in next_stage.steps}
+            for step in next_stage.steps:
+                has_in_stage_dep = any(
+                    src in next_stage_projects for src, dst in edges if dst == step.project
+                )
+                if not has_in_stage_dep:
+                    lines.append(f"  {barrier_id} --> {step.project}")
+
+    # Render all dependency edges with different arrow types
+    # Solid (-->): explicit depends_on
+    # Dotted (-.->): inferred from inputs
+    explicit_deps: set[tuple[str, str]] = set()
+    for stage in pipeline.stages:
+        for step in stage.steps:
+            for dep in step.depends_on:
+                if dep in all_projects:
+                    explicit_deps.add((dep, step.project))
+
+    for src, dst in sorted(edges):
+        if (src, dst) in explicit_deps:
+            lines.append(f"  {src} --> {dst}")
+        else:
+            lines.append(f"  {src} -.-> {dst}")
 
     # Apply classes
     if is_sleep_wake:

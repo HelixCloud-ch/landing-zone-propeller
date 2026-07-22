@@ -23,6 +23,10 @@ export interface PipelineEvent {
   deploy_mode?: "autopilot" | "supervised";
   /** When true, allows destroy action to target all projects (safety gate). */
   destroy_all?: boolean;
+  /** Named sleep preset to use (resolved from pipeline.sleep_presets). */
+  sleep_preset?: string;
+  /** Force apply even if pipeline is in sleeping state. */
+  force?: boolean;
 }
 
 export type DeployAction = "apply" | "plan" | "destroy" | "sleep" | "wake";
@@ -38,6 +42,11 @@ export interface PipelineDefinition {
   propeller_version?: string;
   /** Consumer-defined tags applied to all resources. */
   consumer_tags?: Record<string, string>;
+  /**
+   * Named sleep presets. Each preset maps project names to sleep modes.
+   * Projects not listed in a preset don't participate in that sleep cycle.
+   */
+  sleep_presets?: Record<string, Record<string, string>>;
 }
 
 export interface Stage {
@@ -45,6 +54,8 @@ export interface Stage {
   name: string;
   /** Steps within this stage — may run in parallel respecting depends_on. */
   steps: StepConfig[];
+  /** If true (default), all steps in this stage must complete before the next stage starts. If false, this stage is purely a visual group and steps are eligible as soon as their dependencies are met. */
+  barrier?: boolean;
 }
 
 // --- Step Configuration ---
@@ -65,9 +76,9 @@ export interface StepConfig {
   inputs?: StepInput[];
   /** Output definitions to persist after successful apply. */
   outputs?: StepOutput[];
-  /** Whether this project participates in sleep/wake operations. */
+  /** @deprecated Use sleep_presets on PipelineDefinition instead. */
   sleep?: boolean;
-  /** Sleep configuration injected from project.yaml at resolve time. */
+  /** @deprecated Use sleep_presets on PipelineDefinition instead. */
   sleep_config?: SleepConfig;
   /** Build timeout override in minutes. */
   timeout?: number;
@@ -205,6 +216,7 @@ export interface PipelineResult {
 export type PipelineErrorCode =
   | "VALIDATION_ERROR"
   | "CONCURRENT_EXECUTION"
+  | "SLEEPING_PIPELINE"
   | "STAGE_FAILED"
   | "APPROVAL_REJECTED"
   | "INTERNAL_ERROR";
@@ -226,6 +238,8 @@ export interface PipelineContext {
   consumerTags: Record<string, string>;
   executionId: string;
   supervised: boolean;
+  /** Resolved sleep mode map: project name → mode string. */
+  sleepModes: Record<string, string>;
 }
 
 // --- Services (dependency injection container) ---
