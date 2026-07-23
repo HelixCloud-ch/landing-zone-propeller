@@ -170,6 +170,18 @@ variable "skip_final_snapshot" {
   default     = false
 }
 
+variable "final_snapshot_identifier" {
+  type        = string
+  description = "Name for the final snapshot on deletion. If empty, defaults to '{identifier}-final'."
+  default     = ""
+}
+
+variable "snapshot_identifier" {
+  type        = string
+  description = "DB snapshot to restore from (e.g. for wake-from-sleep). Empty string means create fresh."
+  default     = ""
+}
+
 # ── Upgrades ──────────────────────────────────────────────────────────────────
 
 variable "auto_minor_version_upgrade" {
