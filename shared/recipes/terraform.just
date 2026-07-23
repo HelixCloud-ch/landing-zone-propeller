@@ -87,16 +87,42 @@ tf-outputs: tf-init
     just _propeller-outputs
 
 # ── Sleep/Wake ────────────────────────────────────────────────────────────────
-# Projects that participate in sleep/wake MUST override these recipes.
-# Default: error out to prevent accidental destruction.
+# Mode-aware sleep/wake. The autopilot sets PROPELLER_SLEEP_MODE based on the
+# active preset. Projects override these recipes to add custom modes
+# (stop, snapshot, scale-to-zero, etc).
+#
+# Convention for snapshot-based modes: use a deterministic snapshot ID
+# "propeller-sleep-{PROJECT_NAME}" so wake can find it without state passing.
+
+_sleep_mode := env("PROPELLER_SLEEP_MODE", "default")
+_sleep_snapshot_id := "propeller-sleep-" + env("PROJECT_NAME")
+_sleep_state_key := "propeller/" + env("PROPELLER_NAMESPACE") + "/" + env("PROJECT_NAME") + "/sleep-state.json"
+
+sleep:
+    just sleep-{{ _sleep_mode }}
+
+wake:
+    just wake-{{ _sleep_mode }}
+
+# Default mode: terraform destroy/apply
+sleep-default: tf-destroy
+wake-default: tf-apply
+
+# Explicit "destroy" mode (alias for default)
+sleep-destroy: tf-destroy
+wake-destroy: tf-apply
+
+# ── Sleep state helpers ───────────────────────────────────────────────────────
+# For modes that need to pass arbitrary data between sleep and wake (beyond
+# deterministic naming conventions), use the state bucket.
 
 [private]
-tf-sleep:
-    @echo "ERROR: this project does not define a sleep recipe" && exit 1
+_sleep-state-write data:
+    echo '{{ data }}' | aws s3 cp - "s3://{{ _state_bucket }}/{{ _sleep_state_key }}" --content-type application/json
 
 [private]
-tf-wake:
-    @echo "ERROR: this project does not define a wake recipe" && exit 1
+_sleep-state-read:
+    @aws s3 cp "s3://{{ _state_bucket }}/{{ _sleep_state_key }}" - 2>/dev/null || echo '{}'
 
 # ── Helpers (private) ─────────────────────────────────────────────────────────
 
