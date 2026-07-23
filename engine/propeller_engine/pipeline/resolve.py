@@ -114,6 +114,7 @@ def _discover_projects(propeller_dir: str) -> dict[str, dict]:
 def _set_default_sources(
     pipeline: Pipeline, project_index: dict[str, dict], propeller_dir: str
 ) -> None:
+    propeller_root = str(Path(propeller_dir).parent)
     for stage in pipeline.stages:
         for step in stage.steps:
             if step.source is None:
@@ -124,6 +125,10 @@ def _set_default_sources(
                     if entry
                     else f"{propeller_dir}/projects/{step.project}"
                 )
+            elif step.source.startswith("propeller://"):
+                # Explicit framework path - resolve relative to framework root
+                rel_path = step.source.removeprefix("propeller://")
+                step.source = str(Path(propeller_root) / rel_path)
             elif step.source in project_index:
                 # Source is a project name reference - resolve to path
                 step.source = project_index[step.source]["path"]
@@ -387,6 +392,8 @@ def _step_to_dict(step: Step) -> dict:
         d["sleep"] = step.sleep
     if step.sleep_config:
         d["sleep_config"] = step.sleep_config
+    if step.approval:
+        d["approval"] = step.approval
     return d
 
 
@@ -400,11 +407,14 @@ def pipeline_to_dict(pipeline: Pipeline) -> dict:
     }
     if pipeline.consumer_tags:
         data["consumer_tags"] = dict(pipeline.consumer_tags)
+    if pipeline.sleep_presets:
+        data["sleep_presets"] = dict(pipeline.sleep_presets)
     for stage in pipeline.stages:
-        data["stages"].append(
-            {
-                "name": stage.name,
-                "steps": [_step_to_dict(s) for s in stage.steps],
-            }
-        )
+        stage_dict: dict = {
+            "name": stage.name,
+            "steps": [_step_to_dict(s) for s in stage.steps],
+        }
+        if not stage.barrier:
+            stage_dict["barrier"] = False
+        data["stages"].append(stage_dict)
     return data

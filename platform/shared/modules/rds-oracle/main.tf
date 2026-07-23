@@ -118,7 +118,8 @@ resource "aws_db_instance" "this" {
   # Protection
   deletion_protection       = var.deletion_protection
   skip_final_snapshot       = var.skip_final_snapshot
-  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.identifier}-final"
+  final_snapshot_identifier = var.skip_final_snapshot ? null : (var.final_snapshot_identifier != "" ? var.final_snapshot_identifier : "${var.identifier}-final")
+  snapshot_identifier       = var.snapshot_identifier != "" ? var.snapshot_identifier : null
 
   # Upgrades
   auto_minor_version_upgrade  = var.auto_minor_version_upgrade

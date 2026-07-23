@@ -3,3 +3,7 @@ import "../../../shared/recipes/terraform.just"
 plan: tf-plan
 apply: tf-apply
 destroy: tf-destroy
+
+# Sleep/wake: destroy on sleep, recreate on wake
+sleep: tf-destroy
+wake: tf-apply

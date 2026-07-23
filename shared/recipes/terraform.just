@@ -1,0 +1,173 @@
+# shared/recipes/terraform.just
+#
+# Standard terraform recipes for propeller projects.
+# Import from project justfiles:
+#   import "../../shared/recipes/terraform.just"
+#
+# Environment variables (set by engine via CodeBuild):
+#   PROJECT_NAME, PROPELLER_NAMESPACE, AWS_ACCOUNT_ID, AWS_REGION,
+#   DEPLOY_ACTION, PROPELLER_INPUT_*, PROPELLER_FRAMEWORK_TAGS_JSON,
+#   PROPELLER_CONSUMER_TAGS_JSON, PROPELLER_EXECUTION_ID
+#
+# Optional (opt-in features):
+#   PROPELLER_ARCHIVE_BUCKET  — if set, uploads parsed state after apply
+#   PROPELLER_PLAN_BUCKET     — if set, stores plan JSON for approval flow
+
+_state_bucket := "state-iac-" + env("AWS_ACCOUNT_ID") + "-" + env("AWS_REGION") + "-an"
+_state_key := "propeller/" + env("PROPELLER_NAMESPACE") + "/" + env("PROJECT_NAME") + "/terraform.tfstate"
+_tf_dir := "terraform"
+_namespace := env("PROPELLER_NAMESPACE")
+_project := env("PROJECT_NAME")
+_execution_id := env("PROPELLER_EXECUTION_ID", "")
+
+# ── Core recipes ──────────────────────────────────────────────────────────────
+
+[private]
+tf-init:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    terraform init \
+      -backend-config="bucket={{ _state_bucket }}" \
+      -backend-config="key={{ _state_key }}" \
+      -backend-config="region=${AWS_REGION}" \
+      -reconfigure
+
+[private]
+tf-plan: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    terraform plan -out=tfplan $(just _propeller-vars)
+    # Save plan binary to state bucket for deterministic apply in supervised mode
+    if [[ -n "{{ _execution_id }}" ]]; then
+      aws s3 cp tfplan "s3://{{ _state_bucket }}/propeller-plans/{{ _execution_id }}/{{ _project }}.tfplan"
+    fi
+    # Store plan JSON for approval review (opt-in, centralized bucket)
+    if [[ -n "${PROPELLER_PLAN_BUCKET:-}" ]]; then
+      terraform show -json tfplan > /tmp/plan.json
+      PLAN_KEY="plans/{{ _namespace }}/{{ _project }}"
+      if [[ -n "{{ _execution_id }}" ]]; then
+        PLAN_KEY="${PLAN_KEY}/{{ _execution_id }}.json"
+      else
+        PLAN_KEY="${PLAN_KEY}/latest.json"
+      fi
+      aws s3 cp /tmp/plan.json "s3://${PROPELLER_PLAN_BUCKET}/${PLAN_KEY}" \
+        --content-type application/json
+      rm -f /tmp/plan.json
+    fi
+
+[private]
+tf-apply: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    if [[ "${PROPELLER_SAVED_PLAN:-}" == "1" && -n "{{ _execution_id }}" ]]; then
+      # Supervised mode: apply the saved plan from the plan phase
+      aws s3 cp "s3://{{ _state_bucket }}/propeller-plans/{{ _execution_id }}/{{ _project }}.tfplan" tfplan
+      terraform apply -auto-approve tfplan
+      rm -f tfplan
+    else
+      terraform apply -auto-approve $(just _propeller-vars)
+    fi
+    just _propeller-outputs
+
+[private]
+tf-destroy: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    terraform destroy -auto-approve $(just _propeller-vars)
+
+[private]
+tf-outputs: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    just _propeller-outputs
+
+# ── Sleep/Wake ────────────────────────────────────────────────────────────────
+# Mode-aware sleep/wake. The autopilot sets PROPELLER_SLEEP_MODE based on the
+# active preset. Projects override these recipes to add custom modes
+# (stop, snapshot, scale-to-zero, etc).
+#
+# Convention for snapshot-based modes: use a deterministic snapshot ID
+# "propeller-sleep-{PROJECT_NAME}" so wake can find it without state passing.
+
+_sleep_mode := env("PROPELLER_SLEEP_MODE", "default")
+_sleep_snapshot_id := "propeller-sleep-" + env("PROJECT_NAME")
+_sleep_state_key := "propeller/" + env("PROPELLER_NAMESPACE") + "/" + env("PROJECT_NAME") + "/sleep-state.json"
+
+sleep:
+    just sleep-{{ _sleep_mode }}
+
+wake:
+    just wake-{{ _sleep_mode }}
+
+# Explicit "destroy" mode
+sleep-destroy: tf-destroy
+wake-destroy: tf-apply
+
+# ── Sleep state helpers ───────────────────────────────────────────────────────
+# For modes that need to pass arbitrary data between sleep and wake (beyond
+# deterministic naming conventions), use the state bucket.
+
+[private]
+_sleep-state-write data:
+    echo '{{ data }}' | aws s3 cp - "s3://{{ _state_bucket }}/{{ _sleep_state_key }}" --content-type application/json
+
+[private]
+_sleep-state-read:
+    @aws s3 cp "s3://{{ _state_bucket }}/{{ _sleep_state_key }}" - 2>/dev/null || echo '{}'
+
+# ── Helpers (private) ─────────────────────────────────────────────────────────
+
+[private]
+_propeller-vars:
+    #!/usr/bin/env bash
+    # Write all propeller variables to a .tfvars.json file using jq (safe JSON generation)
+    VARSFILE="{{ _tf_dir }}/_propeller.auto.tfvars.json"
+    # Start with region
+    RESULT=$(jq -n --arg region "${AWS_REGION}" '{region: $region}')
+    # Add PROPELLER_INPUT_* vars
+    while IFS='=' read -r key value; do
+      var_name="${key#PROPELLER_INPUT_}"
+      RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --arg v "$value" '. + {($k): $v}')
+    done < <(env | grep '^PROPELLER_INPUT_' | sort || true)
+    # Add tags (already JSON objects)
+    if [[ -n "${PROPELLER_FRAMEWORK_TAGS_JSON:-}" ]]; then
+      RESULT=$(echo "$RESULT" | jq --argjson tags "$PROPELLER_FRAMEWORK_TAGS_JSON" '. + {propeller_tags: $tags}')
+    fi
+    if [[ -n "${PROPELLER_CONSUMER_TAGS_JSON:-}" ]]; then
+      RESULT=$(echo "$RESULT" | jq --argjson tags "$PROPELLER_CONSUMER_TAGS_JSON" '. + {consumer_tags: $tags}')
+    fi
+    echo "$RESULT" > "$VARSFILE"
+    echo ""
+
+[private]
+_propeller-outputs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    TF_OUT=$(terraform output -json 2>/dev/null || echo '{}')
+    python3 -c "
+    import json, sys
+    tf = json.load(sys.stdin)
+    out = {}
+    for k, v in tf.items():
+        val = v.get('value', '')
+        out[k] = json.dumps(val) if isinstance(val, (list, dict)) else str(val)
+    json.dump(out, sys.stdout, indent=2)
+    " <<< "$TF_OUT" > ../.propeller-outputs.json
+
+# [private]
+# _propeller-archive-state:
+#     #!/usr/bin/env bash
+#     set -euo pipefail
+#     cd {{ _tf_dir }}
+#     TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+#     terraform show -json > /tmp/state.json
+#     aws s3 cp /tmp/state.json \
+#       "s3://${PROPELLER_ARCHIVE_BUCKET}/raw/{{ _namespace }}/{{ _project }}/${TS}.json" \
+#       --content-type application/json
+#     rm -f /tmp/state.json

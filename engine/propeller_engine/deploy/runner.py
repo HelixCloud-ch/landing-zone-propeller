@@ -158,5 +158,9 @@ def get_runner(
         from .script import ScriptRunner
 
         return ScriptRunner(project, project_dir, inputs, propeller_tags, consumer_tags)
+    elif deploy_type == "just":
+        from .script import ScriptRunner
+
+        return ScriptRunner(project, project_dir, inputs, propeller_tags, consumer_tags)
     else:
         raise click.ClickException(f"Unknown deploy type: {deploy_type}")

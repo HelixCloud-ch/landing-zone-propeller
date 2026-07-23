@@ -16,7 +16,7 @@ set -x
 : "${TF_DIR:=autopilot/terraform}"
 : "${TF_VERSION:=1.14.9}"
 : "${STATE_BUCKET_PREFIX:=state-iac}"
-: "${TF_STATE_KEY:=bootstrap/autopilot/terraform.tfstate}"
+: "${TF_STATE_KEY:=propeller/operations/autopilot/terraform.tfstate}"
 
 # ── Resolve management account ID ────────────────────────────────────────────
 # The script is invoked from the management account, so grab its ID before we assume into operations.
@@ -85,6 +85,30 @@ if [ ! -d "$TF_DIR" ]; then
   exit 1
 fi
 
+# ── Build autopilot Lambda ───────────────────────────────────────────────────
+echo "--- Building autopilot TypeScript ---"
+AUTOPILOT_DIR=$(dirname "$TF_DIR")
+if [ -f "$AUTOPILOT_DIR/package.json" ]; then
+  if ! command -v node &>/dev/null; then
+    echo "--- Installing Node.js 24 ---"
+    curl -fsSL https://nodejs.org/dist/v24.1.0/node-v24.1.0-linux-x64.tar.xz | tar -xJ -C /usr/local --strip-components=1
+  fi
+  npm install -g pnpm
+  (cd "$AUTOPILOT_DIR" && pnpm install --frozen-lockfile && pnpm run build)
+fi
+
+# ── Migrate state from legacy path (if needed) ──────────────────────────────
+LEGACY_KEYS=("bootstrap/autopilot/terraform.tfstate")
+if ! aws s3api head-object --bucket "${STATE_BUCKET}" --key "${TF_STATE_KEY}" &>/dev/null 2>&1; then
+  for LEGACY_KEY in "${LEGACY_KEYS[@]}"; do
+    if aws s3api head-object --bucket "${STATE_BUCKET}" --key "${LEGACY_KEY}" &>/dev/null 2>&1; then
+      echo "--- Migrating state from ${LEGACY_KEY} to ${TF_STATE_KEY} ---"
+      aws s3 cp "s3://${STATE_BUCKET}/${LEGACY_KEY}" "s3://${STATE_BUCKET}/${TF_STATE_KEY}"
+      break
+    fi
+  done
+fi
+
 # ── Run Terraform ────────────────────────────────────────────────────────────
 echo "--- Terraform init ---"
 terraform -chdir="$TF_DIR" init \
@@ -94,7 +118,8 @@ terraform -chdir="$TF_DIR" init \
 
 echo "--- Terraform apply ---"
 terraform -chdir="$TF_DIR" apply -auto-approve \
-  -var="region=${AWS_REGION}"
+  -var="region=${AWS_REGION}" \
+  -var='propeller_tags={"propeller:pipeline":"bootstrap","propeller:project":"autopilot","propeller:deploy-type":"terraform"}'
 
 # ── Seed account registry SSM parameters ─────────────────────────────────────
 echo "--- Seeding account registry parameters ---"

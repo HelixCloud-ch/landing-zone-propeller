@@ -33,11 +33,13 @@ class Step(BaseModel):
     runner: str | None = None
     sleep: bool = False
     sleep_config: dict | None = None
+    approval: str | None = None
 
 
 class Stage(BaseModel):
     name: str
     steps: list[Step]
+    barrier: bool = True
 
 
 class Pipeline(BaseModel):
@@ -48,3 +50,4 @@ class Pipeline(BaseModel):
     stages: list[Stage]
     tags: dict[str, str] = Field(default_factory=dict)
     consumer_tags: dict[str, str] = Field(default_factory=dict)
+    sleep_presets: dict[str, dict[str, str]] = Field(default_factory=dict)

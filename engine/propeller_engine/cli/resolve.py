@@ -33,7 +33,7 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
     # Define style classes
     if is_sleep_wake:
         if action == "sleep":
-            lines.append("  classDef destroy fill:#ef5350,stroke:#c62828,stroke-width:2px,color:#fff")
+            lines.append("  classDef destroy fill:#7e57c2,stroke:#4527a0,stroke-width:2px,color:#fff")
             lines.append("  classDef command fill:#ab47bc,stroke:#6a1b9a,stroke-width:2px,color:#fff")
             lines.append("  classDef destroyDimmed fill:none,stroke:#c62828,stroke-width:2px,stroke-dasharray:5 5,color:#c62828")
             lines.append("  classDef commandDimmed fill:none,stroke:#6a1b9a,stroke-width:2px,stroke-dasharray:5 5,color:#6a1b9a")
@@ -56,56 +56,117 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
         for step in stage.steps:
             step_lookup[step.project] = step
 
-    # Render stages (reversed visually for sleep)
+    # Render stages as subgraphs with barrier nodes between blocking stages
     render_stages = list(reversed(pipeline.stages)) if action == "sleep" else pipeline.stages
 
     for i, stage in enumerate(render_stages):
-        stage_node = f"stage_{stage.name}"
-        lines.append(f"  {stage_node}([{stage.name}])")
-
-        # Connect previous stage's steps to this stage node
-        if i > 0:
-            prev_stage = render_stages[i - 1]
-            for step in prev_stage.steps:
-                dependents = {
-                    s.project for s in prev_stage.steps if step.project in s.depends_on
-                }
-                if not dependents:
-                    lines.append(f"  {step.project} --> {stage_node}")
-
-        # Connect stage node to root steps (no in-stage deps)
+        lines.append(f"  subgraph {stage.name}")
         for step in stage.steps:
-            if not step.depends_on:
-                lines.append(f"  {stage_node} --> {step.project}")
+            lines.append(f"    {step.project}")
+        lines.append("  end")
+        # Add barrier node after a blocking stage (if there's a next stage)
+        if stage.barrier is not False and i < len(render_stages) - 1:
+            barrier_id = f"barrier_{stage.name}"
+            lines.append(f"  {barrier_id}{{{{{stage.name}}}}}")
 
-        # In-stage dependency edges
+    # Collect all dependency edges (explicit depends_on + inferred from inputs)
+    all_projects = {s.project for st in pipeline.stages for s in st.steps}
+    edges: set[tuple[str, str]] = set()
+    for stage in pipeline.stages:
         for step in stage.steps:
             for dep in step.depends_on:
-                lines.append(f"  {dep} --> {step.project}")
+                if dep in all_projects:
+                    edges.add((dep, step.project))
+            for inp in step.inputs:
+                if isinstance(inp, dict):
+                    name = inp.get("name", "")
+                    src_project = name.split(".")[0] if "." in name else ""
+                    if src_project and not src_project.startswith("@") and not src_project.startswith("/"):
+                        if src_project in all_projects and src_project != step.project:
+                            edges.add((src_project, step.project))
+                else:
+                    key_parts = inp.key.strip("/").split("/")
+                    if len(key_parts) >= 3 and key_parts[0] == "propeller":
+                        src_project = key_parts[2]
+                        if src_project in all_projects and src_project != step.project:
+                            edges.add((src_project, step.project))
+
+    # Render barrier edges: all leaf projects in barrier stage → barrier node → next stage roots
+    for i, stage in enumerate(render_stages):
+        if stage.barrier is not False and i < len(render_stages) - 1:
+            barrier_id = f"barrier_{stage.name}"
+            stage_projects = {s.project for s in stage.steps}
+            next_stage = render_stages[i + 1]
+
+            # All projects in this stage feed into the barrier
+            for step in stage.steps:
+                lines.append(f"  {step.project} --> {barrier_id}")
+
+            # Barrier feeds into next stage's root projects (no deps within next stage)
+            next_stage_projects = {s.project for s in next_stage.steps}
+            for step in next_stage.steps:
+                has_in_stage_dep = any(
+                    src in next_stage_projects for src, dst in edges if dst == step.project
+                )
+                if not has_in_stage_dep:
+                    lines.append(f"  {barrier_id} --> {step.project}")
+
+    # Render all dependency edges with different arrow types
+    # Solid (-->): explicit depends_on
+    # Dotted (-.->): inferred from inputs
+    explicit_deps: set[tuple[str, str]] = set()
+    for stage in pipeline.stages:
+        for step in stage.steps:
+            for dep in step.depends_on:
+                if dep in all_projects:
+                    explicit_deps.add((dep, step.project))
+
+    for src, dst in sorted(edges):
+        if (src, dst) in explicit_deps:
+            lines.append(f"  {src} --> {dst}")
+        else:
+            lines.append(f"  {src} -.-> {dst}")
 
     # Apply classes
     if is_sleep_wake:
-        for project, step in step_lookup.items():
-            is_targeted = not highlighted or project in highlighted
-            if not step.sleep:
-                lines.append(f"  class {project} skip")
-            elif step.sleep_config:
-                sleep_action = step.sleep_config.get("action", "skip")
-                if sleep_action in ("destroy", "command"):
-                    if is_targeted:
-                        lines.append(f"  class {project} {sleep_action}")
-                    else:
-                        lines.append(f"  class {project} {sleep_action}Dimmed")
-                else:
-                    lines.append(f"  class {project} skip")
+        # Use sleep_presets to determine which projects participate
+        preset_name = highlighted[0] if highlighted else None
+        sleep_presets = getattr(pipeline, "sleep_presets", {}) or {}
+        preset_modes: dict[str, str] = {}
+        if preset_name and preset_name in sleep_presets:
+            preset_modes = sleep_presets[preset_name]
+        elif len(sleep_presets) == 1:
+            preset_modes = next(iter(sleep_presets.values()))
+        else:
+            # Fall back to legacy step.sleep / sleep_config
+            for project, step in step_lookup.items():
+                if step.sleep and step.sleep_config:
+                    act = step.sleep_config.get("action", "skip")
+                    if act in ("destroy", "command"):
+                        preset_modes[project] = act
+
+        for project in step_lookup:
+            if project in preset_modes:
+                lines.append(f"  class {project} destroy")
             else:
                 lines.append(f"  class {project} skip")
     elif highlighted:
-        all_projects = {step.project for stage in pipeline.stages for step in stage.steps}
+        all_projects_set = {step.project for stage in pipeline.stages for step in stage.steps}
         for project in highlighted:
             lines.append(f"  class {project} highlighted")
-        for project in all_projects - highlighted:
+        for project in all_projects_set - set(highlighted):
             lines.append(f"  class {project} dimmed")
+    else:
+        # Normal view: subtly mark projects that participate in any sleep preset
+        sleep_presets = getattr(pipeline, "sleep_presets", {}) or {}
+        sleepable = set()
+        for preset_modes in sleep_presets.values():
+            sleepable.update(preset_modes.keys())
+        if sleepable:
+            lines.append("  classDef sleepable stroke:#7e57c2,stroke-width:2px,stroke-dasharray:4 2")
+            for project in sleepable:
+                if project in all_projects:
+                    lines.append(f"  class {project} sleepable")
 
     return "\n".join(lines) + "\n"
 
