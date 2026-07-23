@@ -104,11 +104,7 @@ sleep:
 wake:
     just wake-{{ _sleep_mode }}
 
-# Default mode: terraform destroy/apply
-sleep-default: tf-destroy
-wake-default: tf-apply
-
-# Explicit "destroy" mode (alias for default)
+# Explicit "destroy" mode
 sleep-destroy: tf-destroy
 wake-destroy: tf-apply
 
