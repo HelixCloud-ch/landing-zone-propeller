@@ -126,33 +126,26 @@ _sleep-state-read:
 _propeller-vars:
     #!/usr/bin/env bash
     # Write all propeller variables to a .tfvars file (avoids shell quoting issues with JSON values)
-    VARSFILE="{{ _tf_dir }}/_propeller.auto.tfvars.json"
-    declare -A vars
-    vars[region]="${AWS_REGION}"
-    # Collect PROPELLER_INPUT_* env vars
-    while IFS='=' read -r key value; do
-      var_name="${key#PROPELLER_INPUT_}"
-      vars[$var_name]="$value"
-    done < <(env | grep '^PROPELLER_INPUT_' | sort || true)
-    # Write as JSON tfvars
-    python3 -c "
-import json, os, sys
+    export _PROPELLER_TF_DIR="{{ _tf_dir }}"
+    python3 << 'PYEOF'
+import json, os
 vars = {}
 vars['region'] = os.environ.get('AWS_REGION', '')
 for key, value in os.environ.items():
     if key.startswith('PROPELLER_INPUT_'):
         var_name = key[len('PROPELLER_INPUT_'):]
         vars[var_name] = value
-# Tags as maps
 fw_tags = os.environ.get('PROPELLER_FRAMEWORK_TAGS_JSON', '').strip()
 if fw_tags:
     vars['propeller_tags'] = json.loads(fw_tags)
 con_tags = os.environ.get('PROPELLER_CONSUMER_TAGS_JSON', '').strip()
 if con_tags:
     vars['consumer_tags'] = json.loads(con_tags)
-json.dump(vars, sys.stdout, indent=2)
-" > "$VARSFILE"
-    # Return empty string (no -var flags needed, tfvars file handles it)
+tf_dir = os.environ.get('_PROPELLER_TF_DIR', 'terraform')
+out_path = os.path.join(tf_dir, '_propeller.auto.tfvars.json')
+with open(out_path, 'w') as f:
+    json.dump(vars, f, indent=2)
+PYEOF
     echo ""
 
 [private]
