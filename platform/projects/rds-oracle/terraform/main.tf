@@ -42,8 +42,10 @@ module "rds_oracle" {
   maintenance_window      = var.maintenance_window
 
   # Protection
-  deletion_protection = var.deletion_protection
-  skip_final_snapshot = var.skip_final_snapshot
+  deletion_protection       = var.deletion_protection
+  skip_final_snapshot       = var.skip_final_snapshot
+  final_snapshot_identifier = var.final_snapshot_identifier
+  snapshot_identifier       = var.snapshot_identifier
 
   # Upgrades
   auto_minor_version_upgrade = var.auto_minor_version_upgrade
