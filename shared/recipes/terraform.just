@@ -125,27 +125,23 @@ _sleep-state-read:
 [private]
 _propeller-vars:
     #!/usr/bin/env bash
-    # Write all propeller variables to a .tfvars file (avoids shell quoting issues with JSON values)
-    export _PROPELLER_TF_DIR="{{ _tf_dir }}"
-    python3 << 'PYEOF'
-import json, os
-vars = {}
-vars['region'] = os.environ.get('AWS_REGION', '')
-for key, value in os.environ.items():
-    if key.startswith('PROPELLER_INPUT_'):
-        var_name = key[len('PROPELLER_INPUT_'):]
-        vars[var_name] = value
-fw_tags = os.environ.get('PROPELLER_FRAMEWORK_TAGS_JSON', '').strip()
-if fw_tags:
-    vars['propeller_tags'] = json.loads(fw_tags)
-con_tags = os.environ.get('PROPELLER_CONSUMER_TAGS_JSON', '').strip()
-if con_tags:
-    vars['consumer_tags'] = json.loads(con_tags)
-tf_dir = os.environ.get('_PROPELLER_TF_DIR', 'terraform')
-out_path = os.path.join(tf_dir, '_propeller.auto.tfvars.json')
-with open(out_path, 'w') as f:
-    json.dump(vars, f, indent=2)
-PYEOF
+    # Write all propeller variables to a .tfvars.json file using jq (safe JSON generation)
+    VARSFILE="{{ _tf_dir }}/_propeller.auto.tfvars.json"
+    # Start with region
+    RESULT=$(jq -n --arg region "${AWS_REGION}" '{region: $region}')
+    # Add PROPELLER_INPUT_* vars
+    while IFS='=' read -r key value; do
+      var_name="${key#PROPELLER_INPUT_}"
+      RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --arg v "$value" '. + {($k): $v}')
+    done < <(env | grep '^PROPELLER_INPUT_' | sort || true)
+    # Add tags (already JSON objects)
+    if [[ -n "${PROPELLER_FRAMEWORK_TAGS_JSON:-}" ]]; then
+      RESULT=$(echo "$RESULT" | jq --argjson tags "$PROPELLER_FRAMEWORK_TAGS_JSON" '. + {propeller_tags: $tags}')
+    fi
+    if [[ -n "${PROPELLER_CONSUMER_TAGS_JSON:-}" ]]; then
+      RESULT=$(echo "$RESULT" | jq --argjson tags "$PROPELLER_CONSUMER_TAGS_JSON" '. + {consumer_tags: $tags}')
+    fi
+    echo "$RESULT" > "$VARSFILE"
     echo ""
 
 [private]
