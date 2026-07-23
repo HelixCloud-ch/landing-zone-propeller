@@ -80,6 +80,8 @@ platform-resolve name:
     resolve_args=()
     if [[ -n "${ONLY:-}" ]]; then
         resolve_args+=(--highlight "$ONLY")
+    elif [[ -n "${SLEEP_PRESET:-}" ]]; then
+        resolve_args+=(--highlight "$SLEEP_PRESET")
     fi
     if [[ -n "${DEPLOY_ACTION:-}" ]]; then
         resolve_args+=(--action "$DEPLOY_ACTION")

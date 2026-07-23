@@ -33,7 +33,7 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
     # Define style classes
     if is_sleep_wake:
         if action == "sleep":
-            lines.append("  classDef destroy fill:#ef5350,stroke:#c62828,stroke-width:2px,color:#fff")
+            lines.append("  classDef destroy fill:#7e57c2,stroke:#4527a0,stroke-width:2px,color:#fff")
             lines.append("  classDef command fill:#ab47bc,stroke:#6a1b9a,stroke-width:2px,color:#fff")
             lines.append("  classDef destroyDimmed fill:none,stroke:#c62828,stroke-width:2px,stroke-dasharray:5 5,color:#c62828")
             lines.append("  classDef commandDimmed fill:none,stroke:#6a1b9a,stroke-width:2px,stroke-dasharray:5 5,color:#6a1b9a")
@@ -129,27 +129,44 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
 
     # Apply classes
     if is_sleep_wake:
-        for project, step in step_lookup.items():
-            is_targeted = not highlighted or project in highlighted
-            if not step.sleep:
-                lines.append(f"  class {project} skip")
-            elif step.sleep_config:
-                sleep_action = step.sleep_config.get("action", "skip")
-                if sleep_action in ("destroy", "command"):
-                    if is_targeted:
-                        lines.append(f"  class {project} {sleep_action}")
-                    else:
-                        lines.append(f"  class {project} {sleep_action}Dimmed")
-                else:
-                    lines.append(f"  class {project} skip")
+        # Use sleep_presets to determine which projects participate
+        preset_name = highlighted[0] if highlighted else None
+        sleep_presets = getattr(pipeline, "sleep_presets", {}) or {}
+        preset_modes: dict[str, str] = {}
+        if preset_name and preset_name in sleep_presets:
+            preset_modes = sleep_presets[preset_name]
+        elif len(sleep_presets) == 1:
+            preset_modes = next(iter(sleep_presets.values()))
+        else:
+            # Fall back to legacy step.sleep / sleep_config
+            for project, step in step_lookup.items():
+                if step.sleep and step.sleep_config:
+                    act = step.sleep_config.get("action", "skip")
+                    if act in ("destroy", "command"):
+                        preset_modes[project] = act
+
+        for project in step_lookup:
+            if project in preset_modes:
+                lines.append(f"  class {project} destroy")
             else:
                 lines.append(f"  class {project} skip")
     elif highlighted:
-        all_projects = {step.project for stage in pipeline.stages for step in stage.steps}
+        all_projects_set = {step.project for stage in pipeline.stages for step in stage.steps}
         for project in highlighted:
             lines.append(f"  class {project} highlighted")
-        for project in all_projects - highlighted:
+        for project in all_projects_set - set(highlighted):
             lines.append(f"  class {project} dimmed")
+    else:
+        # Normal view: subtly mark projects that participate in any sleep preset
+        sleep_presets = getattr(pipeline, "sleep_presets", {}) or {}
+        sleepable = set()
+        for preset_modes in sleep_presets.values():
+            sleepable.update(preset_modes.keys())
+        if sleepable:
+            lines.append("  classDef sleepable stroke:#7e57c2,stroke-width:2px,stroke-dasharray:4 2")
+            for project in sleepable:
+                if project in all_projects:
+                    lines.append(f"  class {project} sleepable")
 
     return "\n".join(lines) + "\n"
 
