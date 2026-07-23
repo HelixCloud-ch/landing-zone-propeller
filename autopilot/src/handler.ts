@@ -67,6 +67,11 @@ export async function execute(
     if (pctx.deployAction === "wake" && !resolvedPreset) {
       const storedState = await readPipelineState(clients.ssm, pctx.namespace);
       resolvedPreset = storedState?.sleep_preset ?? "";
+      // Use stored per-project modes if available (prevents drift if presets changed)
+      if (storedState?.sleep_modes && Object.keys(storedState.sleep_modes).length > 0) {
+        pctx.sleepModes = storedState.sleep_modes;
+        resolvedPreset = "__stored__"; // skip preset lookup below
+      }
       if (!resolvedPreset) {
         return fail(
           "wake requires a sleep_preset (none stored from previous sleep)",
@@ -74,14 +79,16 @@ export async function execute(
         );
       }
     }
-    const modes = pipeline.sleep_presets[resolvedPreset];
-    if (!modes) {
-      return fail(
-        `sleep_preset '${resolvedPreset}' not found in pipeline.sleep_presets`,
-        "VALIDATION_ERROR",
-      );
+    if (resolvedPreset !== "__stored__") {
+      const modes = pipeline.sleep_presets[resolvedPreset];
+      if (!modes) {
+        return fail(
+          `sleep_preset '${resolvedPreset}' not found in pipeline.sleep_presets`,
+          "VALIDATION_ERROR",
+        );
+      }
+      pctx.sleepModes = modes;
     }
-    pctx.sleepModes = modes;
   }
 
   // Block apply on sleeping pipelines unless force is set
@@ -272,6 +279,7 @@ async function buildResult(
         pctx.namespace,
         finalState,
         pctx.deployAction === "sleep" ? sleepPreset : undefined,
+        pctx.deployAction === "sleep" ? pctx.sleepModes : undefined,
       );
     }
 

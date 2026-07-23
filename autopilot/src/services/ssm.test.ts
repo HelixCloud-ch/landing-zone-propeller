@@ -295,4 +295,17 @@ describe("writePipelineState", () => {
       sleep_preset: "deep",
     });
   });
+
+  it("stores sleep_modes per project when sleeping", async () => {
+    const params: Record<string, string> = {};
+    const client = createMockSSMClient(params);
+
+    const modes = { "rds-oracle-1": "snapshot", "eks-cluster-1": "destroy" };
+    await writePipelineState(client, "test-ns", "sleeping", "deep", modes);
+    expect(JSON.parse(params["/propeller/test-ns/state"]!)).toEqual({
+      state: "sleeping",
+      sleep_preset: "deep",
+      sleep_modes: { "rds-oracle-1": "snapshot", "eks-cluster-1": "destroy" },
+    });
+  });
 });

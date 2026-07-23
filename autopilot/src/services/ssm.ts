@@ -177,6 +177,7 @@ export async function readProjectBlob(
 export interface PipelineState {
   state: "running" | "sleeping";
   sleep_preset?: string;
+  sleep_modes?: Record<string, string>;
 }
 
 export async function readPipelineState(
@@ -198,9 +199,11 @@ export async function writePipelineState(
   namespace: string,
   state: "running" | "sleeping",
   sleepPreset?: string,
+  sleepModes?: Record<string, string>,
 ): Promise<void> {
   const value: PipelineState = { state };
   if (sleepPreset) value.sleep_preset = sleepPreset;
+  if (sleepModes && Object.keys(sleepModes).length > 0) value.sleep_modes = sleepModes;
   await client.send(
     new PutParameterCommand({
       Name: `/propeller/${namespace}/state`,

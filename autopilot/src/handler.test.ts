@@ -594,6 +594,49 @@ describe("execute", () => {
     expect(parallelCalls[2][1]).toHaveLength(1);
   });
 
+  it("wake without preset uses stored sleep_modes from SSM state", async () => {
+    // Simulate a previously slept pipeline with stored modes
+    ssmParams["/propeller/test-platform/state"] = JSON.stringify({
+      state: "sleeping",
+      sleep_preset: "deep",
+      sleep_modes: { "rds": "snapshot" },
+    });
+
+    const event: PipelineEvent = {
+      pipeline: {
+        version: "1",
+        namespace: "test-platform",
+        propeller_version: "0.14.0",
+        consumer_tags: {},
+        stages: [
+          {
+            name: "data",
+            steps: [
+              { project: "rds", target: "account-alpha", sleep: true, sleep_config: { action: "destroy" }, inputs: [], outputs: [] },
+              { project: "vpc", target: "account-alpha", inputs: [], outputs: [] },
+            ],
+          },
+        ],
+        // Preset definition has been CHANGED (rds removed) — but stored modes should take priority
+        sleep_presets: { deep: { vpc: "destroy" } },
+      },
+      bundle_s3_uri: "s3://b/k.zip",
+      deploy_action: "wake",
+      git_sha: "sha",
+      // No sleep_preset specified — should fall back to stored state
+    };
+
+    const result = await execute(event, createMockDurableContext(), {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+
+    expect(result.status).toBe("succeeded");
+    // rds wakes (from stored modes), vpc is skipped (not in stored modes)
+    expect(result.results.find((r) => r.project === "rds")?.status).toBe("succeeded");
+    expect(result.results.find((r) => r.project === "vpc")?.status).toBe("skipped");
+  });
+
   it("sleep with valid preset resolves modes and executes", async () => {
     const event: PipelineEvent = {
       pipeline: {
