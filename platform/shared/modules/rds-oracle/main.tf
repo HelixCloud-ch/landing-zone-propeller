@@ -100,10 +100,10 @@ resource "aws_db_instance" "this" {
   port                   = var.port
   publicly_accessible    = false
 
-  # Database
-  db_name            = var.db_name
-  character_set_name = var.character_set_name
-  username           = var.username
+  # Database (omitted when restoring from snapshot - values come from the snapshot)
+  db_name            = var.snapshot_identifier != "" ? null : var.db_name
+  character_set_name = var.snapshot_identifier != "" ? null : var.character_set_name
+  username           = var.snapshot_identifier != "" ? null : var.username
 
   # Credentials managed by Secrets Manager
   manage_master_user_password   = true

@@ -49,8 +49,10 @@ sleep-snapshot: tf-init
     fi
     DEL_PROT=$(aws rds describe-db-instances --db-instance-identifier "$DB_ID" --region "$AWS_REGION" --query 'DBInstances[0].DeletionProtection' --output text)
     [[ "$DEL_PROT" == "True" ]] && echo "ERROR: deletion_protection is enabled. Disable in project config." && exit 1
-    # Update state so targeted destroy uses our final_snapshot_identifier
-    terraform apply -auto-approve $(just _propeller-vars) \
+    # Targeted apply: update only the DB instance to set final_snapshot_identifier in state
+    terraform apply -auto-approve \
+      -target='module.rds_oracle.aws_db_instance.this' \
+      $(just _propeller-vars) \
       -var "skip_final_snapshot=false" \
       -var "final_snapshot_identifier={{ _sleep_snapshot_id }}" \
       -var "apply_immediately=true"
