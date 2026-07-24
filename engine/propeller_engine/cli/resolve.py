@@ -130,7 +130,7 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
     # Apply classes
     if is_sleep_wake:
         # Use sleep_presets to determine which projects participate
-        preset_name = highlighted[0] if highlighted else None
+        preset_name = next(iter(highlighted)) if highlighted else None
         sleep_presets = getattr(pipeline, "sleep_presets", {}) or {}
         preset_modes: dict[str, str] = {}
         if preset_name and preset_name in sleep_presets:
