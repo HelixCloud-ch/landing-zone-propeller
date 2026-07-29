@@ -172,8 +172,13 @@ async function executeDirectStep(
       await writeLogs(pctx, `${project}.${pctx.deployAction}`, logs);
       // Emit build logs to durable execution logger
       if (logs && logs !== "(empty log stream)" && logs !== "(no logs available)") {
-        const truncated = logs.length > 4000 ? logs.slice(-4000) : logs;
-        ctx.logger.info(`  [${project}] CodeBuild:\n${truncated}`);
+        let truncated = logs.length > 16000 ? logs.slice(-16000) : logs;
+        // Start on a clean line boundary when truncated
+        if (logs.length > 16000) {
+          const firstNewline = truncated.indexOf("\n");
+          if (firstNewline > 0) truncated = truncated.slice(firstNewline + 1);
+        }
+        ctx.logger.info(`- [${project}] CodeBuild:\n${truncated}`);
       }
     } catch {
       // best-effort
@@ -255,8 +260,12 @@ async function executeSupervisedStep(
       logs = await ctx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
       await writeLogs(pctx, `${step.project}.plan`, logs);
       if (logs && logs !== "(empty log stream)" && logs !== "(no logs available)") {
-        const truncated = logs.length > 4000 ? logs.slice(-4000) : logs;
-        ctx.logger.info(`  [${step.project}] CodeBuild (plan):\n${truncated}`);
+        let truncated = logs.length > 16000 ? logs.slice(-16000) : logs;
+        if (logs.length > 16000) {
+          const firstNewline = truncated.indexOf("\n");
+          if (firstNewline > 0) truncated = truncated.slice(firstNewline + 1);
+        }
+        ctx.logger.info(`- [${step.project}] CodeBuild (plan):\n${truncated}`);
       }
     } catch {
       // best-effort
@@ -345,8 +354,12 @@ async function executeSupervisedStep(
       const logs = await ctx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
       await writeLogs(pctx, `${step.project}.apply`, logs);
       if (logs && logs !== "(empty log stream)" && logs !== "(no logs available)") {
-        const truncated = logs.length > 4000 ? logs.slice(-4000) : logs;
-        ctx.logger.info(`  [${step.project}] CodeBuild (apply):\n${truncated}`);
+        let truncated = logs.length > 16000 ? logs.slice(-16000) : logs;
+        if (logs.length > 16000) {
+          const firstNewline = truncated.indexOf("\n");
+          if (firstNewline > 0) truncated = truncated.slice(firstNewline + 1);
+        }
+        ctx.logger.info(`- [${step.project}] CodeBuild (apply):\n${truncated}`);
       }
     } catch {
       // best-effort
