@@ -109,12 +109,20 @@ function createMockSTSClient() {
 }
 
 function createMockDurableContext(): DurableContext {
+  const mockLogger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    log: vi.fn(),
+  };
   const ctx: any = {
     executionId: "exec-mock-001",
     executionContext: {
       durableExecutionArn:
         "arn:aws:lambda:eu-central-2:123456789012:function:autopilot:qual/durable-execution/test-platform__deploy/exec-001",
     },
+    logger: mockLogger,
     step: vi.fn(async (_name: string, fn: () => any) => fn()),
     parallel: vi.fn(async (_name: string, branches: Array<any>) => {
       const results = await Promise.all(

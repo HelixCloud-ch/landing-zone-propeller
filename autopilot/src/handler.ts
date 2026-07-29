@@ -34,8 +34,12 @@ export async function execute(
   context: DurableContext,
   clientOverrides?: Partial<AWSClients>,
 ): Promise<PipelineResult> {
+  const log = context.logger;
   const validationError = validateEvent(event);
-  if (validationError) return validationError;
+  if (validationError) {
+    log.error("Validation failed", { error: validationError.error });
+    return validationError;
+  }
 
   const pipeline = event.pipeline;
   const only = new Set(event.only ?? []);
@@ -53,6 +57,8 @@ export async function execute(
     sleepModes: {},
   };
 
+  log.info(`▶ Pipeline: ${pctx.namespace} ${pctx.deployAction} (${pipeline.stages.reduce((n, s) => n + s.steps.length, 0)} projects, ${pctx.supervised ? "supervised" : "autopilot"}, ${pctx.propellerVersion} @ ${pctx.gitSha})`);
+
   // Resolve sleep preset into per-project mode map
   if (
     (pctx.deployAction === "sleep" || pctx.deployAction === "wake") &&
@@ -68,6 +74,7 @@ export async function execute(
       const storedState = await readPipelineState(clients.ssm, pctx.namespace);
       if (storedState?.sleep_modes && Object.keys(storedState.sleep_modes).length > 0) {
         pctx.sleepModes = storedState.sleep_modes;
+        log.info("Wake: using stored modes", { modes: pctx.sleepModes });
       } else if (presetName) {
         // Fall back to explicit preset if no stored modes
         const modes = pipeline.sleep_presets[presetName];
@@ -78,6 +85,7 @@ export async function execute(
           );
         }
         pctx.sleepModes = modes;
+        log.info("Wake: using passed preset (no stored modes)", { preset: presetName });
       } else if (storedState?.sleep_preset) {
         // Fall back to stored preset name
         const modes = pipeline.sleep_presets[storedState.sleep_preset];
@@ -88,6 +96,7 @@ export async function execute(
           );
         }
         pctx.sleepModes = modes;
+        log.info("Wake: using stored preset name", { preset: storedState.sleep_preset });
       } else {
         return fail(
           "wake requires a sleep_preset (none stored from previous sleep)",
@@ -104,6 +113,7 @@ export async function execute(
         );
       }
       pctx.sleepModes = modes;
+      log.info("Sleep: resolved preset", { preset: presetName, modes });
     }
   }
 
@@ -111,6 +121,7 @@ export async function execute(
   if (pctx.deployAction === "apply" && !event.force && pctx.namespace) {
     const state = await readPipelineState(clients.ssm, pctx.namespace);
     if (state?.state === "sleeping") {
+      log.warn("Blocked: pipeline is sleeping", { namespace: pctx.namespace });
       return fail(
         `Pipeline '${pctx.namespace}' is sleeping. Wake first or pass force: true.`,
         "SLEEPING_PIPELINE",
@@ -123,6 +134,7 @@ export async function execute(
     const currentArn = extractExecutionArn(context);
     const conflict = await checkConcurrentExecution(pctx.namespace, currentArn);
     if (conflict) {
+      log.warn("Blocked: concurrent execution", { namespace: pctx.namespace, conflict });
       return fail(
         `Namespace '${pctx.namespace}' already has a running execution: ${conflict}`,
         "CONCURRENT_EXECUTION",
@@ -152,9 +164,19 @@ export async function execute(
       ? [...pipeline.stages].reverse()
       : pipeline.stages;
 
-  const allResults = await runAllStages(stages, pctx, clients, context);
+  log.info("Executing pipeline", {
+    stages: stages.map((s) => s.name),
+    direction: pctx.deployAction === "sleep" || pctx.deployAction === "destroy" ? "reversed" : "forward",
+  });
 
-  return buildResult(allResults, pctx, clients, pipeline, event.sleep_preset);
+  const allResults = await runAllStages(stages, pctx, clients, context);
+  const result = buildResult(allResults, pctx, clients, pipeline, event.sleep_preset);
+
+  const finalResult = await result;
+  const mark = finalResult.status === "succeeded" ? "✓" : "✗";
+  log.info(`${mark} Pipeline: ${finalResult.summary.succeeded} succeeded, ${finalResult.summary.failed} failed, ${finalResult.summary.skipped} skipped`);
+
+  return finalResult;
 }
 
 export type { PipelineEvent, PipelineResult };

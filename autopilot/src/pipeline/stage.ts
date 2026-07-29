@@ -98,17 +98,30 @@ export async function executeStep(
   branchCtx: DurableContext,
 ): Promise<StepResult> {
   const project = step.project;
+  const log = branchCtx.logger;
 
   try {
+    let result: StepResult;
     if (pctx.deployAction === "apply" && requiresApproval(step, pctx)) {
-      return await executeSupervisedStep(step, pctx, clients, branchCtx);
+      result = await executeSupervisedStep(step, pctx, clients, branchCtx);
+    } else {
+      result = await executeDirectStep(step, pctx, clients, branchCtx);
     }
-    return await executeDirectStep(step, pctx, clients, branchCtx);
+
+    if (result.status === "succeeded") {
+      log.info(`✓ [${project}] succeeded (${result.duration ?? "?"}s)`);
+    } else {
+      log.info(`✗ [${project}] failed: ${result.error}`);
+    }
+
+    return result;
   } catch (err: unknown) {
+    const error = err instanceof Error ? err.message : String(err);
+    log.error(`✗ [${project}] failed: ${error}`);
     return {
       status: "failed",
       project,
-      error: err instanceof Error ? err.message : String(err),
+      error,
     };
   }
 }
@@ -154,6 +167,11 @@ async function executeDirectStep(
       );
       const logs = await ctx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
       await writeLogs(pctx, `${project}.${pctx.deployAction}`, logs);
+      // Emit build logs to durable execution logger
+      if (logs && logs !== "(empty log stream)" && logs !== "(no logs available)") {
+        const truncated = logs.length > 4000 ? logs.slice(-4000) : logs;
+        ctx.logger.info(`  [${project}] output:\n${truncated}`);
+      }
     } catch {
       // best-effort
     }
@@ -231,6 +249,10 @@ async function executeSupervisedStep(
       );
       logs = await ctx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
       await writeLogs(pctx, `${step.project}.plan`, logs);
+      if (logs && logs !== "(empty log stream)" && logs !== "(no logs available)") {
+        const truncated = logs.length > 4000 ? logs.slice(-4000) : logs;
+        ctx.logger.info(`  [${step.project}] plan output:\n${truncated}`);
+      }
     } catch {
       // best-effort
     }
@@ -314,6 +336,10 @@ async function executeSupervisedStep(
       );
       const logs = await ctx.step(`logs`, () => fetchBuildLogs(cbClient, logsClient, buildId));
       await writeLogs(pctx, `${step.project}.apply`, logs);
+      if (logs && logs !== "(empty log stream)" && logs !== "(no logs available)") {
+        const truncated = logs.length > 4000 ? logs.slice(-4000) : logs;
+        ctx.logger.info(`  [${step.project}] apply output:\n${truncated}`);
+      }
     } catch {
       // best-effort
     }
