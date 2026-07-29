@@ -101,6 +101,8 @@ export interface StepInput {
   field?: string;
   /** Variable name exposed to the build environment as PROPELLER_INPUT_<var>. */
   var: string;
+  /** jq expression to transform the value before passing to the build. The raw value is piped through this expression. */
+  jq?: string;
 }
 
 /**

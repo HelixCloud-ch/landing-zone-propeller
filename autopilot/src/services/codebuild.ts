@@ -55,6 +55,21 @@ export async function startBuild(
     });
   }
 
+  // Pass jq transforms map so the shared recipe can apply them
+  const transforms: Record<string, string> = {};
+  for (const input of step.inputs ?? []) {
+    if (input.jq) {
+      transforms[input.var] = input.jq;
+    }
+  }
+  if (Object.keys(transforms).length > 0) {
+    envVars.push({
+      name: "PROPELLER_TRANSFORMS_JSON",
+      value: JSON.stringify(transforms),
+      type: "PLAINTEXT" as const,
+    });
+  }
+
   if (extraEnvVars) {
     for (const v of extraEnvVars) {
       envVars.push({ name: v.name, value: v.value, type: "PLAINTEXT" as const });

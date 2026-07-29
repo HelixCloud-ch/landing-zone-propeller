@@ -62,28 +62,44 @@ export async function execute(
     if (pctx.deployAction === "sleep" && !presetName) {
       return fail("sleep requires a sleep_preset name", "VALIDATION_ERROR");
     }
-    // On wake, fall back to stored preset if none specified
-    let resolvedPreset = presetName;
-    if (pctx.deployAction === "wake" && !resolvedPreset) {
+
+    if (pctx.deployAction === "wake") {
+      // Wake: prefer stored modes from the sleep run (deterministic, drift-proof)
       const storedState = await readPipelineState(clients.ssm, pctx.namespace);
-      resolvedPreset = storedState?.sleep_preset ?? "";
-      // Use stored per-project modes if available (prevents drift if presets changed)
       if (storedState?.sleep_modes && Object.keys(storedState.sleep_modes).length > 0) {
         pctx.sleepModes = storedState.sleep_modes;
-        resolvedPreset = "__stored__"; // skip preset lookup below
-      }
-      if (!resolvedPreset) {
+      } else if (presetName) {
+        // Fall back to explicit preset if no stored modes
+        const modes = pipeline.sleep_presets[presetName];
+        if (!modes) {
+          return fail(
+            `sleep_preset '${presetName}' not found in pipeline.sleep_presets`,
+            "VALIDATION_ERROR",
+          );
+        }
+        pctx.sleepModes = modes;
+      } else if (storedState?.sleep_preset) {
+        // Fall back to stored preset name
+        const modes = pipeline.sleep_presets[storedState.sleep_preset];
+        if (!modes) {
+          return fail(
+            `stored sleep_preset '${storedState.sleep_preset}' not found in pipeline.sleep_presets`,
+            "VALIDATION_ERROR",
+          );
+        }
+        pctx.sleepModes = modes;
+      } else {
         return fail(
           "wake requires a sleep_preset (none stored from previous sleep)",
           "VALIDATION_ERROR",
         );
       }
-    }
-    if (resolvedPreset !== "__stored__") {
-      const modes = pipeline.sleep_presets[resolvedPreset];
+    } else {
+      // Sleep: resolve preset by name
+      const modes = pipeline.sleep_presets[presetName];
       if (!modes) {
         return fail(
-          `sleep_preset '${resolvedPreset}' not found in pipeline.sleep_presets`,
+          `sleep_preset '${presetName}' not found in pipeline.sleep_presets`,
           "VALIDATION_ERROR",
         );
       }
