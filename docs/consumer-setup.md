@@ -11,22 +11,18 @@ configuration right is the bulk of the work.
 
 ## Local tools
 
-CI installs everything it needs on each run, so deploying via GitHub Actions
-will have no local prerequisites. The tools below are required only when running
-`just pull` or other commands locally, and are useful for day-to-day work on the
-consumer repo.
+CI installs everything it needs on each run. The tools below are only required
+for running `just pull` or local validation.
 
 - [just](https://just.systems/) - command runner
-- [uv](https://docs.astral.sh/uv/) - Python package manager
+- [uv](https://docs.astral.sh/uv/) - Python package manager (runs the engine)
 - [yq](https://github.com/mikefarah/yq) - YAML query tool
 - [jq](https://jqlang.github.io/jq/) - JSON query tool
-- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) -
-  AWS command-line interface
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - `curl`, `unzip`
 
-No local AWS credentials are required. Plan and apply both run through CI
-against the Autopilot Lambda; the consumer repo never needs to talk to AWS from
-a developer machine.
+No local AWS credentials are needed. Plan and apply both run through CI against
+the Autopilot Lambda.
 
 ## 1. Initialize a consumer repo
 
@@ -42,15 +38,13 @@ To pin a specific framework version:
 curl -fsSL https://raw.githubusercontent.com/HelixCloud-ch/landing-zone-propeller/main/consumer/init.sh | bash -s -- --version v1.0.0
 ```
 
-This scaffolds the consumer repo with a `justfile` (importing recipes from the
-framework), a `landing-zone/propeller.overrides.yaml` (framework version and
-customizations), `landing-zone/projects/` populated with starter
-`config.auto.tfvars` overlays for each framework project that needs
-configuration, and a `.gitignore` that excludes the cached framework checkout.
+This scaffolds the consumer repo with:
 
-The starter overlays list each project's required and commonly-set variables
-with placeholder values and short comments. The repo is a few placeholders away
-from a valid deploy.
+- `.propeller-version` pinning the framework version
+- `justfile` importing recipes from the framework
+- `landing-zone/propeller.overrides.yaml` for pipeline customizations
+- `landing-zone/projects/` with starter `config.auto.tfvars` overlays
+- `.gitignore` excluding the cached framework checkout
 
 Commit the result.
 
@@ -60,48 +54,68 @@ Commit the result.
 just pull
 ```
 
-This downloads the framework at the version pinned in
-`landing-zone/propeller.overrides.yaml`. After this, `.propeller/` exists and
-contains the engine, the consumer recipes, and the framework's project sources.
-The directory is gitignored and refreshed by every `just pull` - treat it as
-read-only, useful for inspection and debugging only.
+Downloads the framework at the version in `.propeller-version`. After this,
+`.propeller/` exists and contains the engine, the consumer recipes, and the
+framework's project sources. The directory is gitignored and refreshed by every
+`just pull`. Treat it as read-only.
 
 ## 3. Review what the framework deploys
 
-Run `just resolve` to produce a Mermaid graph of the resolved pipeline at
-`dist/landing-zone/pipeline.lock.md`. Open it in any Markdown previewer (VS
-Code, GitHub, etc.) for a visual map of stages, steps, and dependencies.
+```bash
+just resolve
+```
 
-For deeper detail on individual projects, read each project's README under
-`.propeller/landing-zone/projects/<name>/README.md`.
+Produces a Mermaid graph at `dist/landing-zone/pipeline.lock.md`. Open it in any
+Markdown previewer for a visual map of stages, steps, and dependencies.
 
-Some of the decisions to make at this point:
+Decisions to make at this point:
 
-- **AWS region** for Control Tower's home region. Cannot be changed later
-  without rebuilding the landing zone.
-- **Email addresses** for the governance accounts (log archive, audit, optional
-  backup). Each must be unique and not previously used in any AWS account.
-- **OU names** if the defaults don't match local conventions.
-- **Optional features to enable.**
-- **Tags** for cost attribution and ownership.
-
-These go into the override files in the next step.
+- **AWS region** for Control Tower's home region (cannot change later).
+- **Email addresses** for governance accounts (log archive, audit). Each must be
+  unique and not previously used in any AWS account.
+- **OU names** if defaults don't fit.
+- **Tags** for cost attribution.
 
 ## 4. Configure the pipeline
 
 Two places hold configuration.
 
+### Version pin
+
+**`.propeller-version`** contains the framework version tag (e.g. `v2.1.0`).
+Update this file to upgrade.
+
+```
+v2.1.0
+```
+
+### Pipeline customization
+
 **`landing-zone/propeller.overrides.yaml`** controls pipeline-level choices:
-which framework version to use, target remappings, projects to add or remove,
-and stage ordering. The init script generates this file with examples commented
-out. See [customization](customization.md) for the full set of options.
+target remappings, projects to add or remove, stage ordering, and consumer tags.
+See [customization](customization.md) for the full set of options.
+
+```yaml
+# Example: remap and tag
+tags:
+  "acme:environment": "prod"
+
+pipeline:
+  targets:
+    operations-baseline: my-ops-account
+```
+
+### Direct pipeline mode
+
+For consumers that don't use the framework's default landing-zone pipeline
+(e.g. they already have a landing zone and only need a few specific projects),
+place a `landing-zone/propeller.yaml` directly. The engine uses it as-is,
+skipping the base+overrides merge.
+
+### Per-project configuration
 
 **`landing-zone/projects/<project-name>/terraform/config.auto.tfvars`** holds
-per-project Terraform variables. The init script generates a starter overlay for
-each framework project that needs configuration, listing the required and
-commonly-set variables with placeholder values. Edit the placeholders to your
-real values; the assembler merges the overlay into the bundle at deploy time.
-For example, configuring Control Tower prerequisites:
+per-project Terraform variables.
 
 ```
 landing-zone/
@@ -117,28 +131,20 @@ log_archive_account_email   = "aws+log-archive@example.com"
 audit_account_email         = "aws+audit@example.com"
 ```
 
-Refer to the framework project's `variables.tf` and `README.md` for the full
-list of configurable inputs. See [project structure](project-structure.md) for
-the overlay rules.
+Refer to the framework project's `variables.tf` and `README.md` for available
+inputs. See [project structure](project-structure.md) for the overlay rules.
 
 ## What this step produces
 
-- A consumer repo with `propeller.overrides.yaml` and any project overlays
-  needed
-- Configuration decisions (region, account emails, OU names, tags) committed to
-  the repo
+- A consumer repo with `.propeller-version`, optional `propeller.overrides.yaml`,
+  and project overlays
+- Configuration decisions committed
 
 ## What's next
 
-Run a plan from CI to validate the configuration before any apply. The next step
-wires up GitHub Actions:
+- [CI setup](ci-setup.md) - wire up GitHub Actions for plan/apply.
+- [Platforms](platforms.md) - deploy workload infrastructure.
+- [Customization](customization.md) - extend or modify the pipeline.
 
-- [CI setup](ci-setup.md) - configure the deploy workflow.
-
-Other useful destinations once CI is running:
-
-- [Customization](customization.md) - extend the pipeline with custom projects,
-  additional stages, or removed defaults.
-
-Common reference docs: [pipeline schema](pipeline-schema.md),
+Reference: [pipeline schema](pipeline-schema.md),
 [project structure](project-structure.md).

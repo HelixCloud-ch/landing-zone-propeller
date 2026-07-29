@@ -44,21 +44,39 @@ stages:
 - `version` - schema version (currently `"1"`)
 - `namespace` - pipeline identifier, used as prefix for SSM paths, state keys,
   and other scoped resources
-- `stages` - ordered list; stages run sequentially
+- `stages` - ordered list; stages run sequentially (unless `barrier: false`)
+- `sleep_presets` - (optional) named presets for sleep/wake. Each preset maps
+  project names to sleep modes. Example:
+  ```yaml
+  sleep_presets:
+    light:
+      rds-oracle-1: stop
+    deep:
+      rds-oracle-1: snapshot
+      eks-cluster-1: destroy
+  ```
+
+**Stage:**
+
+- `name` - stage identifier
+- `steps` - list of steps in this stage
+- `barrier` - (optional, default `true`) when false, this stage merges with
+  adjacent non-barrier stages into a single execution group. The DAG handles
+  ordering across merged stages.
 
 **Step:**
 
 - `project` - project name (matches `name` in `project.yaml`)
 - `target` - logical account to deploy into
-- `depends_on` - projects that must complete first (within the same stage)
+- `depends_on` - projects that must complete first (within the same execution
+  group, or guaranteed by stage barriers for cross-stage references)
 - `timeout` - CodeBuild timeout override in minutes (default: CodeBuild project
   setting, typically 60). Use for long-running steps like cluster provisioning.
 - `runner` - CodeBuild project name to use for this step (default:
   `deploy-runner`). Set to the name of a VPC-attached CodeBuild project when the
   step needs private network access (e.g. deploying into a private EKS cluster).
-- `sleep` - boolean, opt-in for sleep/wake lifecycle (default: `false`). When
-  `true`, the project participates in `sleep` and `wake` actions. The project's
-  `project.yaml` must define a `sleep:` block declaring its capability.
+- `approval` - (optional) set to `"required"` to pause this project for manual
+  approval after plan, even in autopilot mode.
 - `inputs` - values to read from SSM before deploy
 - `outputs` - values to write to SSM after deploy
 
@@ -169,3 +187,17 @@ pipeline:
 The engine reads each project's `project.yaml` and emits a small set of tags on
 every resource. See [project-structure.md](project-structure.md#tags) for the
 full list and merge rules.
+
+## Lambda event fields
+
+The Autopilot Lambda receives a JSON payload with these fields:
+
+- `pipeline` - the resolved pipeline definition (stages, steps, sleep_presets)
+- `bundle_s3_uri` - S3 URI to the bundle zip
+- `deploy_action` - one of: `apply`, `plan`, `destroy`, `sleep`, `wake`
+- `git_sha` - commit SHA that triggered the build
+- `only` - (optional) array of project names to target (others skipped)
+- `deploy_mode` - (optional) `"autopilot"` (default) or `"supervised"`
+- `sleep_preset` - (optional) preset name for sleep/wake actions
+- `force` - (optional) boolean, bypasses sleeping pipeline guard on apply
+- `destroy_all` - (optional) boolean, required safety flag for full destroy
