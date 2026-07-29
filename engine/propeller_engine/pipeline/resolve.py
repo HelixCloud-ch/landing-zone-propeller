@@ -206,6 +206,7 @@ def _expand_input(
     """
     if "name" in inp and "key" not in inp:
         name = inp["name"]
+        jq = inp.get("jq")  # Preserve jq transform if present
         if name.startswith("@"):
             # Cross-pipeline blob reference: @namespace/project.field
             rest = name[1:]
@@ -214,7 +215,7 @@ def _expand_input(
                     f"Cross-pipeline input '{name}' must include a field (e.g. @ns/project.field)"
                 )
             path_part, field = rest.rsplit(".", 1)
-            return {
+            result = {
                 "key": f"{SSM_PREFIX}/{path_part}",
                 "field": field,
                 "var": inp.get("var", field),
@@ -222,7 +223,7 @@ def _expand_input(
         elif name.startswith("/"):
             # Absolute SSM parameter: /accounts.network.id
             path = name[1:].replace(".", "/")
-            return {
+            result = {
                 "key": f"{SSM_PREFIX}/{path}",
                 "var": inp.get("var", name.rsplit(".", 1)[-1]),
             }
@@ -237,11 +238,14 @@ def _expand_input(
                 path = f"{namespace}/{project_name}"
             else:
                 path = project_name
-            return {
+            result = {
                 "key": f"{SSM_PREFIX}/{path}",
                 "field": field,
                 "var": inp.get("var", field),
             }
+        if jq:
+            result["jq"] = jq
+        return result
     return inp  # Already in resolved format
 
 
