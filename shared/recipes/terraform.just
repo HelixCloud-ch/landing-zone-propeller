@@ -126,28 +126,16 @@ _sleep-state-read:
 _propeller-vars:
     #!/usr/bin/env bash
     # Write all propeller variables to a .tfvars.json file using jq (safe JSON generation)
-    # Supports jq transforms: PROPELLER_TRANSFORMS_JSON is a JSON object mapping
-    # variable names to jq expressions. Each matching input value is piped through
-    # the expression before being written.
     VARSFILE="{{ _tf_dir }}/_propeller.auto.tfvars.json"
-    TRANSFORMS="${PROPELLER_TRANSFORMS_JSON:-{}}"
     # Start with region
     RESULT=$(jq -n --arg region "${AWS_REGION}" '{region: $region}')
-    # Add PROPELLER_INPUT_* vars (applying transforms if defined)
+    # Add PROPELLER_INPUT_* vars
     while IFS='=' read -r key value; do
       var_name="${key#PROPELLER_INPUT_}"
-      # Check if this var has a jq transform
-      JQ_EXPR=$(echo "$TRANSFORMS" | jq -r --arg k "$var_name" '.[$k] // empty')
-      if [[ -n "$JQ_EXPR" ]]; then
-        # Apply jq transform: pipe the raw value through the expression
-        TRANSFORMED=$(echo "$value" | jq -R --argjson t "null" "$JQ_EXPR" 2>/dev/null) || {
-          # If -R (raw string) fails, try parsing as JSON first
-          TRANSFORMED=$(echo "$value" | jq "$JQ_EXPR" 2>/dev/null) || {
-            echo "ERROR: jq transform failed for $var_name with expr: $JQ_EXPR" >&2
-            exit 1
-          }
-        }
-        RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --argjson v "$TRANSFORMED" '. + {($k): $v}')
+      # Values may be JSON-encoded (from transforms) or plain strings.
+      # Try to parse as JSON first; if it fails, treat as string.
+      if echo "$value" | jq -e '.' >/dev/null 2>&1; then
+        RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --argjson v "$value" '. + {($k): $v}')
       else
         RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --arg v "$value" '. + {($k): $v}')
       fi

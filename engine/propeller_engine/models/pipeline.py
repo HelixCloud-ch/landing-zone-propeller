@@ -11,7 +11,7 @@ class ProjectInput(BaseModel):
     key: str
     var: str
     field: str | None = None
-    jq: str | None = None
+    expr: str | None = None
 
 
 class ProjectOutput(BaseModel):

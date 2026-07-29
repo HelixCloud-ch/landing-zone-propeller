@@ -17,6 +17,7 @@ import type {
   PipelineContext,
   StepConfig,
 } from "../types.js";
+import { applyTransforms } from "./transform.js";
 
 export async function startBuild(
   client: CodeBuildClient,
@@ -47,25 +48,22 @@ export async function startBuild(
     },
   ];
 
-  for (const [varName, value] of Object.entries(config.inputs)) {
+  // Apply JSONata transforms to input values before passing to CodeBuild
+  const transforms: Record<string, string> = {};
+  for (const input of step.inputs ?? []) {
+    if (input.expr) {
+      transforms[input.var] = input.expr;
+    }
+  }
+  const transformedInputs =
+    Object.keys(transforms).length > 0
+      ? await applyTransforms(config.inputs, transforms)
+      : config.inputs;
+
+  for (const [varName, value] of Object.entries(transformedInputs)) {
     envVars.push({
       name: `PROPELLER_INPUT_${varName}`,
       value,
-      type: "PLAINTEXT" as const,
-    });
-  }
-
-  // Pass jq transforms map so the shared recipe can apply them
-  const transforms: Record<string, string> = {};
-  for (const input of step.inputs ?? []) {
-    if (input.jq) {
-      transforms[input.var] = input.jq;
-    }
-  }
-  if (Object.keys(transforms).length > 0) {
-    envVars.push({
-      name: "PROPELLER_TRANSFORMS_JSON",
-      value: JSON.stringify(transforms),
       type: "PLAINTEXT" as const,
     });
   }
