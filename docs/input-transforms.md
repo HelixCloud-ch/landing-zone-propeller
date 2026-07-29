@@ -1,8 +1,8 @@
-# Input Transforms (jq)
+# Input Transforms (JSONata)
 
-Pipeline inputs can include a `jq` field that transforms the raw value before
-it reaches terraform. The expression runs at deploy time in CodeBuild using
-the standard `jq` CLI.
+Pipeline inputs can include an `expr` field with a JSONata expression that
+transforms the raw value before it reaches terraform. The expression runs in
+the Autopilot Lambda at deploy time.
 
 ## Syntax
 
@@ -10,21 +10,22 @@ the standard `jq` CLI.
 inputs:
   - name: source-project.output_field
     var: terraform_variable_name
-    jq: '<jq expression>'
+    expr: '<JSONata expression>'
 ```
 
-The raw string value is piped through the jq expression. The result is written
-to `_propeller.auto.tfvars.json` as a typed JSON value (not a string).
-
-When there is no `jq` field, the value is written as a plain string (existing behavior).
+The raw value is available as `$` in the expression. If the raw value is valid
+JSON (e.g. a subnet map blob), it's parsed first so you can access nested fields
+directly.
 
 ## How it works
 
 1. Autopilot reads the input value from SSM (string)
-2. Autopilot passes it to CodeBuild as `PROPELLER_INPUT_<var>=<value>`
-3. Autopilot also passes `PROPELLER_TRANSFORMS_JSON={"var":"jq expr",...}`
-4. The shared recipe (`_propeller-vars`) applies the jq expression per-input
-5. The transformed result is written as a typed JSON value in `_propeller.auto.tfvars.json`
+2. Autopilot evaluates the JSONata expression with the value as input
+3. The result (JSON-encoded) is passed to CodeBuild as `PROPELLER_INPUT_<var>`
+4. The shared recipe writes it to `_propeller.auto.tfvars.json` (auto-detects
+   JSON vs string values)
+
+Transforms run in the Lambda, so any project type benefits (not just terraform).
 
 ## Examples
 
@@ -36,12 +37,12 @@ A module expects `allowed_cidrs = list(string)` but the input is a single CIDR s
 inputs:
   - name: vpc-project.cidr_block
     var: allowed_cidrs
-    jq: "[.]"
+    expr: "[$]"
 ```
 
 | Input | Output |
 |-------|--------|
-| `"10.0.0.0/8"` | `["10.0.0.0/8"]` |
+| `10.0.0.0/8` | `["10.0.0.0/8"]` |
 
 ### Map lookup (size presets)
 
@@ -51,13 +52,13 @@ Translate a human-friendly size name to a concrete instance class.
 inputs:
   - name: "_static:small"
     var: instance_class
-    jq: '{"small":"db.t3.medium","medium":"db.m5.large","large":"db.m5.xlarge"}[.]'
+    expr: '$lookup({"small":"db.t3.medium","medium":"db.m5.large","large":"db.m5.xlarge"}, $)'
 ```
 
 | Input | Output |
 |-------|--------|
-| `"small"` | `"db.t3.medium"` |
-| `"medium"` | `"db.m5.large"` |
+| `small` | `"db.t3.medium"` |
+| `medium` | `"db.m5.large"` |
 
 ### Extract a key from a JSON object
 
@@ -67,7 +68,7 @@ A project outputs a JSON blob. You need one field from it.
 inputs:
   - name: vpc-project.subnet_ids_json
     var: private_subnets
-    jq: ".private"
+    expr: "private"
 ```
 
 | Input | Output |
@@ -82,13 +83,13 @@ Only wrap in a list if the value is non-empty, otherwise produce an empty list.
 inputs:
   - name: vpc-project.cidr_block
     var: allowed_cidrs
-    jq: 'if . == "" then [] else [.] end'
+    expr: '$ = "" ? [] : [$]'
 ```
 
 | Input | Output |
 |-------|--------|
-| `"10.0.0.0/8"` | `["10.0.0.0/8"]` |
-| `""` | `[]` |
+| `10.0.0.0/8` | `["10.0.0.0/8"]` |
+| `` | `[]` |
 
 ### Split a comma-separated string into a list
 
@@ -96,27 +97,27 @@ inputs:
 inputs:
   - name: config-project.sg_ids_csv
     var: security_group_ids
-    jq: 'split(",")'
+    expr: '$split($, ",")'
 ```
 
 | Input | Output |
 |-------|--------|
-| `"sg-123,sg-456,sg-789"` | `["sg-123","sg-456","sg-789"]` |
+| `sg-123,sg-456,sg-789` | `["sg-123","sg-456","sg-789"]` |
 
 ### Cast string to number
 
-Terraform expects a number but the input arrives as a string (all SSM values are strings).
+Terraform expects a number but the input arrives as a string.
 
 ```yaml
 inputs:
   - name: "_static:20"
     var: allocated_storage
-    jq: "tonumber"
+    expr: "$number($)"
 ```
 
 | Input | Output |
 |-------|--------|
-| `"20"` | `20` |
+| `20` | `20` |
 
 ### Cast string to boolean
 
@@ -124,26 +125,26 @@ inputs:
 inputs:
   - name: "_static:true"
     var: multi_az
-    jq: '. == "true"'
+    expr: '$ = "true"'
 ```
 
 | Input | Output |
 |-------|--------|
-| `"true"` | `true` |
-| `"false"` | `false` |
+| `true` | `true` |
+| `false` | `false` |
 
 ### String concatenation / formatting
 
 ```yaml
 inputs:
-  - name: "_static:oracle-adt-0"
+  - name: "_static:my-db"
     var: identifier
-    jq: '"propeller-" + .'
+    expr: '"propeller-" & $'
 ```
 
 | Input | Output |
 |-------|--------|
-| `"oracle-adt-0"` | `"propeller-oracle-adt-0"` |
+| `my-db` | `"propeller-my-db"` |
 
 ### Nested extraction with fallback
 
@@ -151,7 +152,7 @@ inputs:
 inputs:
   - name: vpc-project.subnet_ids_json
     var: data_subnets
-    jq: '.data // []'
+    expr: "data ? data : []"
 ```
 
 | Input | Output |
@@ -167,10 +168,10 @@ If you need multiple fields from one JSON blob, declare separate inputs:
 inputs:
   - name: vpc-project.subnet_ids_json
     var: private_subnets
-    jq: ".private"
+    expr: "private"
   - name: vpc-project.subnet_ids_json
     var: data_subnets
-    jq: ".data"
+    expr: "data"
 ```
 
 ### Map with default fallback
@@ -179,23 +180,39 @@ inputs:
 inputs:
   - name: "_static:small"
     var: instance_class
-    jq: '{"small":"db.t3.medium","medium":"db.m5.large"}[.] // "db.t3.medium"'
+    expr: '$lookup({"small":"db.t3.medium"}, $) ? $lookup({"small":"db.t3.medium"}, $) : "default"'
 ```
 
 | Input | Output |
 |-------|--------|
-| `"small"` | `"db.t3.medium"` |
-| `"unknown"` | `"db.t3.medium"` (fallback) |
+| `small` | `"db.t3.medium"` |
+| `unknown` | `"default"` |
+
+## JSONata reference
+
+JSONata is a lightweight query and transformation language for JSON.
+Full docs: https://docs.jsonata.org/
+
+Common operators:
+- `$` is the input value
+- `&` concatenates strings
+- `[$]` wraps in an array
+- `condition ? true_value : false_value` for conditionals
+- `$number($)` casts to number
+- `$split($, ",")` splits a string
+- `$lookup(object, key)` does a map lookup
+- `fieldname` accesses a key in a JSON object
 
 ## Notes
 
-- The jq expression receives the raw value as input (`.` refers to the value)
-- For string inputs, jq receives the value as a raw string (using `jq -R`)
-- For inputs that are already valid JSON (like blobs), jq parses them as JSON
-- If the jq expression fails, the build errors immediately with a clear message
-- Transforms are applied at deploy time (in CodeBuild), not at resolve time
-- The `jq` field is preserved through resolve and into the pipeline lock file
-- `jq` is pre-installed in the deploy-runner image
-
-It is recommended to avoid transforms when possible, designing project vars to
-be compatible within the propeller ecosystem.
+- The `expr` field is optional. Inputs without it pass through as plain strings.
+- Transforms run in the Lambda (not CodeBuild), so errors are caught before
+  a build starts.
+- If the expression fails, the pipeline step fails with a clear error.
+- For string inputs, the value is available as `$` (a string).
+- For JSON inputs (valid JSON from a blob field), the value is parsed and you
+  can access fields directly (e.g. `private` to get the `private` key).
+- Prefer using common formats across the framework ecosystem (e.g. standardize
+  on JSON lists for CIDRs, consistent key naming in blobs) to avoid needing
+  transforms in the first place. Use transforms only when the source and
+  target variable interfaces don't align.
