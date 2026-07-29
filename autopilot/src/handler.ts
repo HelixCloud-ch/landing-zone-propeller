@@ -14,6 +14,7 @@ import { createClients } from "./services/aws.js";
 import { checkConcurrentExecution } from "./services/lambda.js";
 import { promoteActiveBundle } from "./services/s3.js";
 import { readPipelineState, writePipelineState } from "./services/ssm.js";
+import { StatusTracker } from "./services/status.js";
 import type {
   PipelineContext,
   PipelineDefinition,
@@ -164,12 +165,24 @@ export async function execute(
       ? [...pipeline.stages].reverse()
       : pipeline.stages;
 
+  // Initialize status tracker for live execution state
+  const allProjects = stages.flatMap((s) => s.steps.map((st) => st.project));
+  if (pctx.executionId) {
+    const tracker = new StatusTracker(pctx, allProjects);
+    pctx.statusTracker = tracker;
+    await tracker.start();
+  }
+
   const allResults = await runAllStages(stages, pctx, clients, context);
   const result = buildResult(allResults, pctx, clients, pipeline, event.sleep_preset);
 
   const finalResult = await result;
   const mark = finalResult.status === "succeeded" ? "✓" : "✗";
   log.info(`${mark} Pipeline: ${finalResult.summary.succeeded} succeeded, ${finalResult.summary.failed} failed, ${finalResult.summary.skipped} skipped`);
+
+  if (pctx.statusTracker) {
+    await pctx.statusTracker.complete(finalResult.status);
+  }
 
   return finalResult;
 }

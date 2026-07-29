@@ -242,6 +242,8 @@ export interface PipelineContext {
   supervised: boolean;
   /** Resolved sleep mode map: project name → mode string. */
   sleepModes: Record<string, string>;
+  /** Optional status tracker for live execution state (status.json in S3). */
+  statusTracker?: import("./services/status.js").StatusTracker;
 }
 
 // --- Services (dependency injection container) ---

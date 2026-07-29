@@ -100,6 +100,8 @@ export async function executeStep(
   const project = step.project;
   const log = branchCtx.logger;
 
+  await pctx.statusTracker?.stepStarted(project);
+
   try {
     let result: StepResult;
     if (pctx.deployAction === "apply" && requiresApproval(step, pctx)) {
@@ -114,10 +116,12 @@ export async function executeStep(
       log.info(`✗ [${project}] failed: ${result.error}`);
     }
 
+    await pctx.statusTracker?.stepCompleted(project, result.status as "succeeded" | "failed");
     return result;
   } catch (err: unknown) {
     const error = err instanceof Error ? err.message : String(err);
     log.error(`✗ [${project}] failed: ${error}`);
+    await pctx.statusTracker?.stepCompleted(project, "failed");
     return {
       status: "failed",
       project,
