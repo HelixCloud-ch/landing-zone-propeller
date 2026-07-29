@@ -109,7 +109,7 @@ export async function executeStep(
     }
 
     if (result.status === "succeeded") {
-      log.info(`✓ [${project}] succeeded (${result.duration ?? "?"}s)`);
+      log.info(`✓ [${project}] succeeded (${result.duration}s)`);
     } else {
       log.info(`✗ [${project}] failed: ${result.error}`);
     }
@@ -137,6 +137,7 @@ async function executeDirectStep(
   branchCtx: DurableContext,
 ): Promise<StepResult> {
   const project = step.project;
+  const startTime = Date.now();
 
   return branchCtx.runInChildContext(`${pctx.deployAction}`, async (ctx) => {
     const config: BuildConfig = await ctx.step(`prepare`, () =>
@@ -158,6 +159,8 @@ async function executeDirectStep(
       pollResult = await ctx.step(`poll`, () => pollBuild(cbClient, buildId));
     }
 
+    const duration = Math.round((Date.now() - startTime) / 1000);
+
     // Fetch logs and archive to S3 (best-effort)
     try {
       const logsClient = await createCloudWatchLogsClient(
@@ -170,7 +173,7 @@ async function executeDirectStep(
       // Emit build logs to durable execution logger
       if (logs && logs !== "(empty log stream)" && logs !== "(no logs available)") {
         const truncated = logs.length > 4000 ? logs.slice(-4000) : logs;
-        ctx.logger.info(`  [${project}] output:\n${truncated}`);
+        ctx.logger.info(`  [${project}] CodeBuild:\n${truncated}`);
       }
     } catch {
       // best-effort
@@ -184,6 +187,7 @@ async function executeDirectStep(
         account_id: config.accountId,
         error: `Build ${pollResult.status}`,
         build_id: buildId,
+        duration,
       };
     }
 
@@ -199,6 +203,7 @@ async function executeDirectStep(
       target: step.target,
       account_id: config.accountId,
       build_id: buildId,
+      duration,
     };
   });
 }
@@ -251,7 +256,7 @@ async function executeSupervisedStep(
       await writeLogs(pctx, `${step.project}.plan`, logs);
       if (logs && logs !== "(empty log stream)" && logs !== "(no logs available)") {
         const truncated = logs.length > 4000 ? logs.slice(-4000) : logs;
-        ctx.logger.info(`  [${step.project}] plan output:\n${truncated}`);
+        ctx.logger.info(`  [${step.project}] CodeBuild (plan):\n${truncated}`);
       }
     } catch {
       // best-effort
@@ -277,6 +282,7 @@ async function executeSupervisedStep(
   }
 
   // Phase 2: Approval (at branch level — visible as sibling to plan/apply)
+  branchCtx.logger.info(`⏸ [${project}] awaiting approval`);
   try {
     await branchCtx.waitForCallback(`approval`, async (callbackId, _ctx) => {
       await clients.ssm.send(
@@ -294,8 +300,10 @@ async function executeSupervisedStep(
         }),
       );
     });
+    branchCtx.logger.info(`▶ [${project}] approved, applying`);
   } catch {
     // SendDurableExecutionCallbackFailure throws CallbackError
+    branchCtx.logger.info(`✗ [${project}] rejected by approver`);
     return {
       status: "failed",
       project,
@@ -338,7 +346,7 @@ async function executeSupervisedStep(
       await writeLogs(pctx, `${step.project}.apply`, logs);
       if (logs && logs !== "(empty log stream)" && logs !== "(no logs available)") {
         const truncated = logs.length > 4000 ? logs.slice(-4000) : logs;
-        ctx.logger.info(`  [${step.project}] apply output:\n${truncated}`);
+        ctx.logger.info(`  [${step.project}] CodeBuild (apply):\n${truncated}`);
       }
     } catch {
       // best-effort

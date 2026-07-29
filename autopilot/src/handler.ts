@@ -164,11 +164,6 @@ export async function execute(
       ? [...pipeline.stages].reverse()
       : pipeline.stages;
 
-  log.info("Executing pipeline", {
-    stages: stages.map((s) => s.name),
-    direction: pctx.deployAction === "sleep" || pctx.deployAction === "destroy" ? "reversed" : "forward",
-  });
-
   const allResults = await runAllStages(stages, pctx, clients, context);
   const result = buildResult(allResults, pctx, clients, pipeline, event.sleep_preset);
 
