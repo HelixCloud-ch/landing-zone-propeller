@@ -69,7 +69,7 @@ resource "aws_iam_role_policy" "lambda" {
       {
         Effect   = "Allow"
         Action   = ["lambda:CheckpointDurableExecution", "lambda:GetDurableExecutionState", "lambda:ListDurableExecutionsByFunction"]
-        Resource = "${aws_lambda_function.autopilot.arn}:*"
+        Resource = [aws_lambda_function.autopilot.arn, "${aws_lambda_function.autopilot.arn}:*"]
       },
     ]
   })
