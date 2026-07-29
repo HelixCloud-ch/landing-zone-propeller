@@ -371,21 +371,9 @@ def _step_to_dict(step: Step) -> dict:
     if step.depends_on:
         d["depends_on"] = step.depends_on
     if step.inputs:
-        inputs = []
-        for i in step.inputs:
-            entry = {"key": i.key, "var": i.var}
-            if i.field:
-                entry["field"] = i.field
-            inputs.append(entry)
-        d["inputs"] = inputs
+        d["inputs"] = [i.model_dump(exclude_none=True) for i in step.inputs]
     if step.outputs:
-        outputs = []
-        for o in step.outputs:
-            entry = {"key": o.key, "ref": o.ref}
-            if o.field:
-                entry["field"] = o.field
-            outputs.append(entry)
-        d["outputs"] = outputs
+        d["outputs"] = [o.model_dump(exclude_none=True) for o in step.outputs]
     if step.propeller_tags:
         d["propeller_tags"] = dict(step.propeller_tags)
     if step.timeout:
