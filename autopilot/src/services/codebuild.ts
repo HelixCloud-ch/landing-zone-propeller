@@ -140,7 +140,7 @@ export async function fetchBuildLogs(
     if (events.length === 0) break;
 
     for (const event of events) {
-      if (event.message) lines.push(event.message);
+      if (event.message) lines.push(event.message.replace(/\n$/, ""));
     }
 
     const newToken = logResp.nextForwardToken;
