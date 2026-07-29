@@ -1,0 +1,71 @@
+name: Platform - Deploy
+
+run-name: "Platform ${{ inputs.platform }}: ${{ inputs.action }}${{ inputs.only && format(' [{0}]', inputs.only) || '' }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to deploy"
+        required: true
+        type: choice
+        options:
+          - acme-prod       # replace with your platform names
+          - acme-staging
+      action:
+        description: "Deploy action"
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+        default: plan
+      only:
+        description: "Deploy only this project (empty = full pipeline)"
+        required: false
+        type: string
+      supervised:
+        description: "Supervised mode (plan → approve → apply)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+      - uses: extractions/setup-just@v3
+
+      - name: Configure AWS
+        run: |
+          aws configure set aws_access_key_id "${{ secrets.AWS_ACCESS_KEY_ID }}"
+          aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          aws configure set region "${{ vars.AWS_REGION }}"
+
+      - name: Pull framework
+        run: just pull
+
+      - name: Deploy
+        env:
+          PROPELLER_BUNDLE_BUCKET: ${{ vars.PROPELLER_BUNDLE_BUCKET }}
+          PROPELLER_LAMBDA_ARN: ${{ vars.PROPELLER_LAMBDA_ARN }}
+          DEPLOY_ACTION: ${{ inputs.action }}
+          DEPLOY_MODE: ${{ inputs.supervised && 'supervised' || 'autopilot' }}
+          ONLY: ${{ inputs.only }}
+        run: just platform-deploy "${{ inputs.platform }}"
+
+      - name: Summary
+        if: always()
+        run: |
+          PLATFORM="${{ inputs.platform }}"
+          echo "**Platform:** ${PLATFORM}" >> $GITHUB_STEP_SUMMARY
+          echo "**Action:** ${{ inputs.action }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode:** ${{ inputs.supervised && 'supervised' || 'autopilot' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Only:** ${{ inputs.only || 'full pipeline' }}" >> $GITHUB_STEP_SUMMARY
+          if [[ -f "dist/${PLATFORM}/pipeline.lock.json" ]]; then
+            echo "**Propeller version:** $(jq -r '.propeller_version' dist/${PLATFORM}/pipeline.lock.json)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            cat "dist/${PLATFORM}/pipeline.lock.md" >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+          fi

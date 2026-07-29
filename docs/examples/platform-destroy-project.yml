@@ -1,0 +1,104 @@
+name: Platform - DESTROY Project
+
+run-name: "Platform ${{ inputs.platform }} DESTROY: ${{ inputs.project }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform containing the project"
+        required: true
+        type: choice
+        options:
+          - acme-prod       # replace with your platform names
+          - acme-staging
+      project:
+        description: "Project(s) to destroy (comma-separated, or ALL for entire platform)"
+        required: true
+        type: string
+      confirm_destroy:
+        description: "Type DESTROY to confirm"
+        required: true
+        type: string
+      i_understand:
+        description: "Check to confirm you understand this will PERMANENTLY DELETE resources"
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate confirmations
+        run: |
+          echo "## Destroy validation" >> $GITHUB_STEP_SUMMARY
+
+          if [[ -z "${{ inputs.project }}" ]]; then
+            echo "::error::Project name is required"
+            exit 1
+          fi
+
+          if [[ "${{ inputs.confirm_destroy }}" != "DESTROY" ]]; then
+            echo "::error::Destroy confirmation failed. Expected 'DESTROY', got '${{ inputs.confirm_destroy }}'"
+            echo "❌ Destroy confirmation failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          if [[ "${{ inputs.i_understand }}" != "true" ]]; then
+            echo "::error::You must check the confirmation checkbox"
+            echo "❌ Checkbox not checked" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "✅ Confirmations passed" >> $GITHUB_STEP_SUMMARY
+          echo "- Platform: **${{ inputs.platform }}**" >> $GITHUB_STEP_SUMMARY
+          echo "- Project: **${{ inputs.project }}**" >> $GITHUB_STEP_SUMMARY
+
+  cooldown:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "⏳ 10s cooldown before destroy..."
+          sleep 10
+
+  destroy:
+    needs: cooldown
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+      - uses: extractions/setup-just@v3
+
+      - name: Configure AWS
+        run: |
+          aws configure set aws_access_key_id "${{ secrets.AWS_ACCESS_KEY_ID }}"
+          aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+          aws configure set region "${{ vars.AWS_REGION }}"
+
+      - name: Pull framework
+        run: just pull
+
+      - name: Destroy
+        env:
+          PROPELLER_BUNDLE_BUCKET: ${{ vars.PROPELLER_BUNDLE_BUCKET }}
+          PROPELLER_LAMBDA_ARN: ${{ vars.PROPELLER_LAMBDA_ARN }}
+          DEPLOY_ACTION: destroy
+          ONLY: ${{ inputs.project != 'ALL' && inputs.project || '' }}
+          DESTROY_ALL: ${{ inputs.project == 'ALL' && 'true' || '' }}
+        run: just platform-deploy "${{ inputs.platform }}"
+
+      - name: Summary
+        if: always()
+        run: |
+          PLATFORM="${{ inputs.platform }}"
+          echo "## Destroy result" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platform:** ${PLATFORM}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project:** ${{ inputs.project }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Action:** destroy" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          if [[ -f "dist/${PLATFORM}/pipeline.lock.md" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            cat "dist/${PLATFORM}/pipeline.lock.md" >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+          fi
