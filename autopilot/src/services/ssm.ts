@@ -43,8 +43,11 @@ export async function resolveInputs(
   const blobCache: Map<string, Record<string, string>> = new Map();
 
   for (const inp of step.inputs ?? []) {
-    if (inp.field) {
-      const key = inp.key;
+    if (inp.literal !== undefined) {
+      // Carried in the pipeline, so nothing to read.
+      inputs[inp.var] = inp.literal;
+    } else if (inp.field) {
+      const key = inp.key!;
       if (!blobCache.has(key)) {
         const raw = await getParameter(client, key);
         const parsed = JSON.parse(raw) as { outputs: Record<string, string> };
@@ -53,7 +56,7 @@ export async function resolveInputs(
       const outputs = blobCache.get(key)!;
       inputs[inp.var] = String(outputs[inp.field] ?? "");
     } else {
-      const raw = await getParameterOptional(client, inp.key);
+      const raw = await getParameterOptional(client, inp.key!);
       if (raw === null || raw === EMPTY_SENTINEL) {
         inputs[inp.var] = "";
       } else {

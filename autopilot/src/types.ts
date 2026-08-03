@@ -95,8 +95,14 @@ export interface StepConfig {
  * Lambda receives these, not the shorthand "name" format from pipeline.yaml.
  */
 export interface StepInput {
-  /** SSM parameter path to read (e.g. "/propeller/test-platform/vpc"). */
-  key: string;
+  /** SSM parameter path to read (e.g. "/propeller/test-platform/vpc"). Absent for a literal. */
+  key?: string;
+  /**
+   * Literal carried in the pipeline, used instead of reading a parameter. Fixed
+   * when the pipeline was resolved, so it travels inside the bundle in cleartext
+   * and must not hold anything secret. Mutually exclusive with `key`.
+   */
+  literal?: string;
   /** Field name within the project blob JSON. If absent, reads the raw parameter value. */
   field?: string;
   /** Variable name exposed to the build environment as PROPELLER_INPUT_<var>. */

@@ -67,6 +67,47 @@ describe("getParameterOptional", () => {
 });
 
 describe("resolveInputs", () => {
+  it("uses a literal value without reading a parameter", async () => {
+    const client = createMockSSMClient({});
+    const inputs = await resolveInputs(
+      client as any,
+      {
+        project: "p",
+        inputs: [{ var: "chart_version", literal: "2.69.4" }],
+      } as any,
+      "test-ns",
+    );
+    expect(inputs).toEqual({ chart_version: "2.69.4" });
+    expect(client.send).not.toHaveBeenCalled();
+  });
+
+  it("keeps an empty literal rather than treating it as absent", async () => {
+    const client = createMockSSMClient({});
+    const inputs = await resolveInputs(
+      client as any,
+      { project: "p", inputs: [{ var: "label", literal: "" }] } as any,
+      "test-ns",
+    );
+    expect(inputs).toEqual({ label: "" });
+  });
+
+  it("mixes literals with parameter reads in one step", async () => {
+    const blob = JSON.stringify({ outputs: { vpc_id: "vpc-abc" }, meta: {} });
+    const client = createMockSSMClient({ "/propeller/test-ns/net": blob });
+    const inputs = await resolveInputs(
+      client as any,
+      {
+        project: "p",
+        inputs: [
+          { var: "vpc_id", key: "/propeller/test-ns/net", field: "vpc_id" },
+          { var: "identifier", literal: "store-one" },
+        ],
+      } as any,
+      "test-ns",
+    );
+    expect(inputs).toEqual({ vpc_id: "vpc-abc", identifier: "store-one" });
+  });
+
   it("resolves field-based input from blob", async () => {
     const blob = JSON.stringify({
       outputs: { vpc_id: "vpc-abc123", subnet_ids: "subnet-1" },

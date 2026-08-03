@@ -106,8 +106,8 @@ describe("applyTransforms", () => {
     const result = await applyTransforms(inputs, transforms);
 
     expect(result.vpc_id).toBe("vpc-123"); // untransformed
-    expect(JSON.parse(result.allowed_cidrs)).toEqual(["10.0.0.0/8"]);
-    expect(JSON.parse(result.instance_class)).toBe("db.t3.medium");
+    expect(JSON.parse(result.allowed_cidrs!)).toEqual(["10.0.0.0/8"]);
+    expect(JSON.parse(result.instance_class!)).toBe("db.t3.medium");
   });
 
   it("returns empty object for empty inputs", async () => {

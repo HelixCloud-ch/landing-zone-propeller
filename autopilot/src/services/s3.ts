@@ -29,6 +29,10 @@ export async function writeLogs(pctx: PipelineContext, label: string, logs: stri
         ContentType: "text/plain",
       }),
     );
+    // The label is `<project>.<action>`, and a project name has no dot: it keys
+    // SSM paths and terraform state. Recorded so the step's completion event can
+    // carry the key instead of the consumer composing the filename.
+    pctx.statusTracker?.logWritten(label.slice(0, label.lastIndexOf(".")), key);
   } catch {
     // best-effort
   }

@@ -7,5 +7,7 @@ export default defineConfig({
   outDir: "dist",
   clean: true,
   dts: false,
-  noExternal: ["jsonata"],
+  deps: {
+    alwaysBundle: ["jsonata"],
+  },
 });

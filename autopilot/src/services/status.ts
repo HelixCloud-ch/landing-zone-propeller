@@ -10,6 +10,27 @@ import type { PipelineContext } from "../types.js";
 
 export type StepStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
 
+/**
+ * What happened, in the order it happened. `steps` says where the execution is
+ * now, which is declaration order and cannot show how parallel work interleaved.
+ * A consumer rendering progress reads the events after the last index it saw.
+ */
+export type ExecutionEventType =
+  | "execution_started"
+  | "step_started"
+  | "step_succeeded"
+  | "step_failed"
+  | "execution_succeeded"
+  | "execution_failed";
+
+interface ExecutionEvent {
+  at: string;
+  type: ExecutionEventType;
+  project?: string;
+  /** Key of this step's build log, on the same bucket. */
+  log?: string;
+}
+
 interface StepState {
   project: string;
   status: StepStatus;
@@ -26,6 +47,7 @@ interface ExecutionState {
   completedAt: string | null;
   summary: { succeeded: number; failed: number; skipped: number; pending: number; running: number };
   steps: StepState[];
+  events: ExecutionEvent[];
 }
 
 export class StatusTracker {
@@ -33,6 +55,8 @@ export class StatusTracker {
   private s3: S3Client;
   private bucket: string;
   private key: string;
+  /** Log key per project, recorded by writeLogs before the step reports. */
+  private logs = new Map<string, string>();
 
   constructor(pctx: PipelineContext, projects: string[]) {
     this.s3 = new S3Client({});
@@ -47,10 +71,12 @@ export class StatusTracker {
       completedAt: null,
       summary: { succeeded: 0, failed: 0, skipped: 0, pending: projects.length, running: 0 },
       steps: projects.map((p) => ({ project: p, status: "pending" as StepStatus })),
+      events: [],
     };
   }
 
   async start(): Promise<void> {
+    this.event("execution_started");
     await this.write();
   }
 
@@ -59,6 +85,7 @@ export class StatusTracker {
     if (!step) return;
     step.status = "running";
     step.startedAt = new Date().toISOString();
+    this.event("step_started", project);
     this.recount();
     await this.write();
   }
@@ -68,6 +95,9 @@ export class StatusTracker {
     if (!step) return;
     step.status = status;
     step.completedAt = new Date().toISOString();
+    if (status !== "skipped") {
+      this.event(`step_${status}`, project, this.logs.get(project));
+    }
     this.recount();
     await this.write();
   }
@@ -75,7 +105,29 @@ export class StatusTracker {
   async complete(status: "succeeded" | "failed"): Promise<void> {
     this.state.status = status;
     this.state.completedAt = new Date().toISOString();
+    this.event(`execution_${status}`);
     await this.write();
+  }
+
+  /**
+   * Record where a step's log was written, for the completion event to carry.
+   * Called before the step reports, so nothing is written here.
+   *
+   * ponytail: one key per project, so a supervised step, which writes a plan and
+   * an apply log, references only the apply one. Widen to a list when supervised
+   * becomes usable.
+   */
+  logWritten(project: string, key: string): void {
+    this.logs.set(project, key);
+  }
+
+  private event(type: ExecutionEventType, project?: string, log?: string): void {
+    this.state.events.push({
+      at: new Date().toISOString(),
+      type,
+      ...(project ? { project } : {}),
+      ...(log ? { log } : {}),
+    });
   }
 
   private recount(): void {
