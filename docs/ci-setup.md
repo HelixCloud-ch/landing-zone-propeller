@@ -1,16 +1,16 @@
 # CI setup
 
 Configure GitHub Actions to run plans and applies from the consumer repo. Once
-it's in place the pipeline can be triggered through the workflow UI.
+in place, the pipeline can be triggered through the workflow UI.
 
 The CI user only needs permissions to upload the bundle to S3 and invoke the
-Autopilot Lambda. No broad admin access.
+Autopilot Lambda.
 
 ## 1. Create the CI user
 
-Run this entire block from CloudShell in the management account. It resolves the
-Operations account, assumes into it, creates the CI user, and prints all values
-needed for GitHub.
+Run from CloudShell in the management account. It resolves the Operations
+account, assumes into it, creates the CI user, and prints all values needed for
+GitHub.
 
 ```bash
 # --- Configuration (edit this) ---
@@ -81,86 +81,94 @@ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
 
 ## 2. Add GitHub secrets
 
-In the consumer repo, go to **Settings → Secrets and Variables → Actions →
-Secrets (tab) → Repository Secrets (section)** and add:
+**Settings > Secrets and Variables > Actions > Secrets > Repository Secrets:**
 
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 
 ## 3. Add GitHub variables
 
-In the same UI, **Variables (tab) → Repository Variables (section)**:
+**Variables > Repository Variables:**
 
 - `AWS_REGION`
 - `PROPELLER_BUNDLE_BUCKET`
 - `PROPELLER_LAMBDA_ARN`
 
-All values were printed at the end of step 1.
+## 4. Add workflows
 
-## 4. Add the landing-zone deploy workflow
+Copy the example workflows into `.github/workflows/` and adapt the platform
+names in the `options:` lists to match your consumer repo.
 
-Create `.github/workflows/deploy-landing-zone.yml`:
+| Workflow | Example | Purpose |
+|----------|---------|---------|
+| Landing zone deploy | [landing-zone-deploy.yml](examples/landing-zone-deploy.yml) | Plan/apply the landing-zone pipeline |
+| Landing zone destroy | [landing-zone-destroy-project.yml](examples/landing-zone-destroy-project.yml) | Destroy a single landing-zone project |
+| Platform deploy | [platform-deploy.yml](examples/platform-deploy.yml) | Plan/apply a platform pipeline |
+| Platform destroy | [platform-destroy-project.yml](examples/platform-destroy-project.yml) | Destroy platform project(s) |
+| Platform sleep/wake | [platform-sleep-wake.yml](examples/platform-sleep-wake.yml) | Sleep/wake a platform with presets |
 
-```yaml
-name: Deploy Landing Zone
-on:
-  workflow_dispatch:
-    inputs:
-      action:
-        description: "Deploy action"
-        required: true
-        type: choice
-        options:
-          - plan
-          - apply
-        default: apply
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v7
-      - uses: extractions/setup-just@v3
-      - run: |
-          aws configure set aws_access_key_id "${{ secrets.AWS_ACCESS_KEY_ID }}"
-          aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-          aws configure set region "${{ vars.AWS_REGION }}"
-      - env:
-          PROPELLER_BUNDLE_BUCKET: ${{ vars.PROPELLER_BUNDLE_BUCKET }}
-          PROPELLER_LAMBDA_ARN: ${{ vars.PROPELLER_LAMBDA_ARN }}
-          DEPLOY_ACTION: ${{ inputs.action }}
-        run: |
-          just pull
-          just deploy
-      - run: |
-          echo "**Propeller version:** $(jq -r '.propeller_version' dist/landing-zone/pipeline.lock.json)" >> $GITHUB_STEP_SUMMARY
-          echo "**Action:** ${{ inputs.action }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          cat dist/landing-zone/pipeline.lock.md >> $GITHUB_STEP_SUMMARY
+### Workflow features
+
+All deploy workflows include:
+
+- `run-name` for readable execution titles in the Actions UI
+- `ONLY` input to target a single project without running the full pipeline
+- A summary step that renders the Mermaid pipeline graph in the job summary
+
+Platform deploy adds:
+
+- `supervised` toggle for plan-then-approve-then-apply mode
+
+Sleep/wake adds:
+
+- `sleep_preset` input (required for sleep, auto-resolved on wake from stored
+  state)
+
+Destroy workflows add safety gates:
+
+- Typed confirmation (`DESTROY`)
+- Checkbox acknowledgment
+- 10-second cooldown job between validation and execution
+- `ALL` keyword for full platform destroy (sets `DESTROY_ALL=true`)
+
+### How it flows
+
+```
+┌──────────────┐     ┌──────────┐     ┌──────────┐     ┌──────────────┐
+│ just pull    │────▶│ resolve  │────▶│ bundle   │────▶│ upload to S3 │
+└──────────────┘     └──────────┘     └──────────┘     └──────────────┘
+                          │                                    │
+                          ▼                                    ▼
+                   ┌──────────────┐     ┌──────────────────────────────────┐
+                   │ Job summary  │     │ Invoke Autopilot Lambda          │
+                   │ (Mermaid)    │     │   → CodeBuild per project        │
+                   └──────────────┘     └──────────────────────────────────┘
 ```
 
-The `action` input controls what the workflow does: `plan` shows what would
-change without applying; `apply` runs the actual deployment. The `DEPLOY_ACTION`
-environment variable is read by `just deploy` to decide which mode to invoke.
-
-Commit and push the workflow file.
+The resolve step produces `pipeline.lock.md` (Mermaid graph). The workflow
+writes it to the GitHub Actions job summary before invoking the Lambda.
 
 ## 5. First deploy
 
-In the consumer repo, go to **Actions → Deploy Landing Zone → Run workflow**.
+Go to **Actions > Landing Zone - Deploy > Run workflow**. Start with `plan` to
+confirm the wiring. The job summary shows the resolved version and pipeline
+graph.
 
-Start with a `plan` run to confirm the wiring. The job summary shows the
-resolved propeller version, the action, and a Mermaid graph of the pipeline.
+## Environment variables reference
 
-## What this step produces
-
-- A dedicated CI user in the Operations account with minimal permissions
-- GitHub secrets and variables configured in the consumer repo
-- A `.github/workflows/deploy-landing-zone.yml` workflow that runs plan or apply
-- A successful first plan of the first step
+| Variable | Purpose |
+|----------|---------|
+| `PROPELLER_BUNDLE_BUCKET` | S3 bucket for bundles |
+| `PROPELLER_LAMBDA_ARN` | Autopilot Lambda ARN |
+| `DEPLOY_ACTION` | `plan`, `apply`, `destroy`, `sleep`, `wake` |
+| `DEPLOY_MODE` | `autopilot` (default) or `supervised` |
+| `ONLY` | Comma-separated project names to target |
+| `SLEEP_PRESET` | Preset name for sleep action |
+| `DESTROY_ALL` | Set to `true` for full-pipeline destroy (safety gate) |
 
 ## What's next
 
-- Customize the pipeline as needs evolve: [customization](customization.md).
-- Look up reference details: [pipeline schema](pipeline-schema.md),
+- Customize the pipeline: [customization](customization.md).
+- Deploy platforms: [platforms](platforms.md).
+- Reference: [pipeline schema](pipeline-schema.md),
   [project structure](project-structure.md).

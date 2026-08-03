@@ -1,8 +1,10 @@
 name: smoke-test
-description: Minimal platform project for testing the platform pipeline flow.
+description: >-
+  Minimal terraform project for smoke-testing the propeller pipeline.
+  Creates an SSM parameter.
 
 metadata:
   cost-center: platform
 
 deploy:
-  type: script
+  type: just

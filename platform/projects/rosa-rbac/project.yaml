@@ -5,7 +5,4 @@ metadata:
   cost-center: platform
 
 deploy:
-  type: script
-
-sleep:
-  action: destroy
+  type: just

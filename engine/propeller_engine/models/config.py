@@ -34,6 +34,8 @@ class PropellerConfig(BaseModel):
     Sections:
       - `tags`: pipeline-wide tags applied to every project's resources.
       - `pipeline`: optional pipeline-level overrides; defaults to empty.
+      - `sources`: consumer directories searched for projects before framework
+        ones, relative to this file.
 
     The framework version pin lives in the version file read by the consumer
     tooling, not here; the engine receives it via `--version`.
@@ -42,6 +44,7 @@ class PropellerConfig(BaseModel):
     propeller: dict = Field(default_factory=dict)
     pipeline: PipelineOverrides | None = Field(default_factory=PipelineOverrides)
     tags: dict[str, str] = Field(default_factory=dict)
+    sources: list[str] | None = Field(default_factory=list)
 
     def model_post_init(self, __context) -> None:
         # `pipeline: {}` deserializes to None with pydantic's union handling;
@@ -49,3 +52,7 @@ class PropellerConfig(BaseModel):
         # without a None check.
         if self.pipeline is None:
             self.pipeline = PipelineOverrides()
+        # `sources:` with nothing under it deserializes to None; treat it as empty
+        # rather than surfacing a pydantic type error.
+        if self.sources is None:
+            self.sources = []

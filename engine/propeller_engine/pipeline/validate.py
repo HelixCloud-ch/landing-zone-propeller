@@ -35,17 +35,13 @@ def validate_depends_on_exist(pipeline: Pipeline) -> list[str]:
 
 
 def validate_depends_on_same_stage(pipeline: Pipeline) -> list[str]:
-    errors = []
-    for stage in pipeline.stages:
-        stage_projects = {s.project for s in stage.steps}
-        for step in stage.steps:
-            for dep in step.depends_on:
-                if dep not in stage_projects:
-                    errors.append(
-                        f"Project '{step.project}' (stage '{stage.name}') "
-                        f"depends on '{dep}' which is not in the same stage"
-                    )
-    return errors
+    """Validate depends_on references.
+
+    Cross-stage depends_on is always allowed. Stage ordering + the DAG handle
+    execution order. The only invalid case (circular deps) is caught by
+    validate_no_cycles.
+    """
+    return []
 
 
 def validate_no_cycles(pipeline: Pipeline) -> list[str]:

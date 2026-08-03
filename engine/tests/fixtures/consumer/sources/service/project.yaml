@@ -1,0 +1,4 @@
+name: service
+description: Deploys via a justfile, with no terraform.
+deploy:
+  type: just

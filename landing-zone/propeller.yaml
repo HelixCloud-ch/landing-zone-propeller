@@ -5,10 +5,15 @@
 version: "1"
 namespace: landing-zone
 
+# Consumers overlay these projects from their own landing-zone/projects/<project>.
+overlays:
+  - projects/${project}
+
 stages:
   - name: foundation
     steps:
       - project: bootstrap-parameters
+        source: propeller:bootstrap-parameters
         target: management
         inputs:
           - name: /accounts.operations.id
@@ -27,6 +32,7 @@ stages:
           - name: organization_arn
 
       - project: control-tower-prerequisites
+        source: propeller:control-tower-prerequisites
         target: management
         outputs:
           - name: /accounts.log-archive.id
@@ -44,9 +50,11 @@ stages:
           - name: control_tower_config_aggregator_role_arn
 
       - project: org-trusted-access
+        source: propeller:org-trusted-access
         target: management
 
       - project: control-tower
+        source: propeller:control-tower
         target: management
         depends_on: [control-tower-prerequisites]
         inputs:
@@ -60,6 +68,7 @@ stages:
             var: backup_central_account_id
 
       - project: ou-infrastructure
+        source: propeller:ou-infrastructure
         target: management
         depends_on: [control-tower]
         inputs:
@@ -74,6 +83,7 @@ stages:
             var: ou_name
 
       - project: account-network
+        source: propeller:account-network
         target: management
         depends_on: [ou-infrastructure]
         inputs:
@@ -86,6 +96,7 @@ stages:
             var: account_id
 
       - project: network-deploy-runner
+        source: propeller:network-deploy-runner
         target: management
         depends_on: [account-network, bootstrap-parameters]
         inputs:
@@ -105,11 +116,13 @@ stages:
             var: caller_arn
 
       - project: base-sso
+        source: propeller:base-sso
         target: management
 
   - name: network
     steps:
       - project: network-tgw
+        source: propeller:network-tgw
         target: network
         inputs:
           - name: bootstrap-parameters.organization_arn
@@ -120,6 +133,7 @@ stages:
           - name: share_arn
 
       - project: network-vpc-hub
+        source: propeller:network-vpc-hub
         target: network
         depends_on: []
         outputs:
@@ -134,6 +148,7 @@ stages:
           - name: route_table_ids
 
       - project: network-s2s
+        source: propeller:network-s2s
         target: network
         depends_on: [network-tgw]
         inputs:
@@ -144,6 +159,7 @@ stages:
           - name: vpn_connection_ids
 
       - project: network-routing
+        source: propeller:network-routing
         target: network
         depends_on: [network-tgw, network-vpc-hub, network-s2s]
         inputs:
@@ -166,6 +182,7 @@ stages:
           - name: hub_attachment_id
           - name: onprem_cidrs
       -  project: network-spokes
+         source: propeller:network-spokes
          target: network
          depends_on: [network-tgw, network-routing, network-s2s]
          inputs:
@@ -192,12 +209,14 @@ stages:
   - name: workloads
     steps:
       - project: workload-ous
+        source: propeller:workload-ous
         target: management
         outputs:
           - name: ou_ids
             var: ou_ids
 
       - project: workload-accounts
+        source: propeller:workload-accounts
         target: management
         depends_on: [workload-ous]
         inputs:
@@ -207,6 +226,7 @@ stages:
           - name: account_ids
 
       - project: workload-deploy-runners
+        source: propeller:workload-deploy-runners
         target: management
         depends_on: [workload-accounts]
         inputs:
@@ -226,6 +246,7 @@ stages:
             var: caller_account_id
 
       - project: workload-account-registry
+        source: propeller:workload-account-registry
         target: operations
         depends_on: [workload-deploy-runners]
         inputs:
@@ -233,6 +254,7 @@ stages:
             var: account_ids
 
       - project: workload-parameters
+        source: propeller:workload-parameters
         target: management
         depends_on: [workload-deploy-runners]
         inputs:

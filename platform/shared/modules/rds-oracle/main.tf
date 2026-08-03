@@ -100,10 +100,10 @@ resource "aws_db_instance" "this" {
   port                   = var.port
   publicly_accessible    = false
 
-  # Database
-  db_name            = var.db_name
-  character_set_name = var.character_set_name
-  username           = var.username
+  # Database (omitted when restoring from snapshot - values come from the snapshot)
+  db_name            = var.snapshot_identifier != "" ? null : var.db_name
+  character_set_name = var.snapshot_identifier != "" ? null : var.character_set_name
+  username           = var.snapshot_identifier != "" ? null : var.username
 
   # Credentials managed by Secrets Manager
   manage_master_user_password   = true
@@ -118,7 +118,8 @@ resource "aws_db_instance" "this" {
   # Protection
   deletion_protection       = var.deletion_protection
   skip_final_snapshot       = var.skip_final_snapshot
-  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.identifier}-final"
+  final_snapshot_identifier = var.skip_final_snapshot ? null : (var.final_snapshot_identifier != "" ? var.final_snapshot_identifier : "${var.identifier}-final")
+  snapshot_identifier       = var.snapshot_identifier != "" ? var.snapshot_identifier : null
 
   # Upgrades
   auto_minor_version_upgrade  = var.auto_minor_version_upgrade

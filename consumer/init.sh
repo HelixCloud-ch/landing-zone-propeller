@@ -43,6 +43,8 @@ mkdir -p landing-zone/projects
 cp -n .propeller/consumer/init/propeller.overrides.yaml landing-zone/propeller.overrides.yaml 2>/dev/null || true
 
 # Pin the downloaded version
+echo "${VERSION}" > .propeller-version
+
 if grep -q "PROPELLER_VERSION_PLACEHOLDER" landing-zone/propeller.overrides.yaml 2>/dev/null; then
     sed -i.bak "s/PROPELLER_VERSION_PLACEHOLDER/${VERSION}/" landing-zone/propeller.overrides.yaml
     rm -f landing-zone/propeller.overrides.yaml.bak

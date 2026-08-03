@@ -8,16 +8,15 @@ from a pipeline step, deployed into the step's `target` account, and
 reads/writes data through the inputs and outputs declared in the pipeline. See
 [pipeline-schema.md](pipeline-schema.md) for the wiring side.
 
-## Layout by deploy type
+## Layout
 
 Each project lives at `<pipeline>/projects/<project-name>/` and always contains
-a `project.yaml`. The rest of the layout depends on the deploy type.
-
-### Terraform
+a `project.yaml` and a `justfile`.
 
 ```
-landing-zone/projects/control-tower-prerequisites/
+platform/projects/rds-oracle/
 ├── project.yaml
+├── justfile
 ├── README.md
 └── terraform/
     ├── main.tf
@@ -27,334 +26,319 @@ landing-zone/projects/control-tower-prerequisites/
     └── versions.tf
 ```
 
-The engine runs Terraform from the `terraform/` directory. The backend is
-configured by the engine from `project.yaml`; the project itself only declares
-`backend "s3" {}` in `versions.tf`.
+The justfile is the project's entry point. The Autopilot calls `just plan`,
+`just apply`, `just destroy`, `just sleep`, or `just wake` depending on the
+deploy action. Most projects import the shared terraform recipe and wire up
+the standard actions:
 
-### CloudFormation
+```just
+import "../../../shared/recipes/terraform.just"
 
-```
-landing-zone/projects/some-cfn-project/
-├── project.yaml
-├── README.md
-└── cloudformation/
-    └── template.yaml
-```
-
-The engine runs `aws cloudformation deploy` against the template. Inputs
-declared in the pipeline step are passed as `--parameter-overrides`. After a
-successful apply, outputs are extracted from the deployed stack via
-`describe-stacks`, written to `.propeller-outputs.json`, and promoted to SSM by
-the Lambda according to the pipeline step's `outputs:` declaration.
-
-Note: the CloudFormation runner is currently not aligned with the v2 project
-contract (which moved `outputs:` from `project.yaml` to the pipeline step).
-
-### Script
-
-```
-landing-zone/projects/example-script/
-├── project.yaml
-├── README.md
-└── justfile
+plan: tf-plan
+apply: tf-apply
+destroy: tf-destroy
 ```
 
-The engine delegates everything to `just` recipes. The justfile must implement:
-`init`, `plan`, `apply`, `destroy`, `outputs`. Inputs are available as
-`PROPELLER_INPUT_<var_name>` environment variables. The `apply` recipe is
-responsible for writing outputs to `.propeller-outputs.json` in the project
-directory.
+The shared recipe handles init, backend configuration, variable injection (via
+`_propeller-vars`), output extraction, and plan storage for supervised mode.
 
 ## `project.yaml`
 
-The project's self-description. Keep this minimal - all wiring (target, inputs,
+The project's self-description. Keep this minimal. All wiring (target, inputs,
 outputs, dependencies) lives in the pipeline step, not here.
-
-### Terraform
-
-```yaml
-name: control-tower-prerequisites
-description: Control Tower prerequisites
-
-metadata:
-  cost-center: landing-zone
-
-deploy:
-  type: terraform
-  terraform:
-    backend:
-      bucket: "state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an"
-      key: "propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/terraform.tfstate"
-      region: "${AWS_REGION}"
-```
-
-### CloudFormation
-
-```yaml
-name: some-cfn-project
-description: Example CloudFormation project
-
-metadata:
-  cost-center: landing-zone
-
-deploy:
-  type: cloudformation
-  cloudformation:
-    stack_name: "${PROJECT_NAME}-${AWS_REGION}" # optional, defaults to project name
-    region: "${AWS_REGION}" # optional, defaults to AWS_REGION env
-    template: cloudformation/template.yaml # optional, this is the default
-```
-
-### Script
-
-```yaml
-name: example-script
-description: Example script-based project
-
-metadata:
-  cost-center: landing-zone
-
-deploy:
-  type: script
-```
-
-## Fields
-
-- `name` - unique identifier within the pipeline. Must match the folder name.
-- `description` - human-readable summary. Surfaces in tooling.
-- `metadata.cost-center` - optional, becomes the `propeller:cost-center` tag on
-  resources created by this project. Omit to skip the tag.
-- `metadata.framework-required` - optional, set to `true` to emit
-  `propeller:framework-required = true` on every resource (use only for
-  resources that exist solely to run the framework, like CodeBuild projects and
-  Lambda runners).
-- `deploy.type` - `terraform`, `cloudformation`, or `script`.
-- `deploy.terraform.backend` - S3 backend config, env-var substituted at deploy
-  time.
-- `deploy.cloudformation.{stack_name,region,template}` - all optional; sensible
-  defaults apply.
-- `sleep` - optional block declaring the project's sleep/wake capability. See
-  [Sleep / Wake](#sleep--wake) below.
-
-## Sleep / Wake
-
-The `sleep:` block in `project.yaml` declares what should happen when the
-platform enters sleep mode (cost optimization) and what happens on wake.
-
-### Schema
-
-```yaml
-sleep:
-  action: destroy | command | skip
-  timeout: 120                       # optional, seconds (default: 60)
-  command: |                         # required if action: command
-    aws rds stop-db-instance ...
-  wake_command: |                    # required if action: command
-    aws rds start-db-instance ...
-```
-
-### Actions
-
-| Action | On sleep | On wake | Use case |
-|--------|----------|---------|----------|
-| `destroy` | `terraform destroy` | `terraform apply` (recreate) | Clusters, caches, NAT gateways |
-| `command` | Runs `sleep.command` | Runs `sleep.wake_command` | RDS stop/start, Oracle, Aurora |
-| `skip` | No-op | No-op | VPCs, security groups, DNS |
-
-If a project has no `sleep:` block, it has no sleep capability and cannot be
-opted into sleep from the pipeline.
-
-### How it works
-
-1. The framework project declares the **capability** (how to sleep).
-2. The consumer's pipeline step opts in with `sleep: true`.
-3. On `DEPLOY_ACTION=sleep`, the engine reverses stage order and executes each
-   project's declared sleep action.
-4. On `DEPLOY_ACTION=wake`, the engine runs stages forward and recreates or
-   restarts each project.
-
-### Command variable resolution
-
-Commands support `${VAR}` substitution. Available variables:
-
-| Variable | Source |
-|----------|--------|
-| `${AWS_REGION}` | Target account region |
-| `${AWS_ACCOUNT_ID}` | Target account ID |
-| `${TF_OUTPUT_<name>}` | Terraform output from the project's own state |
-| `${PROPELLER_NAMESPACE}` | Pipeline namespace |
-| `${PROJECT_NAME}` | Project name |
-
-### Examples
-
-**Destroy/recreate** (EKS cluster, ElastiCache):
-
-```yaml
-name: eks-cluster
-deploy:
-  type: terraform
-sleep:
-  action: destroy
-  timeout: 120
-```
-
-**Command** (RDS Oracle — stop/start via API):
 
 ```yaml
 name: rds-oracle
+description: >-
+  Deploys an RDS Oracle instance with managed credentials.
+
+metadata:
+  cost-center: platform
+
 deploy:
-  type: terraform
-sleep:
-  action: command
-  command: |
-    aws rds stop-db-instance \
-      --db-instance-identifier ${TF_OUTPUT_db_instance_identifier} \
-      --region ${AWS_REGION}
-  wake_command: |
-    aws rds start-db-instance \
-      --db-instance-identifier ${TF_OUTPUT_db_instance_identifier} \
-      --region ${AWS_REGION}
-    aws rds wait db-instance-available \
-      --db-instance-identifier ${TF_OUTPUT_db_instance_identifier} \
-      --region ${AWS_REGION}
+  type: just
 ```
 
-**Pipeline step opt-in:**
+### Fields
+
+- `name` - required. How the project is referenced, so a project without one
+  cannot be reached. Framework project names are unique across `landing-zone/` and
+  `platform/`, since `propeller:<name>` has to mean one project everywhere.
+- `description` - human-readable summary.
+- `base` - optional. Extend another project, carrying only the differences. See
+  [Extending a project](#extending-a-project).
+- `metadata.cost-center` - optional, becomes the `propeller:cost-center` tag.
+- `metadata.framework-required` - optional, set to `true` for framework-only
+  resources (Lambda, CodeBuild runners, etc.).
+- `deploy.type` - always `just` for new projects.
+
+## Extending a project
+
+A project can declare a `base`, inheriting its files and shipping only what
+differs. Useful for adding organisation defaults to a framework project without
+copying it, which would then drift.
 
 ```yaml
-stages:
-  - name: cluster
-    steps:
-      - project: eks-cluster-1
-        source: eks-cluster
-        target: my-account
-        sleep: true              # participates in sleep/wake
+# shared-projects/org-postgres/project.yaml
+name: org-postgres
+description: RDS PostgreSQL with organisation defaults.
+base: propeller:rds-postgres
+deploy:
+  type: just
 ```
 
-### Triggering sleep/wake
-
-```bash
-# Sleep the platform
-DEPLOY_ACTION=sleep just platform-deploy my-platform
-
-# Wake the platform
-DEPLOY_ACTION=wake just platform-deploy my-platform
-
-# Sleep a single project
-DEPLOY_ACTION=sleep ONLY=eks-cluster-1 just platform-deploy my-platform
+```
+shared-projects/org-postgres/
+├── project.yaml
+└── terraform/
+    └── config.auto.tfvars      # the only file that differs
 ```
 
-## Environment-variable substitution
+`base` accepts the same forms as a step's `source`, so a project can extend a
+framework project, another consumer project, or one from a private repository.
 
-Strings inside `project.yaml` support `${VAR}` substitution at deploy time. The
-following variables are populated automatically:
+Assembly order, last write wins per file:
 
-- `${AWS_ACCOUNT_ID}` - the target account ID for this step
-- `${AWS_REGION}` - the deploy region
-- `${PROPELLER_NAMESPACE}` - the pipeline's `namespace`
-- `${PROJECT_NAME}` - the project's `name`
+```
+1. the base project
+2. the project's own files
+3. each overlay, in the order the step declares them
+```
 
-Substitution applies to any string field in `project.yaml`. The most common use
-is templating the Terraform backend (bucket name, state key) so a single project
-source can deploy into different accounts and namespaces without edits.
+Files are merged individually rather than the directory being replaced, so a
+project inherits everything from its base except what it names. That also means a
+base file cannot be removed, only replaced.
 
-A missing variable causes the deploy to fail with an explicit error rather than
-silently expanding to an empty string.
+## Shared terraform recipe
+
+The framework ships `shared/recipes/terraform.just` which provides:
+
+- `tf-init` - backend configuration from env vars
+- `tf-plan` - plan with variable injection, plan storage for supervised mode
+- `tf-apply` - apply (from saved plan in supervised mode, or fresh)
+- `tf-destroy` - destroy with variable injection
+- `_propeller-vars` - writes all `PROPELLER_INPUT_*` env vars and tags to
+  `_propeller.auto.tfvars.json` using jq
+- `_propeller-outputs` - extracts terraform outputs to
+  `.propeller-outputs.json`
+
+### Plan storage
+
+When `PROPELLER_EXECUTION_ID` is set (always in production), the plan binary is
+saved to S3 (`propeller-plans/{execution_id}/{project}.tfplan`). In supervised
+mode, the apply phase retrieves and applies this exact plan.
+
+If `PROPELLER_PLAN_BUCKET` is set, a JSON representation of the plan is also
+stored for UI/review consumption.
+
+### Sleep and wake
+
+The shared recipe provides mode-aware sleep/wake dispatch:
+
+```just
+sleep:
+    just sleep-{{ _sleep_mode }}
+
+wake:
+    just wake-{{ _sleep_mode }}
+```
+
+`PROPELLER_SLEEP_MODE` is set by the Autopilot based on the active preset.
+The shared recipe also provides `sleep-destroy` / `wake-destroy` as built-in
+modes. Projects add custom modes by defining additional recipes.
+
+### Sleep state helpers
+
+For modes that need to pass data between sleep and wake (beyond deterministic
+naming), the shared recipe provides:
+
+```just
+_sleep-state-write data    # writes JSON to s3://{state_bucket}/{sleep_state_key}
+_sleep-state-read          # reads it back (returns {} if missing)
+```
+
+## Implementing sleep modes
+
+Projects declare which modes they support by adding `sleep-{mode}` and
+`wake-{mode}` recipes to their justfile. The pipeline's `sleep_presets`
+determines which mode is used at runtime.
+
+Example (RDS Oracle with stop and snapshot modes):
+
+```just
+import "../../../shared/recipes/terraform.just"
+
+plan: tf-plan
+apply: tf-apply
+destroy: tf-destroy
+
+# Default mode when no preset specifies otherwise
+sleep-default: sleep-stop
+wake-default: wake-stop
+
+sleep-stop: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    DB_ID=$(terraform output -raw db_instance_identifier)
+    aws rds stop-db-instance --db-instance-identifier "$DB_ID" --region "$AWS_REGION"
+
+wake-stop: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    DB_ID=$(terraform output -raw db_instance_identifier)
+    aws rds start-db-instance --db-instance-identifier "$DB_ID" --region "$AWS_REGION"
+    aws rds wait db-instance-available --db-instance-identifier "$DB_ID" --region "$AWS_REGION"
+
+sleep-snapshot: tf-init
+    # Targeted destroy with final snapshot (preserves SG, subnet group, secrets)
+    ...
+
+wake-snapshot: tf-init
+    # Restore from deterministic snapshot ID, then clean up snapshot
+    ...
+```
+
+Common sleep modes:
+
+| Mode | On sleep | On wake | Use case |
+|------|----------|---------|----------|
+| `destroy` | `terraform destroy` | `terraform apply` | Clusters, NAT gateways |
+| `stop` | API stop call | API start + wait | RDS, Aurora |
+| `snapshot` | Targeted destroy with final snapshot | Apply with snapshot_identifier | RDS (long sleep, avoid 7-day restart) |
+
+The deterministic snapshot ID convention is `propeller-sleep-{PROJECT_NAME}`
+(available as `{{ _sleep_snapshot_id }}` in the justfile). This avoids needing
+state files to reconnect sleep and wake.
+
+## Environment variables
+
+The Autopilot sets these env vars in CodeBuild for every project:
+
+| Variable | Description |
+|----------|-------------|
+| `PROJECT_NAME` | Project name |
+| `PROPELLER_NAMESPACE` | Pipeline namespace |
+| `AWS_ACCOUNT_ID` | Target account ID |
+| `AWS_REGION` | Deploy region |
+| `DEPLOY_ACTION` | Current action (apply, plan, etc.) |
+| `PROPELLER_EXECUTION_ID` | Durable execution ID |
+| `PROPELLER_INPUT_*` | Resolved input values |
+| `PROPELLER_FRAMEWORK_TAGS_JSON` | Framework tags (JSON object) |
+| `PROPELLER_CONSUMER_TAGS_JSON` | Consumer tags (JSON object) |
+| `PROPELLER_SLEEP_MODE` | Sleep mode for this project (sleep/wake only) |
+| `PROPELLER_SAVED_PLAN` | Set to "1" in supervised apply phase |
+| `PROPELLER_PLAN_BUCKET` | Centralized plan bucket (if configured) |
 
 ## Tags
 
-The framework injects a small set of tags on every resource it deploys.
-Terraform projects expose three variables that the engine wires automatically:
+The framework injects tags on every resource. Terraform projects expose three
+variables that the shared recipe wires automatically:
 
 ```hcl
-variable "tags"           { type = map(string)  default = {} }   # per-project
-variable "consumer_tags"  { type = map(string)  default = {} }   # pipeline-wide
-variable "propeller_tags" { type = map(string)  default = {} }   # framework
-
-# providers.tf
-default_tags {
-  tags = merge(var.consumer_tags, var.tags, var.propeller_tags)
-}
+variable "tags"           { type = map(string)  default = {} }
+variable "consumer_tags"  { type = map(string)  default = {} }
+variable "propeller_tags" { type = map(string)  default = {} }
 ```
 
-Precedence (lowest to highest): `consumer_tags` → `tags` → `propeller_tags`.
-Framework tags always win on key collisions; consumer per-project tags override
-pipeline-wide ones.
+Precedence (lowest to highest): `consumer_tags` < `tags` < `propeller_tags`.
 
-Framework tags emitted automatically per project:
+Framework tags emitted per project:
 
-- `propeller:pipeline` - the pipeline's `namespace`
-- `propeller:project` - the project name
-- `propeller:deploy-type` - `terraform`, `cloudformation`, or `script`
-- `propeller:cost-center` - from `metadata.cost-center` (only when set)
-- `propeller:framework-required` - from `metadata.framework-required: true`
-  (only when set to true)
-
-CloudFormation projects receive the same tags via
-`aws cloudformation deploy --tags`. Script projects receive them as
-`PROPELLER_FRAMEWORK_TAGS_JSON` and `PROPELLER_CONSUMER_TAGS_JSON` environment
-variables.
+- `propeller:pipeline` - namespace
+- `propeller:project` - project name
+- `propeller:deploy-type` - deploy type
+- `propeller:cost-center` - from `metadata.cost-center` (when set)
+- `propeller:framework-required` - from `metadata.framework-required` (when true)
 
 ## Consumer overlays
 
-Consumers customize framework projects by mirroring the project structure under
-their own `<pipeline>/projects/<project-name>/` directory and dropping in
-overlay files:
+An overlay changes part of a project without forking it. The step declares where
+its overlays live and the assembler copies them over the project:
+
+```yaml
+- project: rds-oracle-1
+  source: propeller:rds-oracle
+  overlays:
+    - overlays/${project}
+```
 
 ```
-landing-zone/projects/control-tower-prerequisites/
+overlays/rds-oracle-1/
 └── terraform/
     └── config.auto.tfvars
 ```
 
+`${project}` expands to the step's project name, so one pattern serves every step.
+A pattern naming a directory that does not exist is skipped, since most projects
+have no overlay. Entries apply in order, later ones winning:
+
+```yaml
+  overlays:
+    - org-overlays/${project}
+    - overlays/${project}
+```
+
+Declaring `overlays` at the top level of the pipeline sets the default for every
+step, which a step declaring its own replaces. The default landing-zone pipeline
+does this, so a consumer customizing it through `propeller.overrides.yaml` gets
+overlays from `landing-zone/projects/<project>` without editing any step.
+
 Recognized overlay files:
 
-- `config.auto.tfvars` (or any `*.auto.tfvars`) - Terraform variable values.
-  Auto-loaded by Terraform at apply time.
+- `*.auto.tfvars` - Terraform variable values, auto-loaded at plan/apply time.
+  These load in filename order, so `override.auto.tfvars` in an overlay takes
+  precedence over `config.auto.tfvars` in the project.
 - Terraform
   [override files](https://developer.hashicorp.com/terraform/language/files/override) -
-  merged on top of same-named blocks in the rest of the configuration.
+  merged on top of same-named blocks.
 
-The bundle assembler copies the framework project first, then overlays consumer
-files on top. Consumer files win on conflict.
+Files are merged individually, so an overlay changes only what it names.
 
 ### Custom (consumer-only) projects
 
-Consumers can also add **brand-new projects** that don't exist in the framework.
-The structure is the same; the consumer just provides the full project source
-(not just an overlay):
+Consumers can add projects that don't exist in the framework. Same structure,
+just provide the full project source:
 
 ```
-landing-zone/projects/my-custom-project/
+platforms/acme-prod/projects/my-custom-app/
 ├── project.yaml
-├── README.md
+├── justfile
 └── terraform/
     ├── main.tf
-    ├── variables.tf
-    └── outputs.tf
+    └── variables.tf
 ```
 
-The pipeline-level addition (in `propeller.overrides.yaml`) points the step's
-`source:` at the consumer-side path:
+Reference it from the pipeline with `local:` and the project's name:
 
 ```yaml
-pipeline:
-  additions:
-    - stage: foundation
-      step:
-        project: my-custom-project
-        source: "./landing-zone/projects/my-custom-project"
-        target: management
+- project: my-custom-app
+  source: local:my-custom-app
+  target: workload-acc
 ```
 
-Custom projects are copied as-is into the bundle - no merge needed, nothing to
-overlay against.
+## Multi-instance projects
+
+Deploy the same framework project multiple times with different names:
+
+```yaml
+- project: oracle-app1
+  source: propeller:rds-oracle
+  target: workload-acc
+
+- project: oracle-app2
+  source: propeller:rds-oracle
+  target: workload-acc
+```
+
+Each gets separate Terraform state, a separate overlay directory and separate SSM
+outputs, because all of those derive from `project` rather than `source`.
 
 ## See also
 
-- [Pipeline schema](pipeline-schema.md) - the pipeline-side wiring (target,
-  inputs, outputs, dependencies).
-- [Customization](customization.md) - common patterns for adding, removing, and
-  overriding projects.
-- [Examples](examples/) - working reference projects to copy as starting points.
+- [Pipeline schema](pipeline-schema.md) - pipeline-side wiring (target, inputs,
+  outputs, dependencies).
+- [Platforms](platforms.md) - authoring platform pipelines.
+- [Customization](customization.md) - adding, removing, overriding projects.
 - [Glossary](glossary.md) - canonical terminology.

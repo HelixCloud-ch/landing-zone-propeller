@@ -1,0 +1,9 @@
+marker := "consumer"
+
+plan:
+    @echo "{{ marker }} smoke-test"
+
+apply: plan
+
+destroy:
+    @echo "destroy"

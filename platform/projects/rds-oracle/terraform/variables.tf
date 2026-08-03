@@ -157,6 +157,18 @@ variable "skip_final_snapshot" {
   default = false
 }
 
+variable "final_snapshot_identifier" {
+  type        = string
+  description = "Override for final snapshot name on deletion (used by sleep-snapshot mode)."
+  default     = ""
+}
+
+variable "snapshot_identifier" {
+  type        = string
+  description = "DB snapshot to restore from on create (used by wake-snapshot mode). Empty = create fresh."
+  default     = ""
+}
+
 # ── Upgrades ──────────────────────────────────────────────────────────────────
 
 variable "auto_minor_version_upgrade" {

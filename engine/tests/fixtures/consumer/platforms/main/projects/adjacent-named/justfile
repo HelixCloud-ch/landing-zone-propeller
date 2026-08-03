@@ -1,0 +1,8 @@
+plan:
+    @echo "plan"
+
+apply:
+    @echo "apply"
+
+destroy:
+    @echo "destroy"

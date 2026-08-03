@@ -31,9 +31,9 @@ Once a pipeline is in place, these cover day-to-day tasks.
 Schemas, conventions, and lookups.
 
 - [Pipeline schema](pipeline-schema.md) - `propeller.yaml` and
-  `propeller.overrides.yaml` field reference.
-- [Project structure](project-structure.md) - `project.yaml`, consumer overlays,
-  project layout.
+  `propeller.overrides.yaml` field reference, source references, overlays.
+- [Project structure](project-structure.md) - `project.yaml`, extending a project,
+  consumer overlays, project layout.
 - [Examples](examples/) - working reference projects to copy as starting
   points.
 - [Glossary](glossary.md) - terminology used throughout.

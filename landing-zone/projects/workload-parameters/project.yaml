@@ -7,4 +7,4 @@ metadata:
   cost-center: landing-zone
 
 deploy:
-  type: script
+  type: just

@@ -1,0 +1,4 @@
+name: lookup
+description: Reads pre-existing network facts. Creates nothing.
+deploy:
+  type: just

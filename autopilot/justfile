@@ -1,0 +1,15 @@
+import "../../../shared/recipes/terraform.just"
+
+[private]
+build-lambda:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v pnpm || npm install -g pnpm
+    if [[ ! -d "node_modules" ]]; then
+      pnpm install --frozen-lockfile
+    fi
+    pnpm run build
+
+plan: build-lambda tf-plan
+apply: build-lambda tf-apply
+destroy: tf-destroy

@@ -1,0 +1,8 @@
+propeller:
+  version: "v0.0.0-fixture"
+  repo: "example/propeller"
+
+sources:
+  - sources/
+
+pipeline: {}

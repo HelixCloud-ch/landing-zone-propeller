@@ -36,6 +36,56 @@ resource "aws_s3_bucket_public_access_block" "this" {
   restrict_public_buckets = true
 }
 
+# ── Lifecycle rules ───────────────────────────────────────────────────────────
+
+resource "aws_s3_bucket_lifecycle_configuration" "this" {
+  bucket = aws_s3_bucket.this.id
+
+  rule {
+    id     = "expire-bundles"
+    status = "Enabled"
+    filter {
+      prefix = "bundles/"
+    }
+    expiration {
+      days = 90
+    }
+  }
+
+  rule {
+    id     = "expire-executions"
+    status = "Enabled"
+    filter {
+      prefix = "executions/"
+    }
+    expiration {
+      days = 180
+    }
+  }
+
+  rule {
+    id     = "expire-logs"
+    status = "Enabled"
+    filter {
+      prefix = "logs/"
+    }
+    expiration {
+      days = 90
+    }
+  }
+
+  rule {
+    id     = "expire-sources"
+    status = "Enabled"
+    filter {
+      prefix = "sources/"
+    }
+    expiration {
+      days = 90
+    }
+  }
+}
+
 resource "aws_s3_bucket_policy" "this" {
   bucket = aws_s3_bucket.this.id
   policy = data.aws_iam_policy_document.this.json

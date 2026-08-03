@@ -1,0 +1,4 @@
+name: smoke-test
+description: Consumer project sharing a name with a framework project.
+deploy:
+  type: just

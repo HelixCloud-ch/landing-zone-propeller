@@ -1,0 +1,66 @@
+# What each project exercises in the assembly report: which directories its files
+# come from, and where they end up.
+#
+# Only assembly. Cases about resolution, such as the forms an input can take, are
+# not visible in the report and are covered directly in tests/test_resolve.py.
+#
+# Every project must have an entry: tests/report.py fails without one, so adding a
+# step to the fixture forces you to say what it covers.
+
+lookup: >-
+  Nothing particular. It exists so later steps have outputs to reference by name.
+
+store-one: >-
+  Deployed under a different name than its source directory, so it needs a directory
+  of its own rather than sharing one with the other projects built from `store`. It
+  declares two overlays, an org-wide one and its own, which must be applied in the
+  order written so the second wins where both hold the same file.
+
+store-two: >-
+  A second project from the same source directory, which must not overwrite the
+  first. Written `local:store`, naming the consumer directory outright instead of
+  relying on search order.
+
+store-one-archive: >-
+  Its overlay directory name begins with the same characters as `store-one`'s.
+  Overlays are matched by directory name, so each project must receive only its own.
+
+store-tuned-one: >-
+  Its source directory holds two files and declares `base: store`. Every other file
+  must come from `store`, and where both directories hold the same file the one in
+  `store-tuned` must win.
+
+cache-one: >-
+  One source directory, no base and no overlay. The simplest placement.
+
+service-one: >-
+  Its source directory has no terraform subdirectory, so nothing may assume one
+  exists. It also holds a `dist/` and a `node_modules/`, which must be left out of
+  the bundle: projects that need them rebuild in CodeBuild, so shipping a local
+  build would risk deploying a stale one.
+
+local-smoke: >-
+  Two directories on disk hold a project named `smoke-test`, one in the consumer and
+  one in the framework. Written without a prefix, the consumer's must be used.
+
+framework-smoke: >-
+  The same ambiguity, written `propeller:platform/projects/smoke-test` to take the
+  framework's directory instead.
+
+framework-smoke-legacy: >-
+  The same reference in the older `propeller://` spelling, which must resolve to the
+  same directory.
+
+smoke-test: >-
+  Its name matches the framework directory it comes from, so it is already in the
+  bundle from the copy of the whole framework tree and must not be copied again.
+  Only the overlay is added.
+
+adjacent-implicit: >-
+  Has no `source:` at all. It is found by matching its name against the projects
+  directory beside the pipeline, which is where a consumer puts a project used by
+  one pipeline only.
+
+adjacent-named: >-
+  The same directory, reached by writing the name out as `source:`. Resolving by
+  name and resolving implicitly must land in the same place.

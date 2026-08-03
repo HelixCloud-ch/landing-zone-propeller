@@ -60,7 +60,18 @@ backup_admin_account_email   = "aws+backup-admin@example.com"
 backup_central_account_email = "aws+backup-central@example.com"
 ```
 
-The assembler merges this overlay onto the framework's project at bundle time.
+The default landing-zone pipeline declares `projects/${project}` as its overlay
+pattern, so
+mirroring a project's name under `landing-zone/projects/` is all that is needed:
+nothing has to be declared per project. A pipeline you author yourself declares
+where its overlays live, at the top level for every step or on a single step:
+
+```yaml
+- project: rds-oracle-1
+  source: propeller:rds-oracle
+  overlays:
+    - overlays/${project}
+```
 Consumer values win on conflict.
 
 For the full list of variables a project accepts, read its `variables.tf` and
@@ -92,7 +103,7 @@ pipeline:
     - stage: foundation
       step:
         project: scp-baseline
-        source: "./landing-zone/projects/scp-baseline"
+        source: local:scp-baseline
         target: management
         depends_on: [control-tower]
         outputs:
@@ -114,10 +125,10 @@ pipeline:
       after: foundation
       steps:
         - project: scp-baseline
-          source: "./landing-zone/projects/scp-baseline"
+          source: local:scp-baseline
           target: management
         - project: tag-policies
-          source: "./landing-zone/projects/tag-policies"
+          source: local:tag-policies
           target: management
 ```
 
@@ -148,7 +159,7 @@ consumer-side source:
 pipeline:
   overrides:
     - project: base-sso
-      source: "./landing-zone/projects/custom-base-sso"
+      source: local:custom-base-sso
 ```
 
 The step keeps its position, target, and wiring; only the source changes. Use

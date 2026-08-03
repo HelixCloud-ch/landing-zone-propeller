@@ -1,0 +1,4 @@
+name: store
+description: A stateful project with credentials and a size mapping.
+deploy:
+  type: just
