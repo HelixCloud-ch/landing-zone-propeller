@@ -1,0 +1,10 @@
+endpoint := env("PROPELLER_INPUT_endpoint", "")
+
+plan:
+    @echo "plan {{ endpoint }}"
+
+apply:
+    @echo "apply {{ endpoint }}"
+
+destroy:
+    @echo "destroy"

@@ -1,0 +1,134 @@
+version: "1"
+namespace: fixture
+
+# Default for every step. A step declaring its own replaces this.
+overlays:
+  - overlays/${project}
+
+stages:
+  - name: discover
+    steps:
+      - project: lookup
+        source: local:lookup
+        target: acct-primary
+        outputs:
+          - name: net_id
+          - name: subnet_ids_json
+
+  - name: stateful
+    barrier: false
+    steps:
+      # Project name differs from source: needs its own bundle path.
+      - project: store-one
+        source: local:store
+        target: acct-primary
+        overlays:
+          - org-overlays/${project}
+          - overlays/${project}
+        inputs:
+          - var: net_id
+            name: lookup.net_id
+          - var: identifier
+            literal: store-one
+          - var: label
+            literal: ${vars.label}-one
+        outputs:
+          - name: endpoint
+          - name: secret_name
+
+      # Second instance of the same source, via the local scheme.
+      - project: store-two
+        source: local:store
+        target: acct-primary
+        inputs:
+          - var: net_id
+            name: lookup.net_id
+          - var: identifier
+            literal: store-two
+        outputs:
+          - name: endpoint
+          - name: secret_name
+
+      # Name has store-one as a prefix.
+      - project: store-one-archive
+        source: local:store
+        target: acct-primary
+        overlays:
+          - overlays/${project}
+        inputs:
+          - var: net_id
+            name: lookup.net_id
+          - var: identifier
+            literal: store-one-archive
+        outputs:
+          - name: endpoint
+
+      # base: store, with an overlay shadowing the base tfvars.
+      - project: store-tuned-one
+        source: local:store-tuned
+        target: acct-primary
+        inputs:
+          - var: net_id
+            name: lookup.net_id
+          - var: identifier
+            literal: store-tuned-one
+        outputs:
+          - name: endpoint
+
+      - project: cache-one
+        source: local:cache
+        target: acct-primary
+        inputs:
+          - var: net_id
+            name: lookup.net_id
+          - var: identifier
+            literal: cache-one
+        outputs:
+          - name: primary_endpoint
+
+  # No terraform directory, consumes an earlier step's output.
+  - name: apps
+    steps:
+      - project: service-one
+        source: local:service
+        target: acct-primary
+        runner: deploy-runner-vpc-app
+        inputs:
+          - var: endpoint
+            name: store-one.endpoint
+          - var: account_id
+            name: /accounts.acct-primary.id
+          - var: hub_id
+            name: "@other-pipeline/net.hub_id"
+
+  # Same trailing name, two provenances.
+  - name: collision
+    steps:
+      - project: local-smoke
+        source: local:smoke-test
+        target: acct-primary
+
+      - project: framework-smoke
+        source: propeller:smoke-test
+        target: acct-primary
+
+      - project: framework-smoke-legacy
+        source: propeller://platform/projects/smoke-test
+        target: acct-primary
+
+      # Framework project under its own name: already present from the tree
+      # mirror, so it keeps that path and only the overlay is applied.
+      - project: smoke-test
+        source: propeller:smoke-test
+        target: acct-primary
+
+  # Consumer projects beside the pipeline, in platforms/main/projects/.
+  - name: adjacent
+    steps:
+      - project: adjacent-implicit
+        source: local:adjacent-implicit
+        target: acct-primary
+
+      - project: adjacent-named
+        source: local:adjacent-named
+        target: acct-primary

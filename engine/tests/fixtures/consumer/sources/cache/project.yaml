@@ -1,0 +1,4 @@
+name: cache
+description: A simpler stateful project, one output.
+deploy:
+  type: just

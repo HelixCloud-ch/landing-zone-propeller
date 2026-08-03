@@ -1,0 +1,5 @@
+name: store-tuned
+description: Extends `store`, carrying only its differences.
+base: local:store
+deploy:
+  type: just

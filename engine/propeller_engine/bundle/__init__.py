@@ -1,3 +1,3 @@
-from .assembler import create_bundle
+from .assembler import BundleError, create_bundle
 
-__all__ = ["create_bundle"]
+__all__ = ["BundleError", "create_bundle"]

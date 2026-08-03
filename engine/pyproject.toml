@@ -9,6 +9,17 @@ dependencies = [
     "click>=8.0",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: shells out to terraform; skipped by `-m 'not slow'`",
+]
+
 [project.scripts]
 propeller-resolve = "propeller_engine.cli.resolve:main"
 propeller-validate = "propeller_engine.cli.validate:main"

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import yaml
 
+from . import sources
 from ..models import (
     Pipeline,
     PipelineOverrides,
@@ -98,41 +99,122 @@ def _apply_stage_order(pipeline: Pipeline, overrides: PipelineOverrides) -> None
 
 
 def _discover_projects(propeller_dir: str) -> dict[str, dict]:
-    """Return a map of project_name → {path, project_yaml}."""
-    projects_root = Path(propeller_dir) / "projects"
+    """Return a map of project_name → {path, yaml} for every framework project.
+
+    Covers both layers' projects/ directories plus any directory at the framework
+    root declaring a project.yaml, so a root-level project such as autopilot is
+    reachable by name. A framework project name is a global identifier: two layers
+    declaring the same name is an error, since `propeller:<name>` would otherwise
+    mean different things depending on which layer the pipeline was resolved against.
+    """
+    root = Path(propeller_dir).parent
     result: dict[str, dict] = {}
-    if not projects_root.is_dir():
-        return result
-    for project_yaml in projects_root.rglob("project.yaml"):
-        data = yaml.safe_load(project_yaml.read_text())
+    seen: dict[str, str] = {}
+
+    candidates = sorted(root.glob("*/project.yaml"))
+    for layer in sorted(root.glob("*/projects")):
+        candidates.extend(sorted(layer.glob("*/project.yaml")))
+
+    for project_yaml in candidates:
+        data = yaml.safe_load(project_yaml.read_text()) or {}
         name = data.get("name")
-        if name:
-            result[name] = {"path": str(project_yaml.parent), "yaml": data}
+        if not name:
+            raise ResolveError(
+                f"{project_yaml} declares no name, so nothing can reference it"
+            )
+        path = str(project_yaml.parent)
+        if name in seen and seen[name] != path:
+            raise ResolveError(
+                f"framework project name '{name}' is declared twice:\n"
+                f"  {seen[name]}\n  {path}\n"
+                "Framework project names must be unique across layers."
+            )
+        seen[name] = path
+        result[name] = {"path": path, "yaml": data}
     return result
 
 
-def _set_default_sources(
-    pipeline: Pipeline, project_index: dict[str, dict], propeller_dir: str
+def _set_overlays(
+    step: Step, overlay_root: Path | None, defaults: list[str] | None = None
 ) -> None:
-    propeller_root = str(Path(propeller_dir).parent)
+    """Expand each declared overlay pattern and keep the ones that exist.
+
+    Patterns are resolved here so the lock file lists the directories that will
+    actually be applied, leaving the bundler to copy. A pattern naming a directory
+    that is absent is normal: most instances have no overlay.
+    """
+    patterns = step.overlays or defaults or []
+    if not patterns:
+        return
+    root = overlay_root or Path.cwd()
+    resolved = []
+    for pattern in patterns:
+        path = root / pattern.replace("${project}", step.project)
+        if path.is_dir():
+            resolved.append(str(path))
+    step.overlays = resolved
+
+
+def _set_default_sources(
+    pipeline: Pipeline,
+    framework: dict[str, dict],
+    propeller_dir: str,
+    consumer_dirs: list[Path] | None = None,
+    adjacent: dict[str, dict] | None = None,
+    overlay_root: Path | None = None,
+) -> None:
+    consumer = consumer_dirs or []
+    adjacent = adjacent or {}
+    framework_root = Path(propeller_dir).parent
     for stage in pipeline.stages:
         for step in stage.steps:
             if step.source is None:
-                # No source - look up by project name
-                entry = project_index.get(step.project)
-                step.source = (
-                    entry["path"]
-                    if entry
-                    else f"{propeller_dir}/projects/{step.project}"
+                raise ResolveError(
+                    f"step '{step.project}' has no source. Write "
+                    f"'local:{step.project}' for a project in this repo, or "
+                    f"'propeller:{step.project}' for a framework project."
                 )
-            elif step.source.startswith("propeller://"):
-                # Explicit framework path - resolve relative to framework root
-                rel_path = step.source.removeprefix("propeller://")
-                step.source = str(Path(propeller_root) / rel_path)
-            elif step.source in project_index:
-                # Source is a project name reference - resolve to path
-                step.source = project_index[step.source]["path"]
-            # else: source is already a path, leave as-is
+            step.source = sources.resolve(
+                step.source,
+                consumer=consumer,
+                adjacent=adjacent,
+                framework=framework,
+                framework_root=framework_root,
+            )
+            _set_base(step, consumer, adjacent, framework, framework_root)
+            _set_overlays(step, overlay_root, pipeline.overlays)
+
+
+def _set_base(
+    step: Step,
+    consumer: list[Path],
+    adjacent: dict[str, dict],
+    framework: dict[str, dict],
+    framework_root: Path,
+) -> None:
+    """Resolve the source project's `base:` to a path, for the bundler to layer.
+
+    Resolution happens here rather than in the bundler so that every reference is
+    resolved in one place and the lock file records the outcome.
+    """
+    project_yaml = Path(step.source) / "project.yaml" if step.source else None
+    if project_yaml is None or not project_yaml.is_file():
+        return
+    declared = (yaml.safe_load(project_yaml.read_text()) or {}).get("base")
+    if not declared:
+        return
+    resolved = sources.resolve(
+        declared,
+        consumer=consumer,
+        adjacent=adjacent,
+        framework=framework,
+        framework_root=framework_root,
+    )
+    if not Path(resolved).is_dir():
+        raise ResolveError(
+            f"project '{step.project}' declares base '{declared}' which does not exist"
+        )
+    step.base = resolved
 
 
 def _load_project_yaml_for_step(step: Step, project_index: dict[str, dict]) -> dict:
@@ -193,20 +275,30 @@ def _expand_input(
 ) -> dict:
     """Expand shorthand input format to resolved format.
 
-    Inputs always reference another project's output:
+    Inputs reference another project's output, or carry a literal:
     - name: "other-project.field_name" → blob read from /propeller/{namespace}/{project}, field=field_name
     - name: "/absolute.path.here" → individual parameter read
     - name: "@namespace/project.field" → cross-pipeline blob read
+    - literal: "text" → passed through with no read
 
     Example: {name: "control-tower.org_id", var: "org_id"} with namespace "landing-zone"
     Resolved: {key: "/propeller/landing-zone/control-tower", field: "org_id", var: "org_id"}
 
     Cross-pipeline: {name: "@landing-zone/workload-parameters.tgw_id", var: "tgw_id"}
     Resolved: {key: "/propeller/landing-zone/workload-parameters", field: "tgw_id", var: "tgw_id"}
+
+    Literal: {literal: "1.2.3", var: "chart_version"}
+    Resolved: {literal: "1.2.3", var: "chart_version"}
     """
+    if "literal" in inp and "name" not in inp:
+        # Literal: no SSM read at deploy time.
+        result = {"var": inp["var"], "literal": inp["literal"]}
+        if inp.get("expr"):
+            result["expr"] = inp["expr"]
+        return result
     if "name" in inp and "key" not in inp:
         name = inp["name"]
-        jq = inp.get("jq")  # Preserve jq transform if present
+        jq = inp.get("expr")  # Preserve expr transform if present
         if name.startswith("@"):
             # Cross-pipeline blob reference: @namespace/project.field
             rest = name[1:]
@@ -244,7 +336,7 @@ def _expand_input(
                 "var": inp.get("var", field),
             }
         if jq:
-            result["jq"] = jq
+            result["expr"] = jq
         return result
     return inp  # Already in resolved format
 
@@ -335,9 +427,11 @@ def resolve(
         _apply_stage_order(pipeline, config.pipeline)
         targets = config.pipeline.targets
         consumer_tags = {**dict(pipeline.tags), **dict(config.tags or {})}
+        consumer_dirs = sources.consumer_dirs(overrides_path, config.sources)
     else:
         targets = {}
         consumer_tags = dict(pipeline.tags)
+        consumer_dirs = []
 
     # The version is supplied by the consumer tooling (read from the version
     # pin file and passed via --version). Defaults to "dev" for framework-local
@@ -347,13 +441,24 @@ def resolve(
     project_index = _discover_projects(propeller_dir)
     # Also discover consumer projects adjacent to the pipeline file
     consumer_projects_dir = base_path.parent / "projects"
+    adjacent: dict[str, dict] = {}
     if consumer_projects_dir.is_dir():
         for project_yaml in consumer_projects_dir.rglob("project.yaml"):
-            data = yaml.safe_load(project_yaml.read_text())
+            data = yaml.safe_load(project_yaml.read_text()) or {}
             name = data.get("name")
-            if name and name not in project_index:
-                project_index[name] = {"path": str(project_yaml.parent), "yaml": data}
-    _set_default_sources(pipeline, project_index, propeller_dir)
+            if not name:
+                raise ResolveError(
+                    f"{project_yaml} declares no name, so nothing can reference it"
+                )
+            adjacent[name] = {"path": str(project_yaml.parent), "yaml": data}
+    _set_default_sources(
+        pipeline,
+        project_index,
+        propeller_dir,
+        consumer_dirs,
+        adjacent,
+        overlay_root=overrides_path.parent if overrides_path else base_path.parent,
+    )
     _expand_step_io(pipeline)
     _apply_targets(pipeline, targets)
 
@@ -366,6 +471,10 @@ def resolve(
 
 def _step_to_dict(step: Step) -> dict:
     d: dict = {"project": step.project, "source": step.source}
+    if step.base:
+        d["base"] = step.base
+    if step.overlays:
+        d["overlays"] = list(step.overlays)
     if step.target:
         d["target"] = step.target
     if step.depends_on:
