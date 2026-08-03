@@ -10,5 +10,3 @@ metadata:
 
 deploy:
   type: just
-
-sleep: true

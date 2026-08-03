@@ -5,4 +5,4 @@ description: >-
   outputs so downstream projects can consume them without hardcoding.
 
 deploy:
-  type: script
+  type: just
