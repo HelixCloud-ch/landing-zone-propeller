@@ -105,6 +105,15 @@ pipeline:
     operations-baseline: my-ops-account
 ```
 
+Add `sources:` if the repo holds projects meant to be used by more than one
+pipeline. `local:` references search these directories in order, then the
+`projects/` directory beside the pipeline file:
+
+```yaml
+sources:
+  - shared-projects/
+```
+
 ### Direct pipeline mode
 
 For consumers that don't use the framework's default landing-zone pipeline

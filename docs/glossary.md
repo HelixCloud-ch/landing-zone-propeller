@@ -52,9 +52,10 @@ colliding.
 source bundle bucket. Propeller deployments are orchestrated from here.
 Typically also the home for other shared operations tooling.
 
-**Overlay** - consumer-side files that mirror a framework project's structure to
-inject `config.auto.tfvars` and optional `overrides.tf`. Merged with the
-framework's project source at bundle time.
+**Overlay** - consumer-side files copied over a project at bundle time, changing
+part of it without forking it. Typically `config.auto.tfvars` or an
+`overrides.tf`. A pipeline declares where its overlays live, at the top level for
+every step or on a single step, and several may apply in order.
 
 **Pipeline** - one YAML document describing stages and steps. Maps to one
 Durable Lambda invocation. Examples: the landing-zone pipeline, or a per-account
@@ -67,8 +68,14 @@ accounts (e.g. prod plus a dedicated DR account). A single building block (an
 EKS project, an RDS project) is a _platform project_.
 
 **Project** - a deployable unit on disk: a Terraform module, CloudFormation
-template, or script. Lives at `<pipeline>/projects/<name>/`. Described by
-`project.yaml`.
+template, or script. Described by `project.yaml`, which must declare a `name`,
+since that is how a step's `source` refers to it. A project may extend another
+with `base`, inheriting its files.
+
+**Source** - what a step deploys, always namespaced: `local:<name>` for a project
+in the consumer repo, `propeller:<name>` for a framework project. Distinct from
+`project`, which is the deployed instance name and determines the state key, the
+SSM output path and the overlay directory.
 
 **Stage** - an ordered group of steps within a pipeline. By default stages act
 as barriers (sequential). Set `barrier: false` to allow parallel execution with

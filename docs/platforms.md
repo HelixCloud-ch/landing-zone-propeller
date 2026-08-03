@@ -55,6 +55,7 @@ stages:
   - name: network
     steps:
       - project: workload-vpc
+        source: propeller:workload-vpc
         target: workload-acme-prod
         outputs:
           - name: vpc_id
@@ -63,7 +64,7 @@ stages:
   - name: compute
     steps:
       - project: eks-cluster-1
-        source: eks-cluster
+        source: propeller:eks-cluster
         target: workload-acme-prod
         inputs:
           - name: workload-vpc.vpc_id
@@ -87,19 +88,20 @@ stages:
     barrier: false
     steps:
       - project: eks-cluster-1
-        source: eks-cluster
+        source: propeller:eks-cluster
         target: workload-acc
 
   - name: data
     barrier: false
     steps:
       - project: rds-oracle-1
-        source: rds-oracle
+        source: propeller:rds-oracle
         target: workload-acc
 
   - name: apps
     steps:
       - project: my-app
+        source: local:my-app
         target: workload-acc
         depends_on: [eks-cluster-1, rds-oracle-1]
 ```
@@ -137,7 +139,7 @@ Or mark individual high-risk projects for approval even in autopilot mode:
 
 ```yaml
 - project: eks-cluster-1
-  source: eks-cluster
+  source: propeller:eks-cluster
   target: workload-acc
   approval: "required"
 ```
@@ -150,8 +152,19 @@ Per-project Terraform variables go in an overlay:
 platforms/acme-prod/projects/rds-oracle-1/terraform/config.auto.tfvars
 ```
 
-The assembler merges the overlay onto the framework project at bundle time. See
-[project structure](project-structure.md) for overlay rules.
+The assembler merges the overlay onto the framework project at bundle time. A
+platform pipeline is yours, so it has to say where its overlays live. One line at
+the top level covers every step:
+
+```yaml
+version: "1"
+namespace: acme-prod
+
+overlays:
+  - projects/${project}
+```
+
+See [project structure](project-structure.md) for overlay rules.
 
 ## Deploying
 

@@ -61,12 +61,53 @@ deploy:
 
 ### Fields
 
-- `name` - unique identifier within the pipeline. Must match the folder name.
+- `name` - required. How the project is referenced, so a project without one
+  cannot be reached. Framework project names are unique across `landing-zone/` and
+  `platform/`, since `propeller:<name>` has to mean one project everywhere.
 - `description` - human-readable summary.
+- `base` - optional. Extend another project, carrying only the differences. See
+  [Extending a project](#extending-a-project).
 - `metadata.cost-center` - optional, becomes the `propeller:cost-center` tag.
 - `metadata.framework-required` - optional, set to `true` for framework-only
   resources (Lambda, CodeBuild runners, etc.).
 - `deploy.type` - always `just` for new projects.
+
+## Extending a project
+
+A project can declare a `base`, inheriting its files and shipping only what
+differs. Useful for adding organisation defaults to a framework project without
+copying it, which would then drift.
+
+```yaml
+# shared-projects/org-postgres/project.yaml
+name: org-postgres
+description: RDS PostgreSQL with organisation defaults.
+base: propeller:rds-postgres
+deploy:
+  type: just
+```
+
+```
+shared-projects/org-postgres/
+├── project.yaml
+└── terraform/
+    └── config.auto.tfvars      # the only file that differs
+```
+
+`base` accepts the same forms as a step's `source`, so a project can extend a
+framework project, another consumer project, or one from a private repository.
+
+Assembly order, last write wins per file:
+
+```
+1. the base project
+2. the project's own files
+3. each overlay, in the order the step declares them
+```
+
+Files are merged individually rather than the directory being replaced, so a
+project inherits everything from its base except what it names. That also means a
+base file cannot be removed, only replaced.
 
 ## Shared terraform recipe
 
@@ -213,24 +254,47 @@ Framework tags emitted per project:
 
 ## Consumer overlays
 
-Consumers customize framework projects by mirroring the project structure and
-dropping in overlay files:
+An overlay changes part of a project without forking it. The step declares where
+its overlays live and the assembler copies them over the project:
+
+```yaml
+- project: rds-oracle-1
+  source: propeller:rds-oracle
+  overlays:
+    - overlays/${project}
+```
 
 ```
-platforms/acme-prod/projects/rds-oracle-1/
+overlays/rds-oracle-1/
 └── terraform/
     └── config.auto.tfvars
 ```
 
+`${project}` expands to the step's project name, so one pattern serves every step.
+A pattern naming a directory that does not exist is skipped, since most projects
+have no overlay. Entries apply in order, later ones winning:
+
+```yaml
+  overlays:
+    - org-overlays/${project}
+    - overlays/${project}
+```
+
+Declaring `overlays` at the top level of the pipeline sets the default for every
+step, which a step declaring its own replaces. The default landing-zone pipeline
+does this, so a consumer customizing it through `propeller.overrides.yaml` gets
+overlays from `landing-zone/projects/<project>` without editing any step.
+
 Recognized overlay files:
 
 - `*.auto.tfvars` - Terraform variable values, auto-loaded at plan/apply time.
+  These load in filename order, so `override.auto.tfvars` in an overlay takes
+  precedence over `config.auto.tfvars` in the project.
 - Terraform
   [override files](https://developer.hashicorp.com/terraform/language/files/override) -
   merged on top of same-named blocks.
 
-The bundle assembler copies the framework project first, then overlays consumer
-files on top. Consumer files win on conflict.
+Files are merged individually, so an overlay changes only what it names.
 
 ### Custom (consumer-only) projects
 
@@ -246,11 +310,11 @@ platforms/acme-prod/projects/my-custom-app/
     └── variables.tf
 ```
 
-Reference it from the pipeline with an explicit `source:` path:
+Reference it from the pipeline with `local:` and the project's name:
 
 ```yaml
 - project: my-custom-app
-  source: "./platforms/acme-prod/projects/my-custom-app"
+  source: local:my-custom-app
   target: workload-acc
 ```
 
@@ -260,16 +324,16 @@ Deploy the same framework project multiple times with different names:
 
 ```yaml
 - project: oracle-app1
-  source: rds-oracle
+  source: propeller:rds-oracle
   target: workload-acc
 
 - project: oracle-app2
-  source: rds-oracle
+  source: propeller:rds-oracle
   target: workload-acc
 ```
 
-Each gets separate Terraform state, separate overlay dir, separate SSM outputs.
-The `source` field resolves by name from the framework project index.
+Each gets separate Terraform state, a separate overlay directory and separate SSM
+outputs, because all of those derive from `project` rather than `source`.
 
 ## See also
 

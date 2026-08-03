@@ -50,8 +50,8 @@ Translate a human-friendly size name to a concrete instance class.
 
 ```yaml
 inputs:
-  - name: "_static:small"
-    var: instance_class
+  - var: instance_class
+    literal: "small"
     expr: '$lookup({"small":"db.t3.medium","medium":"db.m5.large","large":"db.m5.xlarge"}, $)'
 ```
 
@@ -110,8 +110,8 @@ Terraform expects a number but the input arrives as a string.
 
 ```yaml
 inputs:
-  - name: "_static:20"
-    var: allocated_storage
+  - var: allocated_storage
+    literal: "20"
     expr: "$number($)"
 ```
 
@@ -123,8 +123,8 @@ inputs:
 
 ```yaml
 inputs:
-  - name: "_static:true"
-    var: multi_az
+  - var: multi_az
+    literal: "true"
     expr: '$ = "true"'
 ```
 
@@ -137,8 +137,8 @@ inputs:
 
 ```yaml
 inputs:
-  - name: "_static:my-db"
-    var: identifier
+  - var: identifier
+    literal: "my-db"
     expr: '"propeller-" & $'
 ```
 
@@ -178,8 +178,8 @@ inputs:
 
 ```yaml
 inputs:
-  - name: "_static:small"
-    var: instance_class
+  - var: instance_class
+    literal: "small"
     expr: '$lookup({"small":"db.t3.medium"}, $) ? $lookup({"small":"db.t3.medium"}, $) : "default"'
 ```
 

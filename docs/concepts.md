@@ -47,18 +47,21 @@ stages:
     barrier: false
     steps:
       - project: eks-cluster-1
+        source: propeller:eks-cluster
         target: workload-acc
 
   - name: data
     barrier: false
     steps:
       - project: rds-oracle-1
+        source: propeller:rds-oracle
         target: workload-acc
         depends_on: [eks-cluster-1]
 
   - name: apps       # barrier: true (default) — waits for cluster+data
     steps:
       - project: my-app
+        source: local:my-app
         target: workload-acc
 ```
 
