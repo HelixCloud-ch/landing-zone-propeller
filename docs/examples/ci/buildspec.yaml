@@ -1,0 +1,55 @@
+version: 0.2
+
+# Reference buildspec for triggering a deploy from an external CI via the
+# deploy-runner CodeBuild. The CI uploads a repo archive to sources/<GIT_SHA>.zip
+# and starts this build with source + buildspec overrides and the deploy
+# parameters as env vars. The build bundles the pipeline and invokes the
+# autopilot, then exports PROPELLER_EXECUTION_ID so the CI can poll
+# executions/<id>/status.json.
+
+env:
+  variables:
+    PLATFORM: ""
+    GIT_SHA: ""
+    GIT_BRANCH: ""
+    DEPLOY_ACTION: ""
+    ONLY: ""
+    DEPLOY_MODE: ""
+    SLEEP_PRESET: ""
+    DESTROY_ALL: ""
+    # Set these on the deploy-runner CodeBuild project, or hardcode.
+    PROPELLER_BUNDLE_BUCKET: ""
+    PROPELLER_LAMBDA_ARN: ""
+  exported-variables:
+    - PROPELLER_EXECUTION_ID
+
+phases:
+  install:
+    commands:
+      - export PATH="$HOME/.local/bin:$PATH"
+      - command -v just >/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --tag 1.51.0 --to /usr/local/bin
+      - command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
+      - command -v yq >/dev/null || { curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq; }
+
+  build:
+    commands:
+      - export PATH="$HOME/.local/bin:$PATH"
+      - |
+        set -euo pipefail
+        : "${PLATFORM:?PLATFORM required}"
+        : "${GIT_SHA:?GIT_SHA required}"
+        : "${PROPELLER_BUNDLE_BUCKET:?PROPELLER_BUNDLE_BUCKET required}"
+        : "${PROPELLER_LAMBDA_ARN:?PROPELLER_LAMBDA_ARN required}"
+        export GIT_SHA GIT_BRANCH DEPLOY_ACTION ONLY DEPLOY_MODE SLEEP_PRESET DESTROY_ALL
+
+        just pull
+
+        if [ "$PLATFORM" = "landing-zone" ]; then
+          just deploy
+        else
+          just platform-deploy "$PLATFORM"
+        fi
+
+        PROPELLER_EXECUTION_ID="$(cat "dist/$PLATFORM/execution-name")"
+        echo "PROPELLER_EXECUTION_ID=$PROPELLER_EXECUTION_ID"
+        export PROPELLER_EXECUTION_ID
