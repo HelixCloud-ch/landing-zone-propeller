@@ -47,6 +47,37 @@ export interface PipelineDefinition {
    * Projects not listed in a preset don't participate in that sleep cycle.
    */
   sleep_presets?: Record<string, Record<string, string>>;
+  /**
+   * Pipeline-wide CodeBuild config (the consumer's knobs). `image_repo` is the
+   * normal path — the autopilot appends `:<propeller_version>` to it. A full
+   * `image` (with tag) is an escape hatch. `compute_type`/`timeout` are baselines
+   * applied to every step (maxed against each step's floor).
+   */
+  codebuild?: PipelineCodeBuildConfig;
+}
+
+/** Pipeline-level CodeBuild config. The autopilot reads only image/image_repo. */
+export interface PipelineCodeBuildConfig {
+  /** Full ECR image URI including tag. Escape hatch; prefer image_repo. */
+  image?: string;
+  /** ECR repo without a tag; autopilot appends `:<propeller_version>`. */
+  image_repo?: string;
+  /** Baseline compute type; folded into steps by the engine. */
+  compute_type?: string;
+  /** Baseline timeout in minutes; folded into steps by the engine. */
+  timeout?: number;
+}
+
+/** Per-step CodeBuild config, fully resolved by the engine and applied verbatim. */
+export interface StepCodeBuildConfig {
+  /** Run this step's build in privileged mode (docker builder). Project-declared. */
+  privileged?: boolean;
+  /** Run on the CodeBuild project default image, not the pipeline image (builder). */
+  default_image?: boolean;
+  /** Resolved compute type for this step (step > pipeline > project). */
+  compute_type?: string;
+  /** Resolved build timeout in minutes (max of min_timeout and any consumer value). */
+  timeout?: number;
 }
 
 export interface Stage {
@@ -80,8 +111,16 @@ export interface StepConfig {
   sleep?: boolean;
   /** @deprecated Use sleep_presets on PipelineDefinition instead. */
   sleep_config?: SleepConfig;
-  /** Build timeout override in minutes. */
+  /**
+   * @deprecated Backward-compatible alias for `codebuild.timeout`. Read as a
+   * fallback when `codebuild.timeout` is unset; will be removed after one release.
+   */
   timeout?: number;
+  /**
+   * Per-step CodeBuild config, folded at resolve time from the project's
+   * `deploy.codebuild` floor and any per-step override.
+   */
+  codebuild?: StepCodeBuildConfig;
   /** Framework-injected tags for this step. */
   propeller_tags?: Record<string, string>;
   /** If "required", this project pauses for approval after plan (even in autopilot mode). */
@@ -248,6 +287,8 @@ export interface PipelineContext {
   supervised: boolean;
   /** Resolved sleep mode map: project name → mode string. */
   sleepModes: Record<string, string>;
+  /** Pipeline-wide CodeBuild config (image/image_repo/compute_type/timeout). */
+  codebuild?: PipelineCodeBuildConfig;
   /** Optional status tracker for live execution state (status.json in S3). */
   statusTracker?: import("./services/status.js").StatusTracker;
 }

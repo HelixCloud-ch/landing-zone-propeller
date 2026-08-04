@@ -53,10 +53,11 @@ env:
 phases:
   install:
     commands:
-      - curl -fsSL "https://releases.hashicorp.com/terraform/\${TF_VERSION}/terraform_\${TF_VERSION}_linux_amd64.zip" -o /tmp/tf.zip
-      - unzip -o /tmp/tf.zip -d /usr/local/bin/
-      - curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --tag \${JUST_VERSION} --to /usr/local/bin
-      - curl -LsSf https://astral.sh/uv/install.sh | sh
+      # Each install is guarded so a baked image (with the tools already present,
+      # and an offline/private VPC with no egress) does no downloads.
+      - command -v terraform >/dev/null || { curl -fsSL "https://releases.hashicorp.com/terraform/\${TF_VERSION}/terraform_\${TF_VERSION}_linux_amd64.zip" -o /tmp/tf.zip && unzip -o /tmp/tf.zip -d /usr/local/bin/; }
+      - command -v just >/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --tag \${JUST_VERSION} --to /usr/local/bin
+      - command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
       - export PATH="$HOME/.local/bin:$PATH"
 
   build:

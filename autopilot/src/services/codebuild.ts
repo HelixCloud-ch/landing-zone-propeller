@@ -82,12 +82,57 @@ export async function startBuild(
     environmentVariablesOverride: envVars,
   };
 
-  if (step.timeout) {
-    buildParams.timeoutInMinutesOverride = step.timeout;
-  }
+  applyCodeBuildOverrides(buildParams, step, pctx);
 
   const resp = await client.send(new StartBuildCommand(buildParams as any));
   return resp.build!.id!;
+}
+
+/**
+ * Apply the CodeBuild overrides onto the StartBuild params. Every field is
+ * omitted when unset, so an unconfigured pipeline runs on the project's own
+ * image/compute/timeout. compute_type/timeout come pre-resolved from the engine
+ * and are applied verbatim; only the image is composed, from image_repo and the
+ * runtime version.
+ */
+function applyCodeBuildOverrides(
+  buildParams: Record<string, unknown>,
+  step: StepConfig,
+  pctx: PipelineContext,
+): void {
+  const stepCb = step.codebuild;
+  const pipeCb = pctx.codebuild;
+
+  // Image: the builder opts out via default_image (runs on the project default).
+  // Otherwise a full `image` wins, else `image_repo:<propeller_version>`.
+  if (!stepCb?.default_image) {
+    let image: string | undefined;
+    if (pipeCb?.image) {
+      image = pipeCb.image;
+    } else if (pipeCb?.image_repo) {
+      image = `${pipeCb.image_repo}:${pctx.propellerVersion}`;
+    }
+    if (image) {
+      buildParams.imageOverride = image;
+      // CODEBUILD creds only cover AWS-managed images; a private ECR image must
+      // pull with the CodeBuild service role.
+      if (image.includes(".dkr.ecr.")) {
+        buildParams.imagePullCredentialsTypeOverride = "SERVICE_ROLE";
+      }
+    }
+  }
+
+  if (stepCb?.compute_type) {
+    buildParams.computeTypeOverride = stepCb.compute_type;
+  }
+
+  if (stepCb?.timeout !== undefined) {
+    buildParams.timeoutInMinutesOverride = stepCb.timeout;
+  }
+
+  if (stepCb?.privileged === true) {
+    buildParams.privilegedModeOverride = true;
+  }
 }
 
 export async function pollBuild(

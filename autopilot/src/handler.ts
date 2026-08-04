@@ -56,6 +56,7 @@ export async function execute(
     executionId: extractExecutionId(context),
     supervised: event.deploy_mode === "supervised",
     sleepModes: {},
+    codebuild: pipeline.codebuild,
   };
 
   log.info(`▶ Pipeline: ${pctx.namespace} ${pctx.deployAction} (${pipeline.stages.reduce((n, s) => n + s.steps.length, 0)} projects, ${pctx.supervised ? "supervised" : "autopilot"}, ${pctx.propellerVersion} @ ${pctx.gitSha})`);

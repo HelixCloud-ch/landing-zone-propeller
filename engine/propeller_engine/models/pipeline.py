@@ -53,6 +53,8 @@ class Step(BaseModel):
     sleep: bool = False
     sleep_config: dict | None = None
     approval: str | None = None
+    # Effective CodeBuild config, resolved at bundle time.
+    codebuild: dict | None = None
 
 class Stage(BaseModel):
     name: str
@@ -73,3 +75,5 @@ class Pipeline(BaseModel):
     tags: dict[str, str] = Field(default_factory=dict)
     consumer_tags: dict[str, str] = Field(default_factory=dict)
     sleep_presets: dict[str, dict[str, str]] = Field(default_factory=dict)
+    # Pipeline-wide CodeBuild config (image_repo/image/compute_type/timeout).
+    codebuild: dict | None = None
