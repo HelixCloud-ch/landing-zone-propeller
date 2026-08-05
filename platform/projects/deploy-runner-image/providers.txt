@@ -1,0 +1,11 @@
+# Providers baked into the offline mirror: "<source> <version>" per line.
+# Version can be exact or a constraint (e.g. "~> 3.6"). Consumers add extras
+# via providers.extra.txt; don't edit this file for that.
+
+hashicorp/aws ~> 6.49.0
+hashicorp/random ~> 3.9.0
+hashicorp/external ~> 2.4.0
+hashicorp/tls ~> 4.3.0
+hashicorp/helm ~> 3.2.0
+hashicorp/kubernetes ~> 3.2.1
+hashicorp/archive ~> 2.8.0

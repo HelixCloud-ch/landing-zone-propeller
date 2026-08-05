@@ -1,0 +1,13 @@
+name: deploy-runner-image
+description: >-
+  Builds the propeller deploy-runner container image and pushes it to ECR.
+  Runs in privileged mode on the standard CodeBuild image so every other project
+  can then run on the baked image.
+metadata:
+  cost-center: platform
+  framework-required: true
+deploy:
+  type: just
+  codebuild:
+    privileged: true
+    default_image: true
