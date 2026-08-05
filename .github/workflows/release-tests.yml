@@ -1,4 +1,4 @@
-name: release-tests
+name: Release Tests
 
 # Full test suite, run manually before a release
 
