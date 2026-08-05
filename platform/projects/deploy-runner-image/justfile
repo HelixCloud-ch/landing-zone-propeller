@@ -18,7 +18,7 @@ apply:
     set -a; . ./versions.env; [ -f versions.extra.env ] && . ./versions.extra.env; set +a
 
     : "${AWS_ACCOUNT_ID:?}" "${AWS_REGION:?}"
-    registry="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+    registry="${PROPELLER_INPUT_registry_id:-$AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
     repo="${registry}/{{ _repo_name }}"
     tag="${PROPELLER_VERSION:-latest}"
 
