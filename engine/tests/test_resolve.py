@@ -464,3 +464,20 @@ def test_pipeline_level_codebuild_passes_through_to_the_lock(
         "image_repo": "111111111111.dkr.ecr.eu-central-2.amazonaws.com/deploy-runner-image",
         "compute_type": "BUILD_GENERAL1_MEDIUM",
     }
+
+
+def test_deploy_runner_image_declares_privileged_and_default_image(
+    consumer, overrides_path, propeller_dir
+):
+    # Point a step at the real framework project and assert its floor is folded.
+    path = consumer / "platforms" / "main" / "pipeline.yaml"
+    path.write_text(
+        path.read_text().replace(
+            "source: propeller:smoke-test", "source: propeller:deploy-runner-image", 1
+        )
+    )
+    pipeline = resolve(path, overrides_path, str(propeller_dir))
+    assert _steps(pipeline)["framework-smoke"].codebuild == {
+        "privileged": True,
+        "default_image": True,
+    }
