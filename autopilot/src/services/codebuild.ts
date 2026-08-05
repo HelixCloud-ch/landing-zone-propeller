@@ -36,6 +36,7 @@ export async function startBuild(
     { name: "AWS_ACCOUNT_ID", value: config.accountId, type: "PLAINTEXT" as const },
     { name: "AWS_REGION", value: config.region, type: "PLAINTEXT" as const },
     { name: "PROPELLER_EXECUTION_ID", value: pctx.executionId, type: "PLAINTEXT" as const },
+    { name: "PROPELLER_VERSION", value: pctx.propellerVersion, type: "PLAINTEXT" as const },
     {
       name: "PROPELLER_FRAMEWORK_TAGS_JSON",
       value: JSON.stringify(step.propeller_tags ?? {}),

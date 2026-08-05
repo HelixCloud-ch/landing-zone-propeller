@@ -45,6 +45,7 @@ env:
     PROPELLER_FRAMEWORK_TAGS_JSON: "{}"
     PROPELLER_CONSUMER_TAGS_JSON: "{}"
     PROPELLER_EXECUTION_ID: ""
+    PROPELLER_VERSION: ""
     PROPELLER_SAVED_PLAN: ""
     PROPELLER_SLEEP_MODE: ""
   exported-variables:
@@ -57,21 +58,15 @@ phases:
       # and an offline/private VPC with no egress) does no downloads.
       - command -v terraform >/dev/null || { curl -fsSL "https://releases.hashicorp.com/terraform/\${TF_VERSION}/terraform_\${TF_VERSION}_linux_amd64.zip" -o /tmp/tf.zip && unzip -o /tmp/tf.zip -d /usr/local/bin/; }
       - command -v just >/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --tag \${JUST_VERSION} --to /usr/local/bin
-      - command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
-      - export PATH="$HOME/.local/bin:$PATH"
 
   build:
     commands:
       - cd bundle
-      - PROJECT_DIR=$(uv run --project engine propeller-deploy --pipeline pipeline.lock.yaml --project "$PROJECT_NAME" project-dir)
-      - |
-        if [ -f "$PROJECT_DIR/justfile" ]; then
-          cd "$PROJECT_DIR"
-          just $DEPLOY_ACTION
-        else
-          # Legacy path — remove once all projects have justfiles
-          uv run --project engine propeller-deploy --pipeline pipeline.lock.yaml --project "$PROJECT_NAME" init
-          uv run --project engine propeller-deploy --pipeline pipeline.lock.yaml --project "$PROJECT_NAME" $DEPLOY_ACTION
-        fi
+      # Resolve the project's bundle dir from the lock with jq. The engine is no
+      # longer used at deploy; just runs the project's justfile directly.
+      - PROJECT_DIR="$PWD/$(jq -r --arg p "$PROJECT_NAME" '.stages[].steps[] | select(.project == $p) | .source' pipeline.lock.json)"
+      - test -d "$PROJECT_DIR" || { echo "project '$PROJECT_NAME' not found in pipeline.lock.json"; exit 1; }
+      - cd "$PROJECT_DIR"
+      - just $DEPLOY_ACTION
       - export PROPELLER_OUTPUTS_JSON=$(cat "$PROJECT_DIR/.propeller-outputs.json" 2>/dev/null || echo '{}')
 `;
