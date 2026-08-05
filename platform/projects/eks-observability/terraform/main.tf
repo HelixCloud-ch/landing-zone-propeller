@@ -28,13 +28,13 @@ module "fargate_logs" {
   count  = (local.is_fargate && var.install_fargate_logs) ? 1 : 0
   source = "../../../shared/modules/eks-obs-fargate-logs"
 
-  destination                = "cloudwatch"
-  log_group_name             = local.effective_log_group
-  log_stream_prefix          = var.logs_log_stream_prefix
-  log_retention_days         = var.logs_retention_days
-  region                     = var.region
+  destination                 = "cloudwatch"
+  log_group_name              = local.effective_log_group
+  log_stream_prefix           = var.logs_log_stream_prefix
+  log_retention_days          = var.logs_retention_days
+  region                      = var.region
   ship_fluentbit_process_logs = var.logs_ship_fluentbit_process_logs
-  pod_execution_role_name    = var.pod_execution_role_name
+  pod_execution_role_name     = var.pod_execution_role_name
 }
 
 # ── Fargate: ADOT Collector metrics ───────────────────────────────────────────
@@ -43,16 +43,16 @@ module "fargate_metrics" {
   count  = (local.is_fargate && var.install_fargate_metrics) ? 1 : 0
   source = "../../../shared/modules/eks-obs-fargate-metrics"
 
-  cluster_name              = var.cluster_name
-  region                    = var.region
-  oidc_provider_arn         = var.oidc_provider_arn
-  oidc_provider_url         = var.oidc_provider_url
-  namespace                 = var.metrics_collector_namespace
-  chart_version             = var.metrics_chart_version
-  chart_repository          = var.metrics_chart_repository
+  cluster_name               = var.cluster_name
+  region                     = var.region
+  oidc_provider_arn          = var.oidc_provider_arn
+  oidc_provider_url          = var.oidc_provider_url
+  namespace                  = var.metrics_collector_namespace
+  chart_version              = var.metrics_chart_version
+  chart_repository           = var.metrics_chart_repository
   collector_image_repository = var.metrics_image_repository
-  collector_replicas        = var.metrics_collector_replicas
-  role_name                 = var.metrics_role_name
+  collector_replicas         = var.metrics_collector_replicas
+  role_name                  = var.metrics_role_name
 }
 
 # ── Tracing backend — account/region-scoped ───────────────────────────────────
