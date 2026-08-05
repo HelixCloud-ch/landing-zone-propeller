@@ -18,11 +18,6 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Debug fixtures
-        run: |
-          ls -la engine/tests/fixtures/consumer/overlays/
-          ls -la engine/tests/fixtures/consumer/org-overlays/
-
       - name: Check
         run: |
           just setup
