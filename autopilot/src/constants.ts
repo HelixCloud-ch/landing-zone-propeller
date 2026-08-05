@@ -43,8 +43,8 @@ env:
     DEPLOY_ACTION: "plan"
     AWS_ACCOUNT_ID: ""
     AWS_REGION: ""
-    TF_VERSION: "1.14.9"
-    JUST_VERSION: "1.51.0"
+    TF_VERSION: "1.15.8"
+    JUST_VERSION: "1.58.0"
     PROPELLER_OUTPUTS_JSON: "{}"
     PROPELLER_FRAMEWORK_TAGS_JSON: "{}"
     PROPELLER_CONSUMER_TAGS_JSON: "{}"
@@ -66,8 +66,7 @@ phases:
   build:
     commands:
       - cd bundle
-      # Resolve the project's bundle dir from the lock with jq. The engine is no
-      # longer used at deploy; just runs the project's justfile directly.
+      # Resolve the project's bundle dir from the lock file
       - PROJECT_DIR="$PWD/$(jq -r --arg p "$PROJECT_NAME" '.stages[].steps[] | select(.project == $p) | .source' pipeline.lock.json)"
       - test -d "$PROJECT_DIR" || { echo "project '$PROJECT_NAME' not found in pipeline.lock.json"; exit 1; }
       - cd "$PROJECT_DIR"
