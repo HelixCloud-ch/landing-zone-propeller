@@ -452,3 +452,12 @@ $RECYCLE.BIN/
 
 ### Propeller ###
 .propeller-outputs.json
+
+.terraform.lock.hcl
+
+# WIP/scratch (never commit)
+**/wip/
+autopilot/.vscode/
+
+# Keep test fixture tfvars (not sensitive, needed for CI)
+!engine/tests/fixtures/**/*.tfvars
