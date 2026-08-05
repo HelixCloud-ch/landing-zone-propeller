@@ -607,7 +607,7 @@ describe("execute", () => {
     ssmParams["/propeller/test-platform/state"] = JSON.stringify({
       state: "sleeping",
       sleep_preset: "deep",
-      sleep_modes: { "rds": "snapshot" },
+      sleep_projects: { rds: { mode: "snapshot" } },
     });
 
     const event: PipelineEvent = {
@@ -647,10 +647,9 @@ describe("execute", () => {
 
   // ── Phase D: sleep/wake image version pinning ──
 
-  it("sleep records sleep_versions only for pipeline-image steps", async () => {
-    // rds: normal step, runs on pipeline image → version should be recorded
-    // builder: default_image: true → excluded (runs on standard, no version recorded)
-    // no-image: pipeline has no image_repo → excluded
+  it("sleep records sleep_projects with mode and version for pipeline-image steps", async () => {
+    // rds: normal step, runs on pipeline image → mode + version recorded
+    // builder: default_image: true → mode only, no version
     const event: PipelineEvent = {
       pipeline: {
         version: "1",
@@ -695,13 +694,13 @@ describe("execute", () => {
 
     const state = JSON.parse(ssmParams["/propeller/test-platform/state"]!);
     expect(state.state).toBe("sleeping");
-    // rds ran on the pipeline image → version recorded
-    expect(state.sleep_versions?.rds).toBe("1.2.3");
-    // builder opted out via default_image → no entry
-    expect(state.sleep_versions?.builder).toBeUndefined();
+    // rds ran on the pipeline image → mode + version recorded
+    expect(state.sleep_projects?.rds).toEqual({ mode: "snapshot", version: "1.2.3" });
+    // builder opted out via default_image → mode only, no version
+    expect(state.sleep_projects?.builder).toEqual({ mode: "noop" });
   });
 
-  it("sleep without image_repo does not write sleep_versions", async () => {
+  it("sleep without image_repo records mode only (no version)", async () => {
     const event: PipelineEvent = {
       pipeline: {
         version: "1",
@@ -729,24 +728,19 @@ describe("execute", () => {
     });
 
     const state = JSON.parse(ssmParams["/propeller/test-platform/state"]!);
-    expect(state.sleep_versions).toBeUndefined();
+    expect(state.sleep_projects?.rds).toEqual({ mode: "snapshot" });
+    expect(state.sleep_projects?.rds?.version).toBeUndefined();
   });
 
-  it("wake uses stored sleep_versions to pin image tag per project", async () => {
+  it("wake uses stored sleep_projects to pin image tag per project", async () => {
     // Pipeline was slept on v1.2.3; current propeller_version is v1.5.0.
     // rds has a stored version → wake should use image_repo:1.2.3.
-    // vpc has no stored version (ran on standard) → no imageOverride.
     ssmParams["/propeller/test-platform/state"] = JSON.stringify({
       state: "sleeping",
       sleep_preset: "deep",
-      sleep_modes: { rds: "snapshot" },
-      sleep_versions: { rds: "1.2.3" },
+      sleep_projects: { rds: { mode: "snapshot", version: "1.2.3" } },
     });
 
-    const startBuildCalls: any[] = [];
-    const capturingSSM = createMockSSMClient(ssmParams);
-
-    // Intercept StartBuildCommand inputs via the CodeBuild mock
     const { StartBuildCommand } = await import("@aws-sdk/client-codebuild");
     const capturedParams: any[] = [];
     vi.mocked(StartBuildCommand).mockImplementation(function (this: any, input: any) {
@@ -780,7 +774,7 @@ describe("execute", () => {
     };
 
     await execute(event, createMockDurableContext(), {
-      ssm: capturingSSM as any,
+      ssm: createMockSSMClient(ssmParams) as any,
       sts: createMockSTSClient() as any,
     });
 

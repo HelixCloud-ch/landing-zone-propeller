@@ -121,8 +121,8 @@ function applyCodeBuildOverrides(
     } else if (pipeCb?.image_repo) {
       // On wake, prefer the version the project was slept on; fall back to current.
       const version =
-        pctx.deployAction === "wake" && pctx.sleepVersions?.[step.project]
-          ? pctx.sleepVersions[step.project]
+        pctx.deployAction === "wake" && pctx.sleepProjects?.[step.project]?.version
+          ? pctx.sleepProjects[step.project]!.version!
           : pctx.propellerVersion;
       image = `${pipeCb.image_repo}:${version}`;
     }

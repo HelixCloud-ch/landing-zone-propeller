@@ -109,8 +109,8 @@ export async function runStageSleepWake(
  */
 function resolveSleepMode(step: StepConfig, pctx: PipelineContext): string | null {
   // New path: preset-based modes
-  const presetMode = pctx.sleepModes[step.project];
-  if (presetMode) return presetMode;
+  const presetEntry = pctx.sleepProjects[step.project];
+  if (presetEntry) return presetEntry.mode;
 
   // Legacy path: step.sleep + step.sleep_config (backwards compat)
   if (step.sleep && step.sleep_config) {
@@ -201,15 +201,18 @@ async function executeSleepStep(
         target: step.target,
         account_id: config.accountId,
         build_id: buildId,
-        // Record the propeller_version this sleep build ran on, but only when
-        // the step actually used the pipeline image. default_image steps and
-        // pipelines without image_repo run on the CodeBuild standard image and
-        // must not get a version recorded (wake would wrongly try to pin them).
-        ...(pctx.deployAction === "sleep" &&
-          !step.codebuild?.default_image &&
-          pctx.codebuild?.image_repo && {
-            sleep_version: pctx.propellerVersion,
-          }),
+        // Record mode + version (if ran on pipeline image) so handler.ts can
+        // build sleep_projects in one pass. default_image steps and pipelines
+        // without image_repo get mode only (no version).
+        ...(pctx.deployAction === "sleep" && {
+          sleep_project_state: {
+            mode,
+            ...(!step.codebuild?.default_image &&
+              pctx.codebuild?.image_repo && {
+                version: pctx.propellerVersion,
+              }),
+          },
+        }),
       };
     });
   } catch (err: unknown) {

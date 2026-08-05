@@ -241,11 +241,11 @@ export interface StepResult {
   /** Duration in seconds (from build start to completion). */
   duration?: number;
   /**
-   * The propeller_version the step ran on when it was put to sleep, only set
-   * for sleep builds that actually ran on the pipeline image (not default_image
-   * or no image_repo configured). Used to pin wake to the same image tag.
+   * On sleep: resolved mode for this project (from preset). Set on StepResult
+   * so handler.ts can build sleep_projects in one pass over results.
+   * On wake: not used (wake reads sleep_projects from SSM state).
    */
-  sleep_version?: string;
+  sleep_project_state?: import("./services/ssm.js").SleepProjectState;
 }
 
 /** Final pipeline execution result returned from the handler. */
@@ -291,19 +291,12 @@ export interface PipelineContext {
   consumerTags: Record<string, string>;
   executionId: string;
   supervised: boolean;
-  /** Resolved sleep mode map: project name → mode string. */
-  sleepModes: Record<string, string>;
+  /** Resolved sleep project map: project name → { mode, version? }. Set on sleep/wake. */
+  sleepProjects: Record<string, import("./services/ssm.js").SleepProjectState>;
   /** Pipeline-wide CodeBuild config (image/image_repo/compute_type/timeout). */
   codebuild?: PipelineCodeBuildConfig;
   /** Optional status tracker for live execution state (status.json in S3). */
   statusTracker?: import("./services/status.js").StatusTracker;
-  /**
-   * On wake: propeller_version each project was slept on, keyed by project name.
-   * Only present for projects that ran on the pipeline image (not default_image
-   * or standard). Wake uses `image_repo:<sleep_versions[project]>` instead of
-   * the current `propellerVersion`.
-   */
-  sleepVersions?: Record<string, string>;
 }
 
 // --- Services (dependency injection container) ---
