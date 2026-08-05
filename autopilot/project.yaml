@@ -1,3 +1,7 @@
 name: autopilot
 deploy:
   type: just
+  codebuild:
+    # Always run on standard:6.0 so a broken baked image can't lock out the
+    # self-update step. Keep Autopilot independent.
+    default_image: true
