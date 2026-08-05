@@ -1,0 +1,39 @@
+name: release-tests
+
+# Full test suite, run manually before a release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: extractions/setup-just@v3
+
+      - name: Lint (non-blocking)
+        continue-on-error: true
+        run: |
+          just fmt-check
+          cd autopilot && npx --yes biome check .
+          cd engine && uv run ruff check . && uv run ruff format --check .
+
+      - name: Unit tests (engine + autopilot + pipeline)
+        run: just test
+
+      - name: Image build + offline verify
+        run: just test-image
+
+      - name: Image size report
+        if: always()
+        run: just image-size || true
