@@ -40,7 +40,7 @@ fmt:
 
 # Engine unit tests (pytest)
 test-engine: (section "engine: pytest")
-    @cd engine && uv run pytest -q
+    @cd engine && uv run pytest -q --tb=short
 
 # Autopilot unit tests + typecheck. Uses an installed pnpm if present, else runs
 # the version pinned in package.json's packageManager via corepack (bundled with
