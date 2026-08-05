@@ -251,7 +251,7 @@ describe("writeOutputs", () => {
       consumerTags: {},
       executionId: "exec-test-123",
       supervised: false,
-      sleepModes: {},
+      sleepProjects: {},
     };
 
     const written = await writeOutputs(client, step, exportedVars, "build:123", pctx);
@@ -289,7 +289,7 @@ describe("writeOutputs", () => {
       consumerTags: {},
       executionId: "exec-test-123",
       supervised: false,
-      sleepModes: {},
+      sleepProjects: {},
     };
 
     await writeOutputs(client, step, exportedVars, "build:1", pctx);

@@ -30,7 +30,7 @@ function ctx(overrides: Partial<PipelineContext> = {}): PipelineContext {
     consumerTags: {},
     executionId: "exec-1",
     supervised: false,
-    sleepModes: {},
+    sleepProjects: {},
     ...overrides,
   };
 }

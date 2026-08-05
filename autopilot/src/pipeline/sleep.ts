@@ -105,7 +105,7 @@ export async function runStageSleepWake(
  * Resolve the sleep mode for a project.
  * Returns the mode string if the project participates, or null if it doesn't.
  *
- * Resolution: pctx.sleepModes (from preset) → legacy step.sleep_config → null
+ * Resolution: pctx.sleepProjects (from preset) → legacy step.sleep_config → null
  */
 function resolveSleepMode(step: StepConfig, pctx: PipelineContext): string | null {
   // New path: preset-based modes
