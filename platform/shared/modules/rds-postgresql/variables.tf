@@ -205,6 +205,21 @@ variable "password" {
   default     = null
 
   validation {
+    condition     = var.password == null || (length(var.password) >= 8 && length(var.password) <= 128)
+    error_message = "Password must be between 8 and 128 characters for PostgreSQL."
+  }
+
+  validation {
+    condition     = var.password == null || can(regex("^[\\x21-\\x7E]*$", var.password))
+    error_message = "Password must contain only printable ASCII characters (no spaces)."
+  }
+
+  validation {
+    condition     = var.password == null || !can(regex("[/@\"]", var.password))
+    error_message = "Password must not contain '/', '@', or '\"' (RDS restriction)."
+  }
+
+  validation {
     condition     = !(var.password != null && var.master_user_secret_kms_key_id != null)
     error_message = "Pass either 'password' or 'master_user_secret_kms_key_id', not both."
   }
