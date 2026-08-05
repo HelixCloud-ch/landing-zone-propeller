@@ -37,19 +37,19 @@ resource "aws_ecr_repository_creation_template" "templates" {
   custom_role_arn      = aws_iam_role.ecr_template.arn
 
   dynamic "image_tag_mutability_exclusion_filter" {
-    for_each = each.value.image_tag_mutability_exclusion_filters
+    for_each = each.value.image_tag_mutability != "MUTABLE" ? each.value.image_tag_mutability_exclusion_filters : []
     content {
       filter      = image_tag_mutability_exclusion_filter.value.filter
       filter_type = image_tag_mutability_exclusion_filter.value.filter_type
     }
   }
-
+  
   encryption_configuration {
     encryption_type = each.value.encryption_type
     kms_key         = each.value.kms_key
   }
 
-  repository_policy = coalesce(each.value.repository_policy, local.cross_account_pull_policy)
+  repository_policy = try(coalesce(each.value.repository_policy, local.cross_account_pull_policy), null)
   lifecycle_policy  = each.value.lifecycle_policy
   resource_tags     = merge(var.default_repository_tags, each.value.resource_tags)
 }
