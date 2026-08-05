@@ -55,7 +55,8 @@ export async function execute(
     consumerTags: pipeline.consumer_tags ?? {},
     executionId: extractExecutionId(context),
     supervised: event.deploy_mode === "supervised",
-    sleepModes: {},
+    sleepProjects: {},
+    codebuild: pipeline.codebuild,
   };
 
   log.info(`▶ Pipeline: ${pctx.namespace} ${pctx.deployAction} (${pipeline.stages.reduce((n, s) => n + s.steps.length, 0)} projects, ${pctx.supervised ? "supervised" : "autopilot"}, ${pctx.propellerVersion} @ ${pctx.gitSha})`);
@@ -71,13 +72,25 @@ export async function execute(
     }
 
     if (pctx.deployAction === "wake") {
-      // Wake: prefer stored modes from the sleep run (deterministic, drift-proof)
+      // Wake: prefer stored projects from the sleep run (deterministic, drift-proof)
       const storedState = await readPipelineState(clients.ssm, pctx.namespace);
-      if (storedState?.sleep_modes && Object.keys(storedState.sleep_modes).length > 0) {
-        pctx.sleepModes = storedState.sleep_modes;
-        log.info("Wake: using stored modes", { modes: pctx.sleepModes });
+
+      if (storedState?.sleep_projects && Object.keys(storedState.sleep_projects).length > 0) {
+        pctx.sleepProjects = storedState.sleep_projects;
+        log.info("Wake: using stored sleep_projects", { projects: pctx.sleepProjects });
+      } else if (storedState?.sleep_modes && Object.keys(storedState.sleep_modes).length > 0) {
+        // Legacy fallback: old state has separate sleep_modes / sleep_versions maps
+        const modes = storedState.sleep_modes;
+        const versions = storedState.sleep_versions ?? {};
+        pctx.sleepProjects = Object.fromEntries(
+          Object.entries(modes).map(([p, mode]) => [
+            p,
+            { mode, ...(versions[p] && { version: versions[p] }) },
+          ]),
+        );
+        log.info("Wake: using legacy stored modes (migrated)", { projects: pctx.sleepProjects });
       } else if (presetName) {
-        // Fall back to explicit preset if no stored modes
+        // Fall back to explicit preset if no stored state
         const modes = pipeline.sleep_presets[presetName];
         if (!modes) {
           return fail(
@@ -85,8 +98,10 @@ export async function execute(
             "VALIDATION_ERROR",
           );
         }
-        pctx.sleepModes = modes;
-        log.info("Wake: using passed preset (no stored modes)", { preset: presetName });
+        pctx.sleepProjects = Object.fromEntries(
+          Object.entries(modes).map(([p, mode]) => [p, { mode }]),
+        );
+        log.info("Wake: using passed preset (no stored state)", { preset: presetName });
       } else if (storedState?.sleep_preset) {
         // Fall back to stored preset name
         const modes = pipeline.sleep_presets[storedState.sleep_preset];
@@ -96,7 +111,9 @@ export async function execute(
             "VALIDATION_ERROR",
           );
         }
-        pctx.sleepModes = modes;
+        pctx.sleepProjects = Object.fromEntries(
+          Object.entries(modes).map(([p, mode]) => [p, { mode }]),
+        );
         log.info("Wake: using stored preset name", { preset: storedState.sleep_preset });
       } else {
         return fail(
@@ -113,8 +130,10 @@ export async function execute(
           "VALIDATION_ERROR",
         );
       }
-      pctx.sleepModes = modes;
-      log.info("Sleep: resolved preset", { preset: presetName, modes });
+      pctx.sleepProjects = Object.fromEntries(
+        Object.entries(modes).map(([p, mode]) => [p, { mode }]),
+      );
+      log.info("Sleep: resolved preset", { preset: presetName, projects: pctx.sleepProjects });
     }
   }
 
@@ -320,12 +339,25 @@ async function buildResult(
       pctx.deployAction === "apply"
     ) {
       const finalState = pctx.deployAction === "sleep" ? "sleeping" : "running";
+
+      // Collect per-project sleep state from results and write pipeline state.
+      const sleepProjects: Record<string, import("./services/ssm.js").SleepProjectState> = {};
+      if (pctx.deployAction === "sleep") {
+        for (const r of allResults) {
+          if (r.status === "succeeded" && r.sleep_project_state) {
+            sleepProjects[r.project] = r.sleep_project_state;
+          }
+        }
+      }
+
       await writePipelineState(
         clients.ssm,
         pctx.namespace,
         finalState,
         pctx.deployAction === "sleep" ? sleepPreset : undefined,
-        pctx.deployAction === "sleep" ? pctx.sleepModes : undefined,
+        pctx.deployAction === "sleep" && Object.keys(sleepProjects).length > 0
+          ? sleepProjects
+          : undefined,
       );
     }
 

@@ -1,0 +1,47 @@
+# deploy-runner-image: builds and pushes the propeller runner image.
+# Not a terraform project. Runs on standard:6.0 (default_image, privileged).
+
+_dir := justfile_directory()
+_repo_name := "deploy-runner-image"
+
+# plan: no-op. The image is built and pushed on apply; there's nothing to plan.
+plan:
+    @echo "plan: no-op (image is built on apply)"
+
+# apply: build the image for amd64 and push it to the target account's ECR,
+# tagged with the propeller version and latest. Writes the pushed URI + digest
+# to .propeller-outputs.json for the autopilot to persist.
+apply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ _dir }}"
+    set -a; . ./versions.env; [ -f versions.extra.env ] && . ./versions.extra.env; set +a
+
+    : "${AWS_ACCOUNT_ID:?}" "${AWS_REGION:?}"
+    registry="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+    repo="${registry}/{{ _repo_name }}"
+    tag="${PROPELLER_VERSION:-latest}"
+
+    aws ecr get-login-password --region "$AWS_REGION" \
+      | docker login --username AWS --password-stdin "$registry"
+
+    docker buildx build --platform linux/amd64 --provenance=false \
+      --build-arg BASE_IMAGE="$BASE_IMAGE" \
+      --build-arg TERRAFORM_VERSION="$TERRAFORM_VERSION" \
+      --build-arg JUST_VERSION="$JUST_VERSION" \
+      --build-arg KUBECTL_VERSION="$KUBECTL_VERSION" \
+      --build-arg HELM_VERSION="$HELM_VERSION" \
+      -t "${repo}:${tag}" -t "${repo}:latest" \
+      --push .
+
+    digest=$(aws ecr describe-images --region "$AWS_REGION" \
+      --repository-name "{{ _repo_name }}" --image-ids imageTag="$tag" \
+      --query 'imageDetails[0].imageDigest' --output text 2>/dev/null || echo "")
+
+    printf '{"image_uri":"%s","image_repo":"%s","image_tag":"%s","image_digest":"%s"}\n' \
+      "${repo}:${tag}" "$repo" "$tag" "$digest" > .propeller-outputs.json
+    echo "pushed ${repo}:${tag} (${digest:-no digest})"
+
+# destroy: no-op. Image lifecycle is ECR's job (lifecycle policy).
+destroy:
+    @echo "destroy: no-op (image lifecycle is handled by ECR)"

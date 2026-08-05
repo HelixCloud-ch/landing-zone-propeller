@@ -1,0 +1,2 @@
+# Consumer-additive providers for the offline mirror. Format: <source> <version>
+# Override via the overlay mechanism.

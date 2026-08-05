@@ -177,10 +177,24 @@ export async function readProjectBlob(
   return JSON.parse(raw) as ProjectBlob;
 }
 
+export interface SleepProjectState {
+  mode: string;
+  /** Propeller version the project was slept on, if it ran on the pipeline image. */
+  version?: string;
+}
+
 export interface PipelineState {
   state: "running" | "sleeping";
   sleep_preset?: string;
+  /**
+   * Per-project sleep state. Replaces the old parallel `sleep_modes` /
+   * `sleep_versions` maps. Keyed by project name.
+   */
+  sleep_projects?: Record<string, SleepProjectState>;
+  /** @deprecated Use sleep_projects[project].mode instead. */
   sleep_modes?: Record<string, string>;
+  /** @deprecated Use sleep_projects[project].version instead. */
+  sleep_versions?: Record<string, string>;
 }
 
 export async function readPipelineState(
@@ -202,11 +216,12 @@ export async function writePipelineState(
   namespace: string,
   state: "running" | "sleeping",
   sleepPreset?: string,
-  sleepModes?: Record<string, string>,
+  sleepProjects?: Record<string, SleepProjectState>,
 ): Promise<void> {
   const value: PipelineState = { state };
   if (sleepPreset) value.sleep_preset = sleepPreset;
-  if (sleepModes && Object.keys(sleepModes).length > 0) value.sleep_modes = sleepModes;
+  if (sleepProjects && Object.keys(sleepProjects).length > 0)
+    value.sleep_projects = sleepProjects;
   await client.send(
     new PutParameterCommand({
       Name: `/propeller/${namespace}/state`,

@@ -88,7 +88,7 @@ variable "direct_access_entries" {
     For available policy ARNs see:
     https://docs.aws.amazon.com/eks/latest/userguide/access-policy-permissions.html
   EOT
-  default = {}
+  default     = {}
 }
 
 # ── Tagging ────────────────────────────────────────────────────────────────────

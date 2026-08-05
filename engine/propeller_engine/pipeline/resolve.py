@@ -256,6 +256,51 @@ def _propeller_tags_for_step(
     return tags
 
 
+def _max_timeout(*values: int | None) -> int | None:
+    present = [v for v in values if v is not None]
+    return max(present) if present else None
+
+
+def _fold_codebuild(step: Step, project_yaml: dict, pipeline_cb: dict | None) -> None:
+    """Resolve the effective CodeBuild config into step.codebuild.
+
+    - compute_type: most-specific wins, step > pipeline > project.
+    - timeout: max of the project's min_timeout and any consumer value
+      (pipeline, per-step, or the legacy top-level step.timeout).
+    - privileged: ORed. default_image: the project's.
+
+    image/image_repo stay pipeline-level (composed at build start), not folded here.
+    """
+    project_cb = (project_yaml.get("deploy") or {}).get("codebuild") or {}
+    pipeline_cb = pipeline_cb or {}
+    step_cb = dict(step.codebuild or {})
+
+    folded: dict = {}
+    if project_cb.get("privileged") or step_cb.get("privileged"):
+        folded["privileged"] = True
+    if project_cb.get("default_image"):
+        folded["default_image"] = True
+
+    compute = (
+        step_cb.get("compute_type")
+        or pipeline_cb.get("compute_type")
+        or project_cb.get("compute_type")
+    )
+    if compute:
+        folded["compute_type"] = compute
+
+    timeout = _max_timeout(
+        project_cb.get("min_timeout"),
+        pipeline_cb.get("timeout"),
+        step_cb.get("timeout"),
+        step.timeout,
+    )
+    if timeout is not None:
+        folded["timeout"] = timeout
+
+    step.codebuild = folded or None
+
+
 def _attach_propeller_tags(pipeline: Pipeline, project_index: dict[str, dict]) -> None:
     for stage in pipeline.stages:
         for step in stage.steps:
@@ -265,6 +310,8 @@ def _attach_propeller_tags(pipeline: Pipeline, project_index: dict[str, dict]) -
             sleep_block = project_yaml.get("sleep")
             if sleep_block:
                 step.sleep_config = sleep_block
+            # Resolve project floor + pipeline baseline + per-step override
+            _fold_codebuild(step, project_yaml, pipeline.codebuild)
 
 
 SSM_PREFIX = "/propeller"
@@ -495,6 +542,8 @@ def _step_to_dict(step: Step) -> dict:
         d["sleep_config"] = step.sleep_config
     if step.approval:
         d["approval"] = step.approval
+    if step.codebuild:
+        d["codebuild"] = dict(step.codebuild)
     return d
 
 
@@ -510,6 +559,8 @@ def pipeline_to_dict(pipeline: Pipeline) -> dict:
         data["consumer_tags"] = dict(pipeline.consumer_tags)
     if pipeline.sleep_presets:
         data["sleep_presets"] = dict(pipeline.sleep_presets)
+    if pipeline.codebuild:
+        data["codebuild"] = dict(pipeline.codebuild)
     for stage in pipeline.stages:
         stage_dict: dict = {
             "name": stage.name,

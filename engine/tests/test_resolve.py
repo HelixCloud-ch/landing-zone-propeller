@@ -284,3 +284,200 @@ def test_declared_sources_are_searched_before_adjacent_projects(
         consumer / "platforms" / "main" / "pipeline.yaml", overrides_path, str(propeller_dir)
     )
     assert str(_steps(pipeline)["adjacent-named"].source) == str(shadow)
+
+
+# ── CodeBuild floor/override folding ──────────────────────────────────────────
+
+
+def _write_store_floor(consumer: Path, block: str) -> None:
+    """Give the `store` source a deploy.codebuild floor."""
+    proj = consumer / "sources" / "store" / "project.yaml"
+    proj.write_text("name: store\ndeploy:\n  type: just\n  codebuild:\n" + block)
+
+
+def _add_step_codebuild(consumer: Path, block: str) -> None:
+    """Attach a per-step codebuild block to the store-two step."""
+    path = consumer / "platforms" / "main" / "pipeline.yaml"
+    path.write_text(
+        path.read_text().replace(
+            "      - project: store-two\n        source: local:store\n        target: acct-primary\n",
+            "      - project: store-two\n        source: local:store\n        target: acct-primary\n"
+            + block,
+        )
+    )
+
+
+def test_project_codebuild_lands_on_the_step(consumer, overrides_path, propeller_dir):
+    _write_store_floor(
+        consumer,
+        "    privileged: true\n    compute_type: BUILD_GENERAL1_LARGE\n    min_timeout: 60\n",
+    )
+    pipeline = resolve(
+        consumer / "platforms" / "main" / "pipeline.yaml",
+        overrides_path,
+        str(propeller_dir),
+    )
+    assert _steps(pipeline)["store-one"].codebuild == {
+        "privileged": True,
+        "compute_type": "BUILD_GENERAL1_LARGE",
+        "timeout": 60,
+    }
+
+
+def test_per_step_compute_overrides_the_project(
+    consumer, overrides_path, propeller_dir
+):
+    _write_store_floor(consumer, "    compute_type: BUILD_GENERAL1_MEDIUM\n")
+    _add_step_codebuild(
+        consumer, "        codebuild:\n          compute_type: BUILD_GENERAL1_SMALL\n"
+    )
+    pipeline = resolve(
+        consumer / "platforms" / "main" / "pipeline.yaml",
+        overrides_path,
+        str(propeller_dir),
+    )
+    # compute is a plain override: the most-specific value wins, even if smaller.
+    assert _steps(pipeline)["store-two"].codebuild == {
+        "compute_type": "BUILD_GENERAL1_SMALL"
+    }
+
+
+def test_min_timeout_is_a_floor_the_consumer_cannot_lower(
+    consumer, overrides_path, propeller_dir
+):
+    _write_store_floor(consumer, "    min_timeout: 60\n")
+    _add_step_codebuild(consumer, "        codebuild:\n          timeout: 10\n")
+    pipeline = resolve(
+        consumer / "platforms" / "main" / "pipeline.yaml",
+        overrides_path,
+        str(propeller_dir),
+    )
+    # timeout is a floor: the max of min_timeout and the consumer value wins.
+    assert _steps(pipeline)["store-two"].codebuild == {"timeout": 60}
+
+
+def test_consumer_timeout_above_the_floor_wins(
+    consumer, overrides_path, propeller_dir
+):
+    _write_store_floor(consumer, "    min_timeout: 30\n")
+    _add_step_codebuild(consumer, "        codebuild:\n          timeout: 90\n")
+    pipeline = resolve(
+        consumer / "platforms" / "main" / "pipeline.yaml",
+        overrides_path,
+        str(propeller_dir),
+    )
+    assert _steps(pipeline)["store-two"].codebuild == {"timeout": 90}
+
+
+def test_legacy_top_level_timeout_feeds_the_floor_max(
+    consumer, overrides_path, propeller_dir
+):
+    _write_store_floor(consumer, "    min_timeout: 30\n")
+    _add_step_codebuild(consumer, "        timeout: 120\n")
+    pipeline = resolve(
+        consumer / "platforms" / "main" / "pipeline.yaml",
+        overrides_path,
+        str(propeller_dir),
+    )
+    assert _steps(pipeline)["store-two"].codebuild == {"timeout": 120}
+
+
+def test_no_codebuild_config_leaves_the_step_clean(resolved):
+    step = _steps(resolved)["cache-one"]
+    assert step.codebuild is None
+    data = pipeline_to_dict(resolved)
+    steps = {s["project"]: s for st in data["stages"] for s in st["steps"]}
+    assert "codebuild" not in steps["cache-one"]
+
+
+def test_step_codebuild_is_serialised_to_the_lock(
+    consumer, overrides_path, propeller_dir
+):
+    _write_store_floor(consumer, "    privileged: true\n")
+    pipeline = resolve(
+        consumer / "platforms" / "main" / "pipeline.yaml",
+        overrides_path,
+        str(propeller_dir),
+    )
+    data = pipeline_to_dict(pipeline)
+    steps = {s["project"]: s for st in data["stages"] for s in st["steps"]}
+    assert steps["store-one"]["codebuild"] == {"privileged": True}
+
+
+def _set_pipeline_codebuild(consumer: Path, block: str) -> None:
+    path = consumer / "platforms" / "main" / "pipeline.yaml"
+    path.write_text(
+        path.read_text().replace('version: "1"\n', 'version: "1"\n' + block)
+    )
+
+
+def test_precedence_compute_overrides_timeout_floors(
+    consumer, overrides_path, propeller_dir
+):
+    # project: compute MEDIUM, min_timeout 30
+    _write_store_floor(
+        consumer, "    compute_type: BUILD_GENERAL1_MEDIUM\n    min_timeout: 30\n"
+    )
+    # pipeline baseline: compute LARGE, timeout 45
+    _set_pipeline_codebuild(
+        consumer,
+        "codebuild:\n  compute_type: BUILD_GENERAL1_LARGE\n  timeout: 45\n",
+    )
+    # per-step on store-two: compute XLARGE
+    _add_step_codebuild(
+        consumer, "        codebuild:\n          compute_type: BUILD_GENERAL1_XLARGE\n"
+    )
+    pipeline = resolve(
+        consumer / "platforms" / "main" / "pipeline.yaml",
+        overrides_path,
+        str(propeller_dir),
+    )
+    steps = _steps(pipeline)
+    # store-two: step compute wins (most specific); timeout = max(30, 45) = 45.
+    assert steps["store-two"].codebuild == {
+        "compute_type": "BUILD_GENERAL1_XLARGE",
+        "timeout": 45,
+    }
+    # store-one: no per-step, so pipeline compute beats project; same timeout max.
+    assert steps["store-one"].codebuild == {
+        "compute_type": "BUILD_GENERAL1_LARGE",
+        "timeout": 45,
+    }
+
+
+def test_pipeline_level_codebuild_passes_through_to_the_lock(
+    consumer, overrides_path, propeller_dir
+):
+    path = consumer / "platforms" / "main" / "pipeline.yaml"
+    path.write_text(
+        path.read_text().replace(
+            'version: "1"\n',
+            'version: "1"\n'
+            "codebuild:\n"
+            "  image_repo: 111111111111.dkr.ecr.eu-central-2.amazonaws.com/deploy-runner-image\n"
+            "  compute_type: BUILD_GENERAL1_MEDIUM\n",
+        )
+    )
+    pipeline = resolve(path, overrides_path, str(propeller_dir))
+    data = pipeline_to_dict(pipeline)
+    assert data["codebuild"] == {
+        "image_repo": "111111111111.dkr.ecr.eu-central-2.amazonaws.com/deploy-runner-image",
+        "compute_type": "BUILD_GENERAL1_MEDIUM",
+    }
+
+
+def test_deploy_runner_image_declares_privileged_and_default_image(
+    consumer, overrides_path, propeller_dir
+):
+    # Point a step at the real framework project and assert its floor is folded.
+    path = consumer / "platforms" / "main" / "pipeline.yaml"
+    path.write_text(
+        path.read_text().replace(
+            "source: propeller:smoke-test", "source: propeller:deploy-runner-image", 1
+        )
+    )
+    pipeline = resolve(path, overrides_path, str(propeller_dir))
+    assert _steps(pipeline)["framework-smoke"].codebuild == {
+        "privileged": True,
+        "default_image": True,
+    }

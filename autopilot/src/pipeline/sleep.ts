@@ -105,12 +105,12 @@ export async function runStageSleepWake(
  * Resolve the sleep mode for a project.
  * Returns the mode string if the project participates, or null if it doesn't.
  *
- * Resolution: pctx.sleepModes (from preset) → legacy step.sleep_config → null
+ * Resolution: pctx.sleepProjects (from preset) → legacy step.sleep_config → null
  */
 function resolveSleepMode(step: StepConfig, pctx: PipelineContext): string | null {
   // New path: preset-based modes
-  const presetMode = pctx.sleepModes[step.project];
-  if (presetMode) return presetMode;
+  const presetEntry = pctx.sleepProjects[step.project];
+  if (presetEntry) return presetEntry.mode;
 
   // Legacy path: step.sleep + step.sleep_config (backwards compat)
   if (step.sleep && step.sleep_config) {
@@ -201,6 +201,18 @@ async function executeSleepStep(
         target: step.target,
         account_id: config.accountId,
         build_id: buildId,
+        // Record mode + version (if ran on pipeline image) so handler.ts can
+        // build sleep_projects in one pass. default_image steps and pipelines
+        // without image_repo get mode only (no version).
+        ...(pctx.deployAction === "sleep" && {
+          sleep_project_state: {
+            mode,
+            ...(!step.codebuild?.default_image &&
+              pctx.codebuild?.image_repo && {
+                version: pctx.propellerVersion,
+              }),
+          },
+        }),
       };
     });
   } catch (err: unknown) {

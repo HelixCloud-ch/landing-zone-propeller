@@ -1,0 +1,42 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Managed policy to drive deploys from an external CI: upload sources/, read
+  executions/ + logs/, and run the deploy-runner CodeBuild. Deploy this stack in
+  the Operations account, then attach the output policy (PolicyArn) to your CI
+  role or user.
+
+Parameters:
+  CodeBuildProject:
+    Type: String
+    Default: deploy-runner
+    Description: Name of the deploy-runner CodeBuild project.
+
+Resources:
+  DeployTriggerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Propeller CI deploy access.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: UploadSourceArchives
+            Effect: Allow
+            Action: s3:PutObject
+            Resource: !Sub "arn:aws:s3:::source-${AWS::AccountId}-${AWS::Region}-an/sources/*"
+          - Sid: ReadExecutionStatusAndLogs
+            Effect: Allow
+            Action: s3:GetObject
+            Resource:
+              - !Sub "arn:aws:s3:::source-${AWS::AccountId}-${AWS::Region}-an/executions/*"
+              - !Sub "arn:aws:s3:::source-${AWS::AccountId}-${AWS::Region}-an/logs/*"
+          - Sid: RunDeployRunner
+            Effect: Allow
+            Action:
+              - codebuild:StartBuild
+              - codebuild:BatchGetBuilds
+            Resource: !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuildProject}"
+
+Outputs:
+  PolicyArn:
+    Description: Attach this managed policy to your CI role or user.
+    Value: !Ref DeployTriggerPolicy

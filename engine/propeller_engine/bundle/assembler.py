@@ -24,13 +24,14 @@ class BundleError(Exception):
 
 
 _IGNORE = shutil.ignore_patterns(
-    ".venv", "__pycache__", "*.pyc", ".terraform", "node_modules", "dist", ".scratch"
+    ".venv", "__pycache__", "*.pyc", ".terraform", "node_modules", "dist", ".scratch",
+    "tests", ".ruff_cache"
 )
 
 # The engine ships to CodeBuild to run propeller-deploy; its test suite does not.
 _IGNORE_ENGINE = shutil.ignore_patterns(
     ".venv", "__pycache__", "*.pyc", ".terraform", "node_modules", "dist", ".scratch",
-    "tests", ".pytest_cache",
+    "tests", ".pytest_cache", ".ruff_cache",
 )
 
 
@@ -99,11 +100,54 @@ def create_bundle(
         build = Path(tmp) / "bundle"
         build.mkdir()
 
-        # Mirror the framework pipeline tree (projects/, modules/, ...) into
-        # the bundle under its directory name.
+        # Copy only the parts of the framework tree that are needed:
+        # 1. shared/ subdirs (modules, recipes referenced by relative path)
+        # 2. Individual project dirs for steps that reference framework projects
+        # This avoids bundling every framework project regardless of usage.
         pipeline_root = build / propeller_dir.name
-        if propeller_dir.is_dir():
-            shutil.copytree(propeller_dir, pipeline_root, ignore=_IGNORE)
+        pipeline_root.mkdir(parents=True, exist_ok=True)
+
+        # shared modules (platform/shared/) — always needed for relative imports
+        shared_in_pipeline = propeller_dir / "shared"
+        if shared_in_pipeline.is_dir():
+            shutil.copytree(
+                shared_in_pipeline, pipeline_root / "shared", ignore=_IGNORE
+            )
+
+        # Collect which framework project dirs are referenced by steps
+        referenced_projects: set[Path] = set()
+        for stage in pipeline.stages:
+            for step in stage.steps:
+                src = Path(step.source) if step.source else None
+                if src and src.is_dir():
+                    resolved = src.resolve()
+                    try:
+                        resolved.relative_to(propeller_dir.resolve())
+                        referenced_projects.add(src)
+                    except ValueError:
+                        pass  # consumer source, not a framework project
+                else:
+                    candidate = propeller_dir / "projects" / step.project
+                    if candidate.is_dir():
+                        referenced_projects.add(candidate)
+                # base projects
+                if step.base:
+                    base_path = Path(step.base)
+                    if base_path.is_dir():
+                        referenced_projects.add(base_path)
+
+        # Copy only referenced framework project dirs (preserving depth)
+        projects_dest = pipeline_root / "projects"
+        projects_dest.mkdir(parents=True, exist_ok=True)
+        for proj_path in referenced_projects:
+            resolved = proj_path.resolve()
+            try:
+                rel = resolved.relative_to(propeller_dir.resolve())
+            except ValueError:
+                continue
+            dest = pipeline_root / rel
+            if not dest.exists():
+                shutil.copytree(resolved, dest, ignore=_IGNORE)
 
         # Place each step's project at its bundle-relative path, overlay
         # consumer files, and record the bundle-relative source for the runner.

@@ -36,6 +36,7 @@ export async function startBuild(
     { name: "AWS_ACCOUNT_ID", value: config.accountId, type: "PLAINTEXT" as const },
     { name: "AWS_REGION", value: config.region, type: "PLAINTEXT" as const },
     { name: "PROPELLER_EXECUTION_ID", value: pctx.executionId, type: "PLAINTEXT" as const },
+    { name: "PROPELLER_VERSION", value: pctx.propellerVersion, type: "PLAINTEXT" as const },
     {
       name: "PROPELLER_FRAMEWORK_TAGS_JSON",
       value: JSON.stringify(step.propeller_tags ?? {}),
@@ -82,12 +83,70 @@ export async function startBuild(
     environmentVariablesOverride: envVars,
   };
 
-  if (step.timeout) {
-    buildParams.timeoutInMinutesOverride = step.timeout;
-  }
+  applyCodeBuildOverrides(buildParams, step, pctx);
 
   const resp = await client.send(new StartBuildCommand(buildParams as any));
   return resp.build!.id!;
+}
+
+/**
+ * Apply the CodeBuild overrides onto the StartBuild params. Every field is
+ * omitted when unset, so an unconfigured pipeline runs on the project's own
+ * image/compute/timeout. compute_type/timeout come pre-resolved from the engine
+ * and are applied verbatim; only the image is composed, from image_repo and the
+ * runtime version.
+ *
+ * On wake, `pctx.sleepVersions[step.project]` pins the image to the version the
+ * project was slept on, so a framework bump between sleep and wake can't swap
+ * out the providers under a woken project. Projects without a recorded version
+ * (ran on standard image or had no image_repo) get no imageOverride and run on
+ * the CodeBuild project default.
+ */
+function applyCodeBuildOverrides(
+  buildParams: Record<string, unknown>,
+  step: StepConfig,
+  pctx: PipelineContext,
+): void {
+  const stepCb = step.codebuild;
+  const pipeCb = pctx.codebuild;
+
+  // Image: the builder opts out via default_image (runs on the project default).
+  // Otherwise a full `image` wins, else `image_repo:<version>`.
+  // On wake the version comes from sleep_versions[project] (pinned at sleep time),
+  // falling back to the current propellerVersion for projects without a record.
+  if (!stepCb?.default_image) {
+    let image: string | undefined;
+    if (pipeCb?.image) {
+      image = pipeCb.image;
+    } else if (pipeCb?.image_repo) {
+      // On wake, prefer the version the project was slept on; fall back to current.
+      const version =
+        pctx.deployAction === "wake" && pctx.sleepProjects?.[step.project]?.version
+          ? pctx.sleepProjects[step.project]!.version!
+          : pctx.propellerVersion;
+      image = `${pipeCb.image_repo}:${version}`;
+    }
+    if (image) {
+      buildParams.imageOverride = image;
+      // CODEBUILD creds only cover AWS-managed images; a private ECR image must
+      // pull with the CodeBuild service role.
+      if (image.includes(".dkr.ecr.")) {
+        buildParams.imagePullCredentialsTypeOverride = "SERVICE_ROLE";
+      }
+    }
+  }
+
+  if (stepCb?.compute_type) {
+    buildParams.computeTypeOverride = stepCb.compute_type;
+  }
+
+  if (stepCb?.timeout !== undefined) {
+    buildParams.timeoutInMinutesOverride = stepCb.timeout;
+  }
+
+  if (stepCb?.privileged === true) {
+    buildParams.privilegedModeOverride = true;
+  }
 }
 
 export async function pollBuild(
