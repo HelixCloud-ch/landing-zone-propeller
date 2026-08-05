@@ -1,5 +1,4 @@
 MANIFEST.yaml
-engine/.gitignore
 engine/README.md
 engine/propeller_engine/__init__.py
 engine/propeller_engine/bundle/__init__.py
