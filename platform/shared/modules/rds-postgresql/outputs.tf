@@ -39,6 +39,6 @@ output "master_user_secret_arn" {
 }
 
 output "security_group_id" {
-  description = "ID of the security group created for the RDS instance."
-  value       = aws_security_group.this.id
+  description = "ID of the security group used by the RDS instance (created or caller-provided)."
+  value       = local.security_group_id
 }
