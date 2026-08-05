@@ -24,13 +24,14 @@ class BundleError(Exception):
 
 
 _IGNORE = shutil.ignore_patterns(
-    ".venv", "__pycache__", "*.pyc", ".terraform", "node_modules", "dist", ".scratch"
+    ".venv", "__pycache__", "*.pyc", ".terraform", "node_modules", "dist", ".scratch",
+    "tests", ".ruff_cache"
 )
 
 # The engine ships to CodeBuild to run propeller-deploy; its test suite does not.
 _IGNORE_ENGINE = shutil.ignore_patterns(
     ".venv", "__pycache__", "*.pyc", ".terraform", "node_modules", "dist", ".scratch",
-    "tests", ".pytest_cache",
+    "tests", ".pytest_cache", ".ruff_cache",
 )
 
 
