@@ -43,7 +43,7 @@ resource "aws_ecr_repository_creation_template" "templates" {
       filter_type = image_tag_mutability_exclusion_filter.value.filter_type
     }
   }
-  
+
   encryption_configuration {
     encryption_type = each.value.encryption_type
     kms_key         = each.value.kms_key
