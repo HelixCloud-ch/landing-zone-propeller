@@ -240,6 +240,12 @@ export interface StepResult {
   error?: string;
   /** Duration in seconds (from build start to completion). */
   duration?: number;
+  /**
+   * The propeller_version the step ran on when it was put to sleep, only set
+   * for sleep builds that actually ran on the pipeline image (not default_image
+   * or no image_repo configured). Used to pin wake to the same image tag.
+   */
+  sleep_version?: string;
 }
 
 /** Final pipeline execution result returned from the handler. */
@@ -291,6 +297,13 @@ export interface PipelineContext {
   codebuild?: PipelineCodeBuildConfig;
   /** Optional status tracker for live execution state (status.json in S3). */
   statusTracker?: import("./services/status.js").StatusTracker;
+  /**
+   * On wake: propeller_version each project was slept on, keyed by project name.
+   * Only present for projects that ran on the pipeline image (not default_image
+   * or standard). Wake uses `image_repo:<sleep_versions[project]>` instead of
+   * the current `propellerVersion`.
+   */
+  sleepVersions?: Record<string, string>;
 }
 
 // --- Services (dependency injection container) ---

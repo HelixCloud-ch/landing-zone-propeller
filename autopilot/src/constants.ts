@@ -30,6 +30,10 @@ export const TERMINAL_BUILD_STATUSES: Set<string> = new Set([
 ]);
 
 /** Default buildspec used by CodeBuild for running project deploys. */
+// Tool version defaults below (TF_VERSION, JUST_VERSION) must stay in sync with
+// platform/projects/deploy-runner-image/versions.env — CI enforces this.
+// On a baked image every `command -v` guard short-circuits and these are unused;
+// they only apply on a standard:6.0 fallback (no image_repo configured).
 export const BUILDSPEC = `version: 0.2
 
 env:

@@ -95,6 +95,12 @@ export async function startBuild(
  * image/compute/timeout. compute_type/timeout come pre-resolved from the engine
  * and are applied verbatim; only the image is composed, from image_repo and the
  * runtime version.
+ *
+ * On wake, `pctx.sleepVersions[step.project]` pins the image to the version the
+ * project was slept on, so a framework bump between sleep and wake can't swap
+ * out the providers under a woken project. Projects without a recorded version
+ * (ran on standard image or had no image_repo) get no imageOverride and run on
+ * the CodeBuild project default.
  */
 function applyCodeBuildOverrides(
   buildParams: Record<string, unknown>,
@@ -105,13 +111,20 @@ function applyCodeBuildOverrides(
   const pipeCb = pctx.codebuild;
 
   // Image: the builder opts out via default_image (runs on the project default).
-  // Otherwise a full `image` wins, else `image_repo:<propeller_version>`.
+  // Otherwise a full `image` wins, else `image_repo:<version>`.
+  // On wake the version comes from sleep_versions[project] (pinned at sleep time),
+  // falling back to the current propellerVersion for projects without a record.
   if (!stepCb?.default_image) {
     let image: string | undefined;
     if (pipeCb?.image) {
       image = pipeCb.image;
     } else if (pipeCb?.image_repo) {
-      image = `${pipeCb.image_repo}:${pctx.propellerVersion}`;
+      // On wake, prefer the version the project was slept on; fall back to current.
+      const version =
+        pctx.deployAction === "wake" && pctx.sleepVersions?.[step.project]
+          ? pctx.sleepVersions[step.project]
+          : pctx.propellerVersion;
+      image = `${pipeCb.image_repo}:${version}`;
     }
     if (image) {
       buildParams.imageOverride = image;

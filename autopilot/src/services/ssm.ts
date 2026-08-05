@@ -181,6 +181,14 @@ export interface PipelineState {
   state: "running" | "sleeping";
   sleep_preset?: string;
   sleep_modes?: Record<string, string>;
+  /**
+   * Propeller version each project was running on when slept, for projects
+   * that actually built on the pipeline image (not default_image/standard).
+   * Wake composes `image_repo:<sleep_versions[project]>` from this instead of
+   * the current propeller_version, so a framework/deps bump between sleep and
+   * wake can't leave a woken project without the providers it was slept with.
+   */
+  sleep_versions?: Record<string, string>;
 }
 
 export async function readPipelineState(
@@ -203,10 +211,13 @@ export async function writePipelineState(
   state: "running" | "sleeping",
   sleepPreset?: string,
   sleepModes?: Record<string, string>,
+  sleepVersions?: Record<string, string>,
 ): Promise<void> {
   const value: PipelineState = { state };
   if (sleepPreset) value.sleep_preset = sleepPreset;
   if (sleepModes && Object.keys(sleepModes).length > 0) value.sleep_modes = sleepModes;
+  if (sleepVersions && Object.keys(sleepVersions).length > 0)
+    value.sleep_versions = sleepVersions;
   await client.send(
     new PutParameterCommand({
       Name: `/propeller/${namespace}/state`,

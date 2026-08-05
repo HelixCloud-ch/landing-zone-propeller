@@ -645,6 +645,157 @@ describe("execute", () => {
     expect(result.results.find((r) => r.project === "vpc")?.status).toBe("skipped");
   });
 
+  // ── Phase D: sleep/wake image version pinning ──
+
+  it("sleep records sleep_versions only for pipeline-image steps", async () => {
+    // rds: normal step, runs on pipeline image → version should be recorded
+    // builder: default_image: true → excluded (runs on standard, no version recorded)
+    // no-image: pipeline has no image_repo → excluded
+    const event: PipelineEvent = {
+      pipeline: {
+        version: "1",
+        namespace: "test-platform",
+        propeller_version: "1.2.3",
+        consumer_tags: {},
+        codebuild: {
+          image_repo: "123456789012.dkr.ecr.eu-central-2.amazonaws.com/deploy-runner-image",
+        },
+        stages: [
+          {
+            name: "data",
+            steps: [
+              {
+                project: "rds",
+                target: "account-alpha",
+                inputs: [],
+                outputs: [],
+              },
+              {
+                project: "builder",
+                target: "account-alpha",
+                codebuild: { default_image: true },
+                inputs: [],
+                outputs: [],
+              },
+            ],
+          },
+        ],
+        sleep_presets: { deep: { rds: "snapshot", builder: "noop" } },
+      },
+      bundle_s3_uri: "s3://b/k.zip",
+      deploy_action: "sleep",
+      sleep_preset: "deep",
+      git_sha: "sha",
+    };
+
+    await execute(event, createMockDurableContext(), {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+
+    const state = JSON.parse(ssmParams["/propeller/test-platform/state"]!);
+    expect(state.state).toBe("sleeping");
+    // rds ran on the pipeline image → version recorded
+    expect(state.sleep_versions?.rds).toBe("1.2.3");
+    // builder opted out via default_image → no entry
+    expect(state.sleep_versions?.builder).toBeUndefined();
+  });
+
+  it("sleep without image_repo does not write sleep_versions", async () => {
+    const event: PipelineEvent = {
+      pipeline: {
+        version: "1",
+        namespace: "test-platform",
+        propeller_version: "1.2.3",
+        consumer_tags: {},
+        // no codebuild.image_repo
+        stages: [
+          {
+            name: "data",
+            steps: [{ project: "rds", target: "account-alpha", inputs: [], outputs: [] }],
+          },
+        ],
+        sleep_presets: { deep: { rds: "snapshot" } },
+      },
+      bundle_s3_uri: "s3://b/k.zip",
+      deploy_action: "sleep",
+      sleep_preset: "deep",
+      git_sha: "sha",
+    };
+
+    await execute(event, createMockDurableContext(), {
+      ssm: createMockSSMClient(ssmParams) as any,
+      sts: createMockSTSClient() as any,
+    });
+
+    const state = JSON.parse(ssmParams["/propeller/test-platform/state"]!);
+    expect(state.sleep_versions).toBeUndefined();
+  });
+
+  it("wake uses stored sleep_versions to pin image tag per project", async () => {
+    // Pipeline was slept on v1.2.3; current propeller_version is v1.5.0.
+    // rds has a stored version → wake should use image_repo:1.2.3.
+    // vpc has no stored version (ran on standard) → no imageOverride.
+    ssmParams["/propeller/test-platform/state"] = JSON.stringify({
+      state: "sleeping",
+      sleep_preset: "deep",
+      sleep_modes: { rds: "snapshot" },
+      sleep_versions: { rds: "1.2.3" },
+    });
+
+    const startBuildCalls: any[] = [];
+    const capturingSSM = createMockSSMClient(ssmParams);
+
+    // Intercept StartBuildCommand inputs via the CodeBuild mock
+    const { StartBuildCommand } = await import("@aws-sdk/client-codebuild");
+    const capturedParams: any[] = [];
+    vi.mocked(StartBuildCommand).mockImplementation(function (this: any, input: any) {
+      this._type = "StartBuild";
+      this.input = input;
+      capturedParams.push(input);
+    } as any);
+
+    const event: PipelineEvent = {
+      pipeline: {
+        version: "1",
+        namespace: "test-platform",
+        propeller_version: "1.5.0", // bumped since sleep
+        consumer_tags: {},
+        codebuild: {
+          image_repo: "123456789012.dkr.ecr.eu-central-2.amazonaws.com/deploy-runner-image",
+        },
+        stages: [
+          {
+            name: "data",
+            steps: [
+              { project: "rds", target: "account-alpha", inputs: [], outputs: [] },
+            ],
+          },
+        ],
+        sleep_presets: { deep: { rds: "snapshot" } },
+      },
+      bundle_s3_uri: "s3://b/k.zip",
+      deploy_action: "wake",
+      git_sha: "sha",
+    };
+
+    await execute(event, createMockDurableContext(), {
+      ssm: capturingSSM as any,
+      sts: createMockSTSClient() as any,
+    });
+
+    // rds build should use the pinned version 1.2.3, not the current 1.5.0
+    const rdsBuild = capturedParams.find((p) =>
+      p.environmentVariablesOverride?.some(
+        (v: any) => v.name === "PROJECT_NAME" && v.value === "rds",
+      ),
+    );
+    expect(rdsBuild).toBeDefined();
+    expect(rdsBuild.imageOverride).toBe(
+      "123456789012.dkr.ecr.eu-central-2.amazonaws.com/deploy-runner-image:1.2.3",
+    );
+  });
+
   it("sleep with valid preset resolves modes and executes", async () => {
     const event: PipelineEvent = {
       pipeline: {

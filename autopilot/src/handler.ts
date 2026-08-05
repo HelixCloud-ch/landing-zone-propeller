@@ -105,6 +105,12 @@ export async function execute(
           "VALIDATION_ERROR",
         );
       }
+      // Load per-project image versions recorded at sleep time. Projects not in
+      // this map (ran on standard/default_image) will get no imageOverride on wake.
+      if (storedState?.sleep_versions && Object.keys(storedState.sleep_versions).length > 0) {
+        pctx.sleepVersions = storedState.sleep_versions;
+        log.info("Wake: using stored image versions", { versions: pctx.sleepVersions });
+      }
     } else {
       // Sleep: resolve preset by name
       const modes = pipeline.sleep_presets[presetName];
@@ -321,12 +327,27 @@ async function buildResult(
       pctx.deployAction === "apply"
     ) {
       const finalState = pctx.deployAction === "sleep" ? "sleeping" : "running";
+
+      // Collect per-project image versions from sleep results (only for
+      // projects that ran on the pipeline image, not standard/default_image).
+      const sleepVersions: Record<string, string> = {};
+      if (pctx.deployAction === "sleep") {
+        for (const r of allResults) {
+          if (r.status === "succeeded" && r.sleep_version) {
+            sleepVersions[r.project] = r.sleep_version;
+          }
+        }
+      }
+
       await writePipelineState(
         clients.ssm,
         pctx.namespace,
         finalState,
         pctx.deployAction === "sleep" ? sleepPreset : undefined,
         pctx.deployAction === "sleep" ? pctx.sleepModes : undefined,
+        pctx.deployAction === "sleep" && Object.keys(sleepVersions).length > 0
+          ? sleepVersions
+          : undefined,
       );
     }
 

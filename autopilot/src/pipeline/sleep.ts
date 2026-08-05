@@ -201,6 +201,15 @@ async function executeSleepStep(
         target: step.target,
         account_id: config.accountId,
         build_id: buildId,
+        // Record the propeller_version this sleep build ran on, but only when
+        // the step actually used the pipeline image. default_image steps and
+        // pipelines without image_repo run on the CodeBuild standard image and
+        // must not get a version recorded (wake would wrongly try to pin them).
+        ...(pctx.deployAction === "sleep" &&
+          !step.codebuild?.default_image &&
+          pctx.codebuild?.image_repo && {
+            sleep_version: pctx.propellerVersion,
+          }),
       };
     });
   } catch (err: unknown) {
