@@ -78,8 +78,12 @@ image-size:
     echo "== tools =="
     docker run --rm --entrypoint sh "$img" -c 'du -sh /usr/local/aws-cli /usr/local/bin/terraform /usr/local/bin/helm /usr/local/bin/kubectl /usr/local/bin/just 2>/dev/null | sort -rh'
 
+# Check tool version sync between versions.env and the buildspec in constants.ts
+check-versions-sync:
+    @./platform/projects/deploy-runner-image/tests/check_versions_sync.sh
+
 # Fast tests: pipeline resolve/validate + engine + autopilot (no docker)
-test: resolve validate test-engine test-autopilot
+test: resolve validate test-engine test-autopilot check-versions-sync
     @printf '\n{{ _ok }}  %-60s  {{ _reset }}\n' 'PASS: all checks passed'
 
 # Everything, including the heavy image build/verify
