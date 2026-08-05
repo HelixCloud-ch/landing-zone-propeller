@@ -240,7 +240,7 @@ def create_bundle(
                 for layer in project_layers
                 if layer["kind"] == "overlay"
             }
-            candidates = sorted(p for p in overlay_dir.iterdir() if p.is_dir())
+            candidates = sorted(p for p in (overlay_dir.iterdir() if overlay_dir.is_dir() else []) if p.is_dir())
             if candidates and not applied_from and not pipeline.overlays:
                 raise BundleError(
                     f"{overlay_dir} holds directories but the pipeline declares no "
