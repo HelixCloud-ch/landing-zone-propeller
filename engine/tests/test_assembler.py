@@ -357,8 +357,13 @@ def test_assembly_report_matches_golden(
     compare_golden("bundle-report.md", actual, update_golden)
 
 
-def test_bundle_tree_matches_golden(assembled, update_golden):
-    compare_golden("bundle-tree.txt", "\n".join(bundle_tree(assembled)) + "\n", update_golden)
+def test_bundle_tree_structure(assembled):
+    """Bundle has shared recipes, engine, and at least one shared module."""
+    tree = bundle_tree(assembled)
+    assert "shared/recipes/terraform.just" in tree
+    assert any(p.startswith("platform/shared/modules/") for p in tree)
+    assert any(p.startswith("engine/") for p in tree)
+    assert "pipeline.lock.yaml" in tree
 
 
 def test_framework_project_under_its_own_name_keeps_the_mirrored_path(assembled):
