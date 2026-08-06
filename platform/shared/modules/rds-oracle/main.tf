@@ -42,6 +42,8 @@ resource "aws_db_subnet_group" "this" {
 # ── Security Group ────────────────────────────────────────────────────────────
 
 resource "aws_security_group" "this" {
+  count = var.security_group_id == null ? 1 : 0
+
   name        = "${var.identifier}-rds"
   description = "Security group for RDS Oracle instance ${var.identifier}"
   vpc_id      = var.vpc_id
@@ -52,9 +54,9 @@ resource "aws_security_group" "this" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "ingress_cidrs" {
-  for_each = toset(var.allowed_cidrs)
+  for_each = var.security_group_id == null ? toset(var.allowed_cidrs) : toset([])
 
-  security_group_id = aws_security_group.this.id
+  security_group_id = local.security_group_id
   from_port         = var.port
   to_port           = var.port
   ip_protocol       = "tcp"
@@ -63,9 +65,9 @@ resource "aws_vpc_security_group_ingress_rule" "ingress_cidrs" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "ingress_sgs" {
-  for_each = toset(var.allowed_security_group_ids)
+  for_each = var.security_group_id == null ? toset(var.allowed_security_group_ids) : toset([])
 
-  security_group_id            = aws_security_group.this.id
+  security_group_id            = local.security_group_id
   from_port                    = var.port
   to_port                      = var.port
   ip_protocol                  = "tcp"
@@ -95,7 +97,7 @@ resource "aws_db_instance" "this" {
 
   # Network
   db_subnet_group_name   = aws_db_subnet_group.this.name
-  vpc_security_group_ids = [aws_security_group.this.id]
+  vpc_security_group_ids = [local.security_group_id]
   multi_az               = var.multi_az
   port                   = var.port
   publicly_accessible    = false

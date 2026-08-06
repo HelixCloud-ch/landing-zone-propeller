@@ -40,6 +40,22 @@ variable "allowed_security_group_ids" {
   default     = []
 }
 
+variable "security_group_id" {
+  type        = string
+  description = "Existing security group ID to use instead of creating one. When set, the module skips SG creation and all ingress/egress rule management — manage rules on the external group. Mutually exclusive with allowed_cidrs and allowed_security_group_ids."
+  default     = null
+
+  validation {
+    condition     = var.security_group_id == null || can(regex("^sg-[0-9a-f]{8,17}$", var.security_group_id))
+    error_message = "security_group_id must be a valid security group ID (e.g. sg-0123456789abcdef0) or null."
+  }
+
+  validation {
+    condition     = var.security_group_id == null || (length(var.allowed_cidrs) == 0 && length(var.allowed_security_group_ids) == 0)
+    error_message = "When security_group_id is provided, do not set allowed_cidrs or allowed_security_group_ids — manage rules on the external group instead."
+  }
+}
+
 # ── Engine ────────────────────────────────────────────────────────────────────
 
 variable "engine" {
