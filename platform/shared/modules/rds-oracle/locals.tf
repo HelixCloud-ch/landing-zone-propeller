@@ -1,4 +1,7 @@
 locals {
+  # Use the caller-provided security group when set, otherwise the one created here.
+  security_group_id = var.security_group_id != null ? var.security_group_id : aws_security_group.this[0].id
+
   s3_option = var.enable_s3_integration ? [{
     option_name = "S3_INTEGRATION"
     version     = "1.0"
