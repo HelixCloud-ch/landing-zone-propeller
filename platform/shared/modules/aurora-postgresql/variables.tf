@@ -86,24 +86,6 @@ variable "security_group_id" {
   }
 }
 
-variable "create_egress_rule" {
-  type        = bool
-  description = "Create an allow-all egress rule on the security group. Keep true for the common case; set false to restrict egress (via egress_rules) or manage it externally."
-  default     = true
-}
-
-variable "egress_rules" {
-  type = list(object({
-    cidr_ipv4   = string
-    from_port   = number
-    to_port     = number
-    ip_protocol = optional(string, "tcp")
-    description = optional(string, "")
-  }))
-  description = "Explicit egress rules for restricted setups. Used with create_egress_rule = false."
-  default     = []
-}
-
 # ── Engine ────────────────────────────────────────────────────────────────────
 
 variable "engine_version" {

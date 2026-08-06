@@ -23,29 +23,6 @@ resource "aws_security_group" "this" {
   }
 }
 
-resource "aws_vpc_security_group_egress_rule" "this" {
-  count = var.create_egress_rule ? 1 : 0
-
-  security_group_id = local.security_group_id
-  cidr_ipv4         = "0.0.0.0/0"
-  ip_protocol       = "-1"
-  description       = "Allow all egress"
-}
-
-resource "aws_vpc_security_group_egress_rule" "custom" {
-  for_each = {
-    for r in var.egress_rules :
-    "${r.ip_protocol}-${r.from_port}-${r.to_port}-${r.cidr_ipv4}" => r
-  }
-
-  security_group_id = local.security_group_id
-  from_port         = each.value.from_port
-  to_port           = each.value.to_port
-  ip_protocol       = each.value.ip_protocol
-  cidr_ipv4         = each.value.cidr_ipv4
-  description       = each.value.description
-}
-
 resource "aws_vpc_security_group_ingress_rule" "ingress_cidrs" {
   for_each = toset(var.allowed_cidrs)
 
