@@ -97,6 +97,14 @@ def test_literal_inputs_survive_serialisation(resolved):
     assert identifier == {"var": "identifier", "literal": "store-one"}
 
 
+def test_graph_generation_handles_literal_inputs(resolved):
+    """Literal inputs have key=None; the graph's edge inference must skip them."""
+    from propeller_engine.cli.resolve import _generate_mermaid
+
+    out = _generate_mermaid(resolved)
+    assert out.startswith("graph")
+
+
 def test_resolution_is_deterministic(pipeline_path, overrides_path, propeller_dir):
     runs = []
     for _ in range(2):

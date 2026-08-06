@@ -84,7 +84,7 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
                     if src_project and not src_project.startswith("@") and not src_project.startswith("/"):
                         if src_project in all_projects and src_project != step.project:
                             edges.add((src_project, step.project))
-                else:
+                elif inp.key:
                     key_parts = inp.key.strip("/").split("/")
                     if len(key_parts) >= 3 and key_parts[0] == "propeller":
                         src_project = key_parts[2]
