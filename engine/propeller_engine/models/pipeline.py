@@ -64,6 +64,11 @@ class Stage(BaseModel):
 
 class Pipeline(BaseModel):
     version: str
+    # Directories searched to resolve `local:<name>` references, in order.
+    # Resolved against the consumer root (the directory holding
+    # .propeller-version), same anchor as `overlays`. Lets a pipeline declare
+    # where its local projects live without a propeller.overrides.yaml.
+    sources: list[str] = Field(default_factory=list)
     # Default overlay patterns for every step, letting a pipeline state where
     # consumers may overlay its projects without repeating the pattern on each
     # step. A step declaring its own replaces these.
