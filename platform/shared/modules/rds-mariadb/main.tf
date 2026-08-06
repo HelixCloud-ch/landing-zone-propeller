@@ -24,7 +24,7 @@ resource "aws_security_group" "this" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "ingress_cidrs" {
-  for_each = var.security_group_id == null ? toset(var.allowed_cidrs) : toset([])
+  for_each = toset(var.security_group_id == null ? var.allowed_cidrs : [])
 
   security_group_id = local.security_group_id
   from_port         = var.port
@@ -35,7 +35,7 @@ resource "aws_vpc_security_group_ingress_rule" "ingress_cidrs" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "ingress_sgs" {
-  for_each = var.security_group_id == null ? toset(var.allowed_security_group_ids) : toset([])
+  for_each = toset(var.security_group_id == null ? var.allowed_security_group_ids : [])
 
   security_group_id            = local.security_group_id
   from_port                    = var.port
