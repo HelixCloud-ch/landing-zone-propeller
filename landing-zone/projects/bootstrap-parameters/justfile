@@ -52,7 +52,7 @@ _resolve:
         exit 1
     fi
 
-    S3_SOURCE_BUCKET="{{ source_bucket_prefix }}-{{ operations_account_id }}-{{ region }}"
+    S3_SOURCE_BUCKET="{{ source_bucket_prefix }}-{{ operations_account_id }}-{{ region }}-an"
     AUTOPILOT_ROLE_ARN="arn:aws:iam::{{ operations_account_id }}:role/{{ autopilot_role_name }}"
 
     ORGANIZATION_ID=$(aws organizations describe-organization \
