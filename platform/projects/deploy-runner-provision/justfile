@@ -1,0 +1,6 @@
+# deploy-runner-provision
+import "../../../shared/recipes/terraform.just"
+
+plan: tf-plan
+apply: tf-apply
+destroy: tf-destroy

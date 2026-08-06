@@ -1,0 +1,11 @@
+name: deploy-runner-provision
+description: >-
+  Provisions the standard deploy-runner Service Catalog product into one target
+  account. Runs from the management account and assumes AWSControlTowerExecution
+  into the target. One step per account.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just
