@@ -69,7 +69,8 @@ ARG TARGETARCH
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
 RUN dnf install -y --setopt=install_weak_deps=False \
-      git jq python3 tar gzip unzip ca-certificates awscli findutils which \
+      git jq python3 python3-pip tar gzip unzip ca-certificates awscli findutils which \
+ && pip3 install --no-cache-dir boto3 botocore \
  && dnf clean all && rm -rf /var/cache/dnf
 
 COPY --from=fetch /out/terraform /out/just /out/kubectl /out/helm /usr/local/bin/
@@ -133,4 +134,5 @@ RUN terraform version \
  && aws --version \
  && git --version \
  && jq --version \
- && python3 --version
+ && python3 --version \
+ && python3 -c "import boto3, botocore; print(boto3.__version__, botocore.__version__)"
