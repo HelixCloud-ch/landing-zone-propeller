@@ -132,13 +132,22 @@ _propeller-vars:
     # Add PROPELLER_INPUT_* vars
     while IFS='=' read -r key value; do
       var_name="${key#PROPELLER_INPUT_}"
-      # Values may be JSON-encoded (from transforms) or plain strings.
-      # Try to parse as JSON first; if it fails, treat as string.
-      if echo "$value" | jq -e '.' >/dev/null 2>&1; then
-        RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --argjson v "$value" '. + {($k): $v}')
-      else
-        RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --arg v "$value" '. + {($k): $v}')
-      fi
+      # Only decode objects/arrays as JSON (typed inputs like subnet_ids_json).
+      # Scalars stay strings so numeric-looking IDs keep leading zeros and exact
+      # form (e.g. an account id "041613842636"); terraform still coerces a
+      # string to a number/bool for a typed variable.
+      case "$value" in
+        '{'*|'['*)
+          if echo "$value" | jq -e '.' >/dev/null 2>&1; then
+            RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --argjson v "$value" '. + {($k): $v}')
+          else
+            RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --arg v "$value" '. + {($k): $v}')
+          fi
+          ;;
+        *)
+          RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --arg v "$value" '. + {($k): $v}')
+          ;;
+      esac
     done < <(env | grep '^PROPELLER_INPUT_' | sort || true)
     # Add tags (already JSON objects)
     if [[ -n "${PROPELLER_FRAMEWORK_TAGS_JSON:-}" ]]; then

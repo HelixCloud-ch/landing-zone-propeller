@@ -97,6 +97,14 @@ def test_literal_inputs_survive_serialisation(resolved):
     assert identifier == {"var": "identifier", "literal": "store-one"}
 
 
+def test_graph_generation_handles_literal_inputs(resolved):
+    """Literal inputs have key=None; the graph's edge inference must skip them."""
+    from propeller_engine.cli.resolve import _generate_mermaid
+
+    out = _generate_mermaid(resolved)
+    assert out.startswith("graph")
+
+
 def test_resolution_is_deterministic(pipeline_path, overrides_path, propeller_dir):
     runs = []
     for _ in range(2):
@@ -284,6 +292,46 @@ def test_declared_sources_are_searched_before_adjacent_projects(
         consumer / "platforms" / "main" / "pipeline.yaml", overrides_path, str(propeller_dir)
     )
     assert str(_steps(pipeline)["adjacent-named"].source) == str(shadow)
+
+
+# ── Pipeline-declared sources + consumer-root anchoring (direct mode) ──────────
+
+
+def test_find_consumer_root_walks_up_to_the_marker(tmp_path):
+    from propeller_engine.pipeline.resolve import _find_consumer_root
+
+    root = tmp_path / "repo"
+    (root / "a" / "b").mkdir(parents=True)
+    (root / ".propeller-root").write_text("")
+    assert _find_consumer_root(root / "a" / "b") == root
+
+
+def test_find_consumer_root_returns_none_without_marker(tmp_path):
+    from propeller_engine.pipeline.resolve import _find_consumer_root
+
+    d = tmp_path / "x"
+    d.mkdir()
+    assert _find_consumer_root(d) is None
+
+
+def test_pipeline_declared_sources_resolve_local_in_direct_mode(consumer, propeller_dir):
+    """Direct mode (no overrides): a pipeline's own `sources:` supplies the local search path."""
+    (consumer / ".propeller-root").write_text("")
+    path = consumer / "platforms" / "main" / "pipeline.yaml"
+    path.write_text("sources:\n  - sources/\n" + path.read_text())
+    pipeline = resolve(path, None, str(propeller_dir), version="v0.0.0-fixture")
+    assert str(_steps(pipeline)["store-two"].source) == str(consumer / "sources" / "store")
+
+
+def test_overlays_anchor_to_consumer_root_in_direct_mode(consumer, propeller_dir):
+    """Direct mode overlays resolve against the `.propeller-root` dir, not the pipeline dir."""
+    (consumer / ".propeller-root").write_text("")
+    path = consumer / "platforms" / "main" / "pipeline.yaml"
+    path.write_text("sources:\n  - sources/\n" + path.read_text())
+    pipeline = resolve(path, None, str(propeller_dir), version="v0.0.0-fixture")
+    overlays = _steps(pipeline)["store-one"].overlays
+    assert str(consumer / "overlays" / "store-one") in overlays
+    assert str(consumer / "org-overlays" / "store-one") in overlays
 
 
 # ── CodeBuild floor/override folding ──────────────────────────────────────────

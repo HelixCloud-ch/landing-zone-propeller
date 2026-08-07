@@ -1,0 +1,2 @@
+# Marks the consumer root. `sources:` and `overlays:` in pipelines resolve
+# relative to this directory. Committed, do not remove.
