@@ -69,7 +69,7 @@ ARG TARGETARCH
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
 RUN dnf install -y --setopt=install_weak_deps=False \
-      git jq python3 tar gzip unzip ca-certificates awscli findutils \
+      git jq python3 tar gzip unzip ca-certificates awscli findutils which \
  && dnf clean all && rm -rf /var/cache/dnf
 
 COPY --from=fetch /out/terraform /out/just /out/kubectl /out/helm /usr/local/bin/
