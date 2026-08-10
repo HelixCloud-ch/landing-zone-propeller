@@ -166,16 +166,28 @@ describe("startBuild idempotency token", () => {
     expect(inputs[0]!.idempotencyToken).toBe(inputs[1]!.idempotencyToken);
   });
 
-  it("stays within CodeBuild's 64-char token limit even for long execution names", async () => {
+  it("stays within CodeBuild's 64-char token limit regardless of input length", async () => {
     const { client, inputs } = mockCodeBuild();
+    // A realistic long execution name (pipeline__action__sha__timestamp) and a
+    // pathologically long one. The token is a fixed-length hash digest, so its
+    // length must not grow with the inputs and must never exceed 64.
     await startBuild(
       client,
       step({ project: "deploy-runner-workload" }),
       config,
-      // A realistic, long execution name: pipeline__action__sha__timestamp
       ctx({ executionId: "tenant-infra-dev__apply__95ee303__20260807T135558" }),
     );
-    expect(inputs[0]!.idempotencyToken.length).toBeLessThanOrEqual(64);
+    await startBuild(
+      client,
+      step({ project: "p".repeat(500) }),
+      config,
+      ctx({ executionId: "e".repeat(5000) }),
+    );
+    for (const p of inputs) {
+      expect(p.idempotencyToken.length).toBeLessThanOrEqual(64);
+    }
+    // Fixed-length by construction: long and short inputs yield the same length.
+    expect(inputs[0]!.idempotencyToken.length).toBe(inputs[1]!.idempotencyToken.length);
   });
 
   it("differs by phase, project and execution", async () => {

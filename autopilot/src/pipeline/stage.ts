@@ -118,8 +118,12 @@ export async function executeStep(
     await pctx.statusTracker?.stepCompleted(project, result.status as "succeeded" | "failed");
     return result;
   } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
+    const error = describeError(err);
     log.error(`✗ [${project}] failed: ${error}`);
+    // Also log the full details on a second line so CloudWatch searches on
+    // the request id or error code hit; keeps the summary readable.
+    const details = errorDetails(err);
+    if (details) log.error(`  ${details}`);
     await pctx.statusTracker?.stepCompleted(project, "failed");
     return {
       status: "failed",
@@ -127,6 +131,38 @@ export async function executeStep(
       error,
     };
   }
+}
+
+/** One-line error summary suitable for the ✗ log entry. Prefers message over
+ *  name when both exist; falls back to name when message is empty (fixes the
+ *  "UnknownError" case where the AWS SDK returns an unclassified error). */
+function describeError(err: unknown): string {
+  if (err instanceof Error) {
+    const name = err.name && err.name !== "Error" ? err.name : "";
+    const msg = err.message || "";
+    if (name && msg) return `${name}: ${msg}`;
+    return msg || name || "unknown error";
+  }
+  return String(err);
+}
+
+/** Extra context for the ERROR log: AWS request id, HTTP status, error code,
+ *  and the top of the stack. Empty string when there's nothing useful. */
+function errorDetails(err: unknown): string {
+  if (!(err instanceof Error)) return "";
+  const parts: string[] = [];
+  const meta = (err as unknown as { $metadata?: { requestId?: string; httpStatusCode?: number; cfId?: string } })
+    .$metadata;
+  if (meta?.requestId) parts.push(`requestId=${meta.requestId}`);
+  if (meta?.httpStatusCode) parts.push(`http=${meta.httpStatusCode}`);
+  const code = (err as unknown as { Code?: string; code?: string }).Code
+    ?? (err as unknown as { code?: string }).code;
+  if (code) parts.push(`code=${code}`);
+  if (err.stack) {
+    const firstFrame = err.stack.split("\n").find((line) => line.trim().startsWith("at "));
+    if (firstFrame) parts.push(firstFrame.trim());
+  }
+  return parts.join(" · ");
 }
 
 /**
