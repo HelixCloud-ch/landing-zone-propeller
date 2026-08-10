@@ -102,7 +102,7 @@ def test_graph_generation_handles_literal_inputs(resolved):
     from propeller_engine.cli.resolve import _generate_mermaid
 
     out = _generate_mermaid(resolved)
-    assert out.startswith("graph")
+    assert "flowchart TD" in out
 
 
 def test_resolution_is_deterministic(pipeline_path, overrides_path, propeller_dir):
