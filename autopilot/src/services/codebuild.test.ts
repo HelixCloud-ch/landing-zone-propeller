@@ -153,3 +153,47 @@ describe("startBuild codebuild overrides", () => {
     expect(inputs[0]!.privilegedModeOverride).toBe(true);
   });
 });
+
+describe("startBuild idempotency token", () => {
+  it("sets a deterministic token for the same execution, project and phase", async () => {
+    const { client, inputs } = mockCodeBuild();
+    // Two calls with identical (executionId, project, deployAction) — as happens
+    // when a durable step replays before its buildId is checkpointed. CodeBuild
+    // dedupes on the token, so the duplicate collapses to one build.
+    await startBuild(client, step({ project: "p1" }), config, ctx({ executionId: "e1" }));
+    await startBuild(client, step({ project: "p1" }), config, ctx({ executionId: "e1" }));
+    expect(inputs[0]!.idempotencyToken).toBeTruthy();
+    expect(inputs[0]!.idempotencyToken).toBe(inputs[1]!.idempotencyToken);
+  });
+
+  it("differs by phase, project and execution", async () => {
+    const { client, inputs } = mockCodeBuild();
+    await startBuild(
+      client,
+      step({ project: "p1" }),
+      config,
+      ctx({ executionId: "e1", deployAction: "apply" }),
+    );
+    await startBuild(
+      client,
+      step({ project: "p1" }),
+      config,
+      ctx({ executionId: "e1", deployAction: "plan" }),
+    );
+    await startBuild(
+      client,
+      step({ project: "p2" }),
+      config,
+      ctx({ executionId: "e1", deployAction: "apply" }),
+    );
+    await startBuild(
+      client,
+      step({ project: "p1" }),
+      config,
+      ctx({ executionId: "e2", deployAction: "apply" }),
+    );
+    const tokens = inputs.map((p) => p.idempotencyToken);
+    // apply/plan (phase), p1/p2 (project), e1/e2 (execution) all yield distinct tokens
+    expect(new Set(tokens).size).toBe(4);
+  });
+});

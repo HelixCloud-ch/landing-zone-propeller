@@ -81,12 +81,31 @@ export async function startBuild(
     sourceLocationOverride: s3Location,
     buildspecOverride: BUILDSPEC,
     environmentVariablesOverride: envVars,
+    // Deterministic idempotency token: the durable "build" step is at-least-once,
+    // so a replay (e.g. a sibling parallel branch's callback resuming the whole
+    // execution) can re-run startBuild before the prior buildId is checkpointed.
+    // Keying the token by execution + project + phase makes CodeBuild return the
+    // same build instead of starting a duplicate. Valid for 5 minutes.
+    idempotencyToken: buildIdempotencyToken(pctx.executionId, step.project, pctx.deployAction),
   };
 
   applyCodeBuildOverrides(buildParams, step, pctx);
 
   const resp = await client.send(new StartBuildCommand(buildParams as any));
   return resp.build!.id!;
+}
+
+/**
+ * Deterministic StartBuild idempotency token for a single logical build.
+ *
+ * The same (executionId, project, phase) always yields the same token, so
+ * repeated StartBuild calls from durable step replays collapse to one build.
+ * Distinct across phases (plan vs apply), projects and executions.
+ * StartBuild's idempotencyToken has no documented length limit, so the plain
+ * joined key is used directly (no hashing, no node:crypto dependency).
+ */
+export function buildIdempotencyToken(executionId: string, project: string, phase: string): string {
+  return `${executionId}:${project}:${phase}`;
 }
 
 /**

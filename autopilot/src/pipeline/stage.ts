@@ -14,7 +14,6 @@
  */
 
 import type { DurableContext } from "@aws/durable-execution-sdk-js";
-import { PutParameterCommand } from "@aws-sdk/client-ssm";
 import { POLL_INTERVAL_SECONDS, TERMINAL_BUILD_STATUSES } from "../constants.js";
 import type { AWSClients } from "../services/aws.js";
 import { createCloudWatchLogsClient, createCodeBuildClient } from "../services/aws.js";
@@ -292,21 +291,13 @@ async function executeSupervisedStep(
   // Phase 2: Approval (at branch level — visible as sibling to plan/apply)
   branchCtx.logger.info(`⏸ [${project}] awaiting approval`);
   try {
+    // Approval currently comes from the durable-execution console, which lists
+    // pending callbacks directly from the durable service. We deliberately do
+    // NOT persist the callback id to SSM: nothing consumes it yet, and the
+    // approval data layer will be redesigned with the future UI. Publishing it
+    // (Overwrite:true, never deleted) only left stale "pending" records behind.
     await branchCtx.waitForCallback(`approval`, async (callbackId, _ctx) => {
-      await clients.ssm.send(
-        new PutParameterCommand({
-          Name: `/propeller/${pctx.namespace}/approvals/${project}`,
-          Value: JSON.stringify({
-            callbackId,
-            project,
-            executionId: pctx.executionId,
-            buildId: planResult.buildId,
-            requestedAt: new Date().toISOString(),
-          }),
-          Type: "String",
-          Overwrite: true,
-        }),
-      );
+      branchCtx.logger.info(`[${project}] approval callback registered: ${callbackId}`);
     });
     branchCtx.logger.info(`▶ [${project}] approved, applying`);
   } catch {
