@@ -166,6 +166,18 @@ describe("startBuild idempotency token", () => {
     expect(inputs[0]!.idempotencyToken).toBe(inputs[1]!.idempotencyToken);
   });
 
+  it("stays within CodeBuild's 64-char token limit even for long execution names", async () => {
+    const { client, inputs } = mockCodeBuild();
+    await startBuild(
+      client,
+      step({ project: "deploy-runner-workload" }),
+      config,
+      // A realistic, long execution name: pipeline__action__sha__timestamp
+      ctx({ executionId: "tenant-infra-dev__apply__95ee303__20260807T135558" }),
+    );
+    expect(inputs[0]!.idempotencyToken.length).toBeLessThanOrEqual(64);
+  });
+
   it("differs by phase, project and execution", async () => {
     const { client, inputs } = mockCodeBuild();
     await startBuild(

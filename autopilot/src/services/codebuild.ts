@@ -5,6 +5,7 @@
  * completion, and fetching build logs from CloudWatch.
  */
 
+import { createHash } from "node:crypto";
 import type { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { GetLogEventsCommand } from "@aws-sdk/client-cloudwatch-logs";
 import type { CodeBuildClient } from "@aws-sdk/client-codebuild";
@@ -101,11 +102,14 @@ export async function startBuild(
  * The same (executionId, project, phase) always yields the same token, so
  * repeated StartBuild calls from durable step replays collapse to one build.
  * Distinct across phases (plan vs apply), projects and executions.
- * StartBuild's idempotencyToken has no documented length limit, so the plain
- * joined key is used directly (no hashing, no node:crypto dependency).
+ *
+ * CodeBuild caps idempotencyToken at 64 chars, and the joined key easily
+ * exceeds that (execution names are long). The key is hashed with SHA-256 and
+ * truncated, comfortably under the limit while staying collision-safe.
  */
 export function buildIdempotencyToken(executionId: string, project: string, phase: string): string {
-  return `${executionId}:${project}:${phase}`;
+  const key = `${executionId}:${project}:${phase}`;
+  return createHash("sha256").update(key).digest("hex").slice(0, 40);
 }
 
 /**
