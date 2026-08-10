@@ -28,7 +28,11 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
 
     # Use bottom-to-top for sleep (reverse execution), top-down otherwise
     direction = "BT" if action == "sleep" else "TD"
-    lines = [f"graph {direction}"]
+    # ELK usually renderers packs wide fan-outs better
+    lines = [
+        "%%{init: {'flowchart': {'defaultRenderer': 'elk'}}}%%",
+        f"flowchart {direction}",
+    ]
 
     # Define style classes
     if is_sleep_wake:
