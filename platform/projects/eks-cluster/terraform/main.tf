@@ -31,26 +31,11 @@ module "fargate_profiles" {
 # ── EC2 managed node groups (opt-in via node_groups) ──────────────────────────
 
 module "node_groups" {
-  for_each = local.node_groups_resolved
-  source   = "../../../shared/modules/eks-nodegroup"
+  count  = local.create_node_groups ? 1 : 0
+  source = "../../../shared/modules/eks-node-groups"
 
-  cluster_name    = module.cluster.cluster_name
-  node_group_name = each.value.name
-  subnet_ids      = each.value.subnet_ids
-
-  instance_types  = each.value.instance_types
-  capacity_type   = each.value.capacity_type
-  ami_type        = each.value.ami_type
-  release_version = each.value.release_version
-  disk_size       = each.value.disk_size
-
-  desired_size    = each.value.desired_size
-  min_size        = each.value.min_size
-  max_size        = each.value.max_size
-  max_unavailable = each.value.max_unavailable
-
-  labels = each.value.labels
-  taints = each.value.taints
+  cluster_name = module.cluster.cluster_name
+  node_groups  = local.node_groups_resolved
 }
 
 # ── Additional cluster admin access entries ───────────────────────────────────

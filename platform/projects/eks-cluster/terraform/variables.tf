@@ -85,15 +85,12 @@ variable "node_groups" {
       value  = optional(string)
       effect = string
     })), [])
+    node_role_arn           = optional(string)
+    launch_template_id      = optional(string)
+    launch_template_version = optional(string, "$Latest")
   }))
-  description = "Managed node groups to create. Each entry creates a node group with its own IAM role and launch template. When the list is empty, no node groups are created."
+  description = "Managed node groups to create. Each entry creates a node group sharing the project's default node role unless node_role_arn is set. When the list is empty, no node groups or node role are created."
   default     = []
-}
-
-variable "node_group_subnet_tier" {
-  type        = string
-  description = "Default key in subnet_ids_by_tier for placing node groups. Individual node groups can override via their subnet_tier field. Defaults to the first entry of cluster_subnet_tiers when null."
-  default     = null
 }
 
 # ── Cluster behaviour ──────────────────────────────────────────────────────────
