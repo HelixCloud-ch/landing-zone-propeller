@@ -56,3 +56,25 @@ output "pod_execution_role_arn" {
   description = "ARN of the default pod execution IAM role. Null when no Fargate profiles are configured."
   value       = one(module.fargate_profiles[*].pod_execution_role_arn)
 }
+
+# ── From eks-nodegroup (empty when node_groups is empty) ──────────────────────
+
+output "node_group_names" {
+  description = "Map of node group key to node group name. Empty when no node groups are configured."
+  value       = { for k, v in module.node_groups : k => v.node_group_name }
+}
+
+output "node_role_arns" {
+  description = "Map of node group key to node IAM role ARN. Empty when no node groups are configured."
+  value       = { for k, v in module.node_groups : k => v.node_role_arn }
+}
+
+output "node_role_names" {
+  description = "Map of node group key to node IAM role name. Empty when no node groups are configured."
+  value       = { for k, v in module.node_groups : k => v.node_role_name }
+}
+
+output "autoscaling_group_names" {
+  description = "Map of node group key to list of ASG names. Empty when no node groups are configured."
+  value       = { for k, v in module.node_groups : k => v.autoscaling_group_names }
+}

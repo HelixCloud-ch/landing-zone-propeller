@@ -1,39 +1,3 @@
-locals {
-  # aws_eks_cluster takes a single vpc_config block, so all selected cluster
-  # tiers are flattened into one subnet_ids list for the control-plane ENIs.
-  cluster_subnets = flatten([for t in var.cluster_subnet_tiers : var.subnet_ids_by_tier[t]])
-
-  # Fargate profiles default to this tier unless a profile sets its own.
-  fargate_tier = coalesce(var.fargate_subnet_tier, var.cluster_subnet_tiers[0])
-
-  # Fargate is opt-in: setting fargate_profiles turns a plain EKS cluster into
-  # an EKS-on-Fargate cluster. Node groups and mixed mode are added later via
-  # their own toggles, letting the user move between modes without manual
-  # destroys.
-  create_fargate = length(var.fargate_profiles) > 0
-
-  # Resolve each profile's subnet tier to concrete subnet IDs — the profile's
-  # own subnet_tier when set, otherwise the default fargate_tier.
-  fargate_profiles_resolved = [
-    for p in var.fargate_profiles : {
-      name               = p.name
-      namespace          = p.namespace
-      labels             = p.labels
-      subnet_ids         = var.subnet_ids_by_tier[coalesce(p.subnet_tier, local.fargate_tier)]
-      pod_execution_role = p.pod_execution_role
-    }
-  ]
-
-  # Create a pod execution role for each distinct non-default key referenced by
-  # a profile. The module always adds the "default" role on top of these.
-  # Cross-account ECR pull policies are attached to a named role by the
-  # eks-ecr-pull project, not here.
-  pod_execution_roles = {
-    for k in toset([for p in var.fargate_profiles : p.pod_execution_role if p.pod_execution_role != null]) :
-    k => { additional_policy_arns = [] }
-  }
-}
-
 module "cluster" {
   source = "../../../shared/modules/eks-cluster"
 
@@ -52,6 +16,8 @@ module "cluster" {
   additional_security_group_ids = local.cluster_additional_security_group_ids
 }
 
+# ── Fargate profiles (opt-in via fargate_profiles) ────────────────────────────
+
 module "fargate_profiles" {
   count  = local.create_fargate ? 1 : 0
   source = "../../../shared/modules/eks-fargate-profiles"
@@ -62,14 +28,32 @@ module "fargate_profiles" {
   fargate_profiles    = local.fargate_profiles_resolved
 }
 
-# ── Additional cluster admin access entries ───────────────────────────────────
+# ── EC2 managed node groups (opt-in via node_groups) ──────────────────────────
 
-locals {
-  additional_admin_arns = toset(concat(
-    var.additional_admin_arns,
-    [for name in var.additional_admin_role_names : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${name}"]
-  ))
+module "node_groups" {
+  for_each = local.node_groups_resolved
+  source   = "../../../shared/modules/eks-nodegroup"
+
+  cluster_name    = module.cluster.cluster_name
+  node_group_name = each.value.name
+  subnet_ids      = each.value.subnet_ids
+
+  instance_types  = each.value.instance_types
+  capacity_type   = each.value.capacity_type
+  ami_type        = each.value.ami_type
+  release_version = each.value.release_version
+  disk_size       = each.value.disk_size
+
+  desired_size    = each.value.desired_size
+  min_size        = each.value.min_size
+  max_size        = each.value.max_size
+  max_unavailable = each.value.max_unavailable
+
+  labels = each.value.labels
+  taints = each.value.taints
 }
+
+# ── Additional cluster admin access entries ───────────────────────────────────
 
 data "aws_caller_identity" "current" {}
 

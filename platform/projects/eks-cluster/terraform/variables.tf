@@ -47,8 +47,7 @@ variable "eks_version" {
 
 # ── Fargate scheduling ─────────────────────────────────────────────────────────
 # Leave empty for a plain EKS cluster (control plane only). Populate to also
-# create Fargate profiles and the Fargate pod execution role. Node groups and
-# mixed (Fargate + EC2) mode are planned for a later iteration.
+# create Fargate profiles and the Fargate pod execution role.
 
 variable "fargate_profiles" {
   type = list(object({
@@ -60,6 +59,41 @@ variable "fargate_profiles" {
   }))
   description = "Fargate profiles to create. Each entry maps a profile name to a namespace selector and optional label selectors. Set subnet_tier to place a profile in a specific tier of subnet_ids_by_tier (defaults to fargate_subnet_tier). Set pod_execution_role to a role key so the profile assumes a dedicated pod execution role (e.g. \"test\"/\"prod\" for isolated cross-account ECR pull); profiles sharing a role use the same key, and omitting it uses the shared default role. A role is created for each distinct key referenced. When the list is empty, no Fargate profiles or pod execution roles are created (plain EKS cluster)."
   default     = []
+}
+
+# ── EC2 node groups ───────────────────────────────────────────────────────────
+# Leave empty for a Fargate-only or control-plane-only cluster. Populate to
+# create managed node groups (EC2-backed). Can coexist with fargate_profiles
+# for mixed-mode clusters.
+
+variable "node_groups" {
+  type = list(object({
+    name            = string
+    subnet_tier     = optional(string)
+    instance_types  = optional(list(string), ["t3.medium"])
+    capacity_type   = optional(string, "ON_DEMAND")
+    ami_type        = optional(string, "AL2023_x86_64_STANDARD")
+    release_version = optional(string)
+    disk_size       = optional(number)
+    desired_size    = optional(number, 2)
+    min_size        = optional(number, 1)
+    max_size        = optional(number, 10)
+    max_unavailable = optional(number, 1)
+    labels          = optional(map(string), {})
+    taints = optional(list(object({
+      key    = string
+      value  = optional(string)
+      effect = string
+    })), [])
+  }))
+  description = "Managed node groups to create. Each entry creates a node group with its own IAM role and launch template. When the list is empty, no node groups are created."
+  default     = []
+}
+
+variable "node_group_subnet_tier" {
+  type        = string
+  description = "Default key in subnet_ids_by_tier for placing node groups. Individual node groups can override via their subnet_tier field. Defaults to the first entry of cluster_subnet_tiers when null."
+  default     = null
 }
 
 # ── Cluster behaviour ──────────────────────────────────────────────────────────
