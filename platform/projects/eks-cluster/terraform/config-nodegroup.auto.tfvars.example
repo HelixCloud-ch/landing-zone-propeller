@@ -32,6 +32,9 @@ node_groups = [
     labels         = { "node-role" = "workload" }
     # Optional: place workload nodes in a specific subnet tier
     # subnet_tier = "compute"
+    # Optional: use a different IAM role for this node group (overrides the
+    # shared role created by this project)
+    # node_role_arn = "arn:aws:iam::111111111111:role/custom-node-role"
   },
 ]
 
