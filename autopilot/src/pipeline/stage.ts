@@ -133,34 +133,38 @@ export async function executeStep(
   }
 }
 
-/** One-line error summary suitable for the ✗ log entry. Prefers message over
- *  name when both exist; falls back to name when message is empty (fixes the
- *  "UnknownError" case where the AWS SDK returns an unclassified error). */
+/** Format the error and its `.cause` chain as `Outer: msg ← Inner: msg`.
+ *  ChildContextError from durable-execution wraps the real error in `.cause`,
+ *  so walking the chain surfaces messages the wrapper hides. */
 function describeError(err: unknown): string {
-  if (err instanceof Error) {
-    const name = err.name && err.name !== "Error" ? err.name : "";
-    const msg = err.message || "";
-    if (name && msg) return `${name}: ${msg}`;
-    return msg || name || "unknown error";
+  const parts: string[] = [];
+  for (let cur: unknown = err; cur && parts.length < 5; ) {
+    if (cur instanceof Error) {
+      parts.push(`${cur.name || "Error"}: ${cur.message || "(no message)"}`);
+      cur = (cur as { cause?: unknown }).cause;
+    } else {
+      parts.push(String(cur));
+      break;
+    }
   }
-  return String(err);
+  return parts.join(" ← ");
 }
 
-/** Extra context for the ERROR log: AWS request id, HTTP status, error code,
- *  and the top of the stack. Empty string when there's nothing useful. */
+/** AWS SDK metadata anywhere in the chain, plus the first stack frame. */
 function errorDetails(err: unknown): string {
-  if (!(err instanceof Error)) return "";
   const parts: string[] = [];
-  const meta = (err as unknown as { $metadata?: { requestId?: string; httpStatusCode?: number; cfId?: string } })
-    .$metadata;
-  if (meta?.requestId) parts.push(`requestId=${meta.requestId}`);
-  if (meta?.httpStatusCode) parts.push(`http=${meta.httpStatusCode}`);
-  const code = (err as unknown as { Code?: string; code?: string }).Code
-    ?? (err as unknown as { code?: string }).code;
-  if (code) parts.push(`code=${code}`);
-  if (err.stack) {
-    const firstFrame = err.stack.split("\n").find((line) => line.trim().startsWith("at "));
-    if (firstFrame) parts.push(firstFrame.trim());
+  for (let cur: unknown = err; cur && parts.length < 10; ) {
+    const e = cur as { $metadata?: { requestId?: string; httpStatusCode?: number };
+                      Code?: string; code?: string; cause?: unknown };
+    if (e.$metadata?.requestId) parts.push(`requestId=${e.$metadata.requestId}`);
+    if (e.$metadata?.httpStatusCode) parts.push(`http=${e.$metadata.httpStatusCode}`);
+    const code = e.Code ?? e.code;
+    if (code) parts.push(`code=${code}`);
+    cur = e.cause;
+  }
+  if (err instanceof Error && err.stack) {
+    const frame = err.stack.split("\n").find((l) => l.trim().startsWith("at "));
+    if (frame) parts.push(frame.trim());
   }
   return parts.join(" · ");
 }
