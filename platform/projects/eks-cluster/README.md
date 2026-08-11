@@ -86,7 +86,7 @@ pull policy belongs in `eks-ecr-pull`.
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.52.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.0 |
 
 ## Modules
 
@@ -94,18 +94,24 @@ pull policy belongs in `eks-ecr-pull`.
 | ---- | ------ | ------- |
 | <a name="module_cluster"></a> [cluster](#module\_cluster) | ../../../shared/modules/eks-cluster | n/a |
 | <a name="module_fargate_profiles"></a> [fargate\_profiles](#module\_fargate\_profiles) | ../../../shared/modules/eks-fargate-profiles | n/a |
+| <a name="module_node_groups"></a> [node\_groups](#module\_node\_groups) | ../../../shared/modules/eks-nodegroup | n/a |
 
 ## Resources
 
 | Name | Type |
 | ---- | ---- |
+| [aws_eks_access_entry.additional_admins](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_access_entry) | resource |
+| [aws_eks_access_policy_association.additional_admins](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_access_policy_association) | resource |
 | [aws_security_group.api_ingress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_vpc_security_group_ingress_rule.api_ingress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_additional_admin_arns"></a> [additional\_admin\_arns](#input\_additional\_admin\_arns) | IAM principal ARNs to grant AmazonEKSClusterAdmin access via EKS access entries. Use this for VPC-attached deploy runners or other roles that need full cluster access but didn't create the cluster. | `list(string)` | `[]` | no |
+| <a name="input_additional_admin_role_names"></a> [additional\_admin\_role\_names](#input\_additional\_admin\_role\_names) | IAM role names (in the same account) to grant AmazonEKSClusterAdmin access. Resolved to full ARNs automatically. | `list(string)` | `[]` | no |
 | <a name="input_additional_security_group_ids"></a> [additional\_security\_group\_ids](#input\_additional\_security\_group\_ids) | Externally-managed security group IDs to attach to the cluster's cross-account ENIs, in addition to any group this project creates from api\_server\_ingress\_cidrs. Intended for a future centralized security-group plane that owns SG lifecycle: supply IDs here and leave api\_server\_ingress\_cidrs empty. Empty (default) attaches nothing extra. | `list(string)` | `[]` | no |
 | <a name="input_api_server_ingress_cidrs"></a> [api\_server\_ingress\_cidrs](#input\_api\_server\_ingress\_cidrs) | CIDR blocks allowed to reach the private Kubernetes API server endpoint on TCP 443. When non-empty, this project creates a security group with these ingress rules and attaches it to the cluster. Required for a private-only cluster (endpoint\_public\_access = false) whenever something outside the cluster's own security group must call the API — notably a VPC-attached deploy runner applying eks-addons (helm/kubernetes providers) and operator networks reaching over TGW/VPN. Empty (default) creates no security group. | `list(string)` | `[]` | no |
 | <a name="input_authentication_mode"></a> [authentication\_mode](#input\_authentication\_mode) | EKS access-config authentication mode: API (recommended), CONFIG\_MAP, or API\_AND\_CONFIG\_MAP. | `string` | `"API"` | no |
@@ -117,6 +123,8 @@ pull policy belongs in `eks-ecr-pull`.
 | <a name="input_fargate_profiles"></a> [fargate\_profiles](#input\_fargate\_profiles) | Fargate profiles to create. Each entry maps a profile name to a namespace selector and optional label selectors. Set subnet\_tier to place a profile in a specific tier of subnet\_ids\_by\_tier (defaults to fargate\_subnet\_tier). Set pod\_execution\_role to a role key so the profile assumes a dedicated pod execution role (e.g. "test"/"prod" for isolated cross-account ECR pull); profiles sharing a role use the same key, and omitting it uses the shared default role. A role is created for each distinct key referenced. When the list is empty, no Fargate profiles or pod execution roles are created (plain EKS cluster). | <pre>list(object({<br/>    name               = string<br/>    namespace          = string<br/>    labels             = optional(map(string), {})<br/>    subnet_tier        = optional(string)<br/>    pod_execution_role = optional(string)<br/>  }))</pre> | `[]` | no |
 | <a name="input_fargate_subnet_tier"></a> [fargate\_subnet\_tier](#input\_fargate\_subnet\_tier) | Key in subnet\_ids\_by\_tier used to place Fargate profiles. Defaults to the first entry of cluster\_subnet\_tiers when null. Ignored when fargate\_profiles is empty. | `string` | `null` | no |
 | <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | ARN of the symmetric CMK used to encrypt Kubernetes secrets. Required when secrets\_encryption\_enabled is true; ignored otherwise. | `string` | `null` | no |
+| <a name="input_node_group_subnet_tier"></a> [node\_group\_subnet\_tier](#input\_node\_group\_subnet\_tier) | Default key in subnet\_ids\_by\_tier for placing node groups. Individual node groups can override via their subnet\_tier field. Defaults to the first entry of cluster\_subnet\_tiers when null. | `string` | `null` | no |
+| <a name="input_node_groups"></a> [node\_groups](#input\_node\_groups) | Managed node groups to create. Each entry creates a node group with its own IAM role and launch template. When the list is empty, no node groups are created. | <pre>list(object({<br/>    name            = string<br/>    subnet_tier     = optional(string)<br/>    instance_types  = optional(list(string), ["t3.medium"])<br/>    capacity_type   = optional(string, "ON_DEMAND")<br/>    ami_type        = optional(string, "AL2023_x86_64_STANDARD")<br/>    release_version = optional(string)<br/>    disk_size       = optional(number)<br/>    desired_size    = optional(number, 2)<br/>    min_size        = optional(number, 1)<br/>    max_size        = optional(number, 10)<br/>    max_unavailable = optional(number, 1)<br/>    labels          = optional(map(string), {})<br/>    taints = optional(list(object({<br/>      key    = string<br/>      value  = optional(string)<br/>      effect = string<br/>    })), [])<br/>  }))</pre> | `[]` | no |
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | Propeller framework tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region where the EKS cluster is deployed. | `string` | n/a | yes |
 | <a name="input_secrets_encryption_enabled"></a> [secrets\_encryption\_enabled](#input\_secrets\_encryption\_enabled) | When true, enables CMK envelope encryption for Kubernetes secrets using kms\_key\_arn. | `bool` | `false` | no |
@@ -129,10 +137,14 @@ pull policy belongs in `eks-ecr-pull`.
 | Name | Description |
 | ---- | ----------- |
 | <a name="output_api_ingress_security_group_id"></a> [api\_ingress\_security\_group\_id](#output\_api\_ingress\_security\_group\_id) | ID of the project-created API server ingress security group. Null when api\_server\_ingress\_cidrs is empty. |
+| <a name="output_autoscaling_group_names"></a> [autoscaling\_group\_names](#output\_autoscaling\_group\_names) | Map of node group key to list of ASG names. Empty when no node groups are configured. |
 | <a name="output_cluster_certificate_authority_data"></a> [cluster\_certificate\_authority\_data](#output\_cluster\_certificate\_authority\_data) | Base64-encoded certificate authority data for the cluster. |
 | <a name="output_cluster_endpoint"></a> [cluster\_endpoint](#output\_cluster\_endpoint) | Private API server endpoint URL for the EKS cluster. |
 | <a name="output_cluster_name"></a> [cluster\_name](#output\_cluster\_name) | Name of the EKS cluster. |
 | <a name="output_cluster_security_group_id"></a> [cluster\_security\_group\_id](#output\_cluster\_security\_group\_id) | ID of the EKS-managed cluster security group. |
+| <a name="output_node_group_names"></a> [node\_group\_names](#output\_node\_group\_names) | Map of node group key to node group name. Empty when no node groups are configured. |
+| <a name="output_node_role_arns"></a> [node\_role\_arns](#output\_node\_role\_arns) | Map of node group key to node IAM role ARN. Empty when no node groups are configured. |
+| <a name="output_node_role_names"></a> [node\_role\_names](#output\_node\_role\_names) | Map of node group key to node IAM role name. Empty when no node groups are configured. |
 | <a name="output_oidc_provider_arn"></a> [oidc\_provider\_arn](#output\_oidc\_provider\_arn) | ARN of the IAM OIDC identity provider associated with the cluster. |
 | <a name="output_oidc_provider_url"></a> [oidc\_provider\_url](#output\_oidc\_provider\_url) | Issuer URL of the OIDC provider (without the https:// prefix). |
 | <a name="output_pod_execution_role_arn"></a> [pod\_execution\_role\_arn](#output\_pod\_execution\_role\_arn) | ARN of the default pod execution IAM role. Null when no Fargate profiles are configured. |

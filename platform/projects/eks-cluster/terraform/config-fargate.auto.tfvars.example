@@ -1,3 +1,5 @@
+# ── EKS cluster with pure Fargate (no EC2 nodes) ─────────────────────────────
+
 region = "eu-central-2"
 
 cluster_name = "test"
