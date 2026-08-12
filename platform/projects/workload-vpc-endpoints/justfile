@@ -1,0 +1,14 @@
+import "../../../shared/recipes/terraform.just"
+
+plan: tf-plan
+apply: tf-apply
+destroy: tf-destroy
+
+# ── Sleep/Wake ────────────────────────────────────────────────────────────────
+# Interface endpoints bill hourly per Availability Zone (plus per-GB data
+# processing), so a project with several endpoints across 3 AZs is a real
+# monthly line item. destroy/apply is lossless here (no data, no state to
+# preserve across the nap), so it is the only mode needed.
+
+sleep-default: sleep-destroy
+wake-default: wake-destroy

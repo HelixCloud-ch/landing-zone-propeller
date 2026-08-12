@@ -1,0 +1,16 @@
+name: workload-vpc-endpoints
+description: >-
+  Creates VPC Interface and Gateway endpoints inside a workload VPC for
+  private connectivity to AWS service APIs, without routing through NAT or a
+  Transit Gateway. Consumes workload-vpc.subnet_ids_by_tier and, for Gateway
+  endpoints, workload-vpc-routes.route_table_ids. Security groups for
+  Interface endpoints are the caller's responsibility (supply
+  additional_security_group_ids, or attach to an existing group externally).
+  Independent of whether the account has a Transit Gateway at all — suitable
+  for both hub-attached workload VPCs and fully isolated VPCs.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just
