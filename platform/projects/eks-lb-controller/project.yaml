@@ -1,0 +1,11 @@
+name: eks-lb-controller
+description: >-
+  AWS Load Balancer Controller for EKS. Deploys the controller via Helm with
+  an IRSA role (or Pod Identity) so it can provision ALBs and NLBs for Ingress
+  and Service type=LoadBalancer resources.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just

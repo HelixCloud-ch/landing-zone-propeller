@@ -1,0 +1,14 @@
+region = "eu-central-2"
+
+# ── LB Controller ─────────────────────────────────────────────────────────────
+# Pin the chart version. The chart version tracks the controller appVersion
+# (e.g. "3.4.0" installs controller v3.4.0).
+chart_version = "3.2.2"
+
+# Use IRSA (default). Set use_pod_identity = true after installing the Pod
+# Identity Agent add-on on EC2 node-group clusters.
+# use_pod_identity = false
+
+# cluster_name, cluster_endpoint, cluster_certificate_authority_data,
+# oidc_provider_arn, oidc_provider_url, and vpc_id are injected by the pipeline
+# from the eks-cluster and workload-vpc project outputs — do NOT set them here.
