@@ -30,6 +30,10 @@ locals {
   # Create the shared role only if at least one node group does not supply its own
   create_node_role = local.create_node_groups && anytrue([for ng in var.node_groups : ng.node_role_arn == null])
 
+  # The CNI IRSA role only makes sense when EC2 node groups exist and the
+  # cluster's OIDC provider is enabled (required for IRSA trust policies).
+  create_cni_role = local.create_node_groups && module.cluster.oidc_provider_arn != null
+
   node_groups_resolved = [
     for ng in var.node_groups : {
       name                    = ng.name

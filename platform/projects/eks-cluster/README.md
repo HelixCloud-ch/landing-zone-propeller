@@ -23,10 +23,22 @@ and `config-mixed.auto.tfvars.example` for concrete examples.
 ## Pipeline inputs
 
 `vpc_id` and `subnet_ids_by_tier` are injected by the pipeline from the
-`workload-vpc` step outputs — do **not** set them in `config.auto.tfvars`. The
-cluster's `vpc_config` attaches the subnets from `cluster_subnet_tiers`.
-Fargate profiles use `fargate_subnet_tier` (defaults to first cluster tier).
-Node groups use per-group `subnet_tier` (defaults to first cluster tier).
+`workload-vpc` step outputs — do **not** set them in `config.auto.tfvars`
+(the latter arrives pre-parsed as HCL, no `jsondecode` needed). The cluster's
+`vpc_config` attaches the subnets from `cluster_subnet_tiers` (one
+`vpc_config` block, so all selected tiers flatten into one subnet list —
+requires at least two AZs). Fargate profiles use `fargate_subnet_tier`
+(defaults to first cluster tier). Node groups use per-group `subnet_tier`
+(defaults to first cluster tier).
+
+## Fargate profiles
+
+Each `fargate_profiles` entry maps a namespace (plus optional label
+selectors) to a pod execution role. Set `pod_execution_role` to a role key
+(e.g. `"test"`/`"prod"`) to give a profile an isolated execution role for
+cross-account ECR pull; profiles sharing a key share a role, and omitting it
+uses the shared default role. One role is created per distinct key
+referenced.
 
 ## Sleep/Wake (EC2 node groups)
 
@@ -41,12 +53,56 @@ For Fargate-only clusters, sleep/wake is a no-op (Fargate has no idle cost).
 
 When `node_groups` is non-empty and at least one group does not supply a custom
 `node_role_arn`, the project creates a shared node role
-(`<cluster_name>-eks-node`) with only `AmazonEKSWorkerNodePolicy` attached.
-Additional policies (ECR read, VPC CNI, SSM) are attached by the addon projects
-that need them (`eks-addons`, `eks-ecr-pull`).
+(`<cluster_name>-eks-node`) and attaches the policies listed in
+`node_role_policy_arns`. The default is exactly the two policies required for
+a node to boot and join the cluster — `AmazonEKSWorkerNodePolicy` and
+`AmazonEC2ContainerRegistryReadOnly` (image pulls for the CNI DaemonSet happen
+before any addon-managed IRSA identity exists).
+
+`node_role_policy_arns` **replaces** the attached set, it does not append to
+it. To add a policy (e.g. `AmazonSSMManagedInstanceCore` for Session Manager
+access, or a cross-account ECR pull policy), override the variable with the
+two defaults plus whatever else is needed:
+
+```hcl
+node_role_policy_arns = [
+  "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+  "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+  "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
+]
+```
 
 If every node group supplies its own `node_role_arn`, the shared role is not
 created.
+
+## VPC CNI IRSA role
+
+`AmazonEKS_CNI_Policy` is **not** attached to the node role. Per [AWS's
+recommendation](https://docs.aws.amazon.com/eks/latest/userguide/create-node-role.html),
+this project creates a dedicated IRSA role (`<cluster_name>-vpc-cni`) trusted
+by the `aws-node` ServiceAccount in `kube-system`, scoping ENI/IP-assignment
+permissions to the CNI pods rather than every process on every node. The role
+is created whenever `node_groups` is non-empty and the OIDC provider is
+enabled (default), and exposed via the `cni_role_arn` output.
+
+Wire `cni_role_arn` into `eks-addons` as `vpc_cni_role_arn` so the vpc-cni
+managed add-on uses this role's `service_account_role_arn` instead of falling
+back to node-role permissions.
+
+## API server access
+
+The cluster's API server endpoint is private-only by default
+(`endpoint_public_access = false`). Anything outside the cluster's own
+security group that needs to reach port 443 — a VPC-attached deploy runner
+applying `eks-addons` (helm/kubernetes providers), or operator networks over
+TGW/VPN — needs an explicit path in:
+
+- `api_server_ingress_cidrs`: when non-empty, this project creates a security
+  group with these CIDRs as ingress rules and attaches it to the cluster.
+  Empty (default) creates no security group.
+- `additional_security_group_ids`: externally-managed security group IDs to
+  attach instead, for when a centralized security-group plane owns SG
+  lifecycle. Leave `api_server_ingress_cidrs` empty when using this.
 
 ## Operational notes
 
@@ -61,9 +117,9 @@ supported there).
 
 ## What does NOT belong here
 
-- **Cluster add-ons** (CoreDNS, VPC CNI, LB controller) → `eks-addons`
+- **Cluster add-ons** (CoreDNS, VPC CNI installation, LB controller) → `eks-addons` / `eks-lb-controller`
 - **Cross-account ECR pull** → `eks-ecr-pull`
-- **Autoscaler / Karpenter IRSA** → dedicated IRSA project
+- **Autoscaler / Karpenter** → `eks-autoscaler` / future `eks-karpenter`
 - **Security group rules for centralized SG plane** → future `security-groups` project
 
 ## References
@@ -101,11 +157,14 @@ supported there).
 | ---- | ---- |
 | [aws_eks_access_entry.additional_admins](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_access_entry) | resource |
 | [aws_eks_access_policy_association.additional_admins](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_access_policy_association) | resource |
+| [aws_iam_role.cni](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role.node](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
-| [aws_iam_role_policy_attachment.node_AmazonEKSWorkerNodePolicy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.cni_AmazonEKS_CNI_Policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.node](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
 | [aws_security_group.api_ingress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_vpc_security_group_ingress_rule.api_ingress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_iam_policy_document.cni_assume](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 
 ## Inputs
 
@@ -113,22 +172,23 @@ supported there).
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_additional_admin_arns"></a> [additional\_admin\_arns](#input\_additional\_admin\_arns) | IAM principal ARNs to grant AmazonEKSClusterAdmin access via EKS access entries. Use this for VPC-attached deploy runners or other roles that need full cluster access but didn't create the cluster. | `list(string)` | `[]` | no |
 | <a name="input_additional_admin_role_names"></a> [additional\_admin\_role\_names](#input\_additional\_admin\_role\_names) | IAM role names (in the same account) to grant AmazonEKSClusterAdmin access. Resolved to full ARNs automatically. | `list(string)` | `[]` | no |
-| <a name="input_additional_security_group_ids"></a> [additional\_security\_group\_ids](#input\_additional\_security\_group\_ids) | Externally-managed security group IDs to attach to the cluster's cross-account ENIs, in addition to any group this project creates from api\_server\_ingress\_cidrs. Intended for a future centralized security-group plane that owns SG lifecycle: supply IDs here and leave api\_server\_ingress\_cidrs empty. Empty (default) attaches nothing extra. | `list(string)` | `[]` | no |
-| <a name="input_api_server_ingress_cidrs"></a> [api\_server\_ingress\_cidrs](#input\_api\_server\_ingress\_cidrs) | CIDR blocks allowed to reach the private Kubernetes API server endpoint on TCP 443. When non-empty, this project creates a security group with these ingress rules and attaches it to the cluster. Required for a private-only cluster (endpoint\_public\_access = false) whenever something outside the cluster's own security group must call the API — notably a VPC-attached deploy runner applying eks-addons (helm/kubernetes providers) and operator networks reaching over TGW/VPN. Empty (default) creates no security group. | `list(string)` | `[]` | no |
+| <a name="input_additional_security_group_ids"></a> [additional\_security\_group\_ids](#input\_additional\_security\_group\_ids) | Externally-managed security group IDs attached to the cluster's cross-account ENIs. See README ('API server access'). | `list(string)` | `[]` | no |
+| <a name="input_api_server_ingress_cidrs"></a> [api\_server\_ingress\_cidrs](#input\_api\_server\_ingress\_cidrs) | CIDR blocks allowed to reach the private API server on TCP 443. Empty (default) creates no security group. See README ('API server access'). | `list(string)` | `[]` | no |
 | <a name="input_authentication_mode"></a> [authentication\_mode](#input\_authentication\_mode) | EKS access-config authentication mode: API (recommended), CONFIG\_MAP, or API\_AND\_CONFIG\_MAP. | `string` | `"API"` | no |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster. Supplied per consumer in config.auto.tfvars. | `string` | n/a | yes |
-| <a name="input_cluster_subnet_tiers"></a> [cluster\_subnet\_tiers](#input\_cluster\_subnet\_tiers) | One or more keys in subnet\_ids\_by\_tier whose subnets are attached to the cluster's vpc\_config (control-plane cross-account ENIs). aws\_eks\_cluster allows a single vpc\_config block, so all selected tiers are flattened into one subnet\_ids list. Requires subnets spanning at least two AZs. | `list(string)` | n/a | yes |
+| <a name="input_cluster_subnet_tiers"></a> [cluster\_subnet\_tiers](#input\_cluster\_subnet\_tiers) | Keys in subnet\_ids\_by\_tier attached to the cluster's vpc\_config. Requires at least two AZs. See README ('Pipeline inputs'). | `list(string)` | n/a | yes |
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | Consumer-specific tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 | <a name="input_eks_version"></a> [eks\_version](#input\_eks\_version) | Pinned Kubernetes minor version for the cluster (e.g. "1.30"). Must be updated explicitly; no automatic upgrades. | `string` | n/a | yes |
 | <a name="input_enabled_cluster_log_types"></a> [enabled\_cluster\_log\_types](#input\_enabled\_cluster\_log\_types) | Control-plane log types forwarded to CloudWatch. Defaults to all five per AWS best practice. | `list(string)` | <pre>[<br/>  "api",<br/>  "audit",<br/>  "authenticator",<br/>  "controllerManager",<br/>  "scheduler"<br/>]</pre> | no |
-| <a name="input_fargate_profiles"></a> [fargate\_profiles](#input\_fargate\_profiles) | Fargate profiles to create. Each entry maps a profile name to a namespace selector and optional label selectors. Set subnet\_tier to place a profile in a specific tier of subnet\_ids\_by\_tier (defaults to fargate\_subnet\_tier). Set pod\_execution\_role to a role key so the profile assumes a dedicated pod execution role (e.g. "test"/"prod" for isolated cross-account ECR pull); profiles sharing a role use the same key, and omitting it uses the shared default role. A role is created for each distinct key referenced. When the list is empty, no Fargate profiles or pod execution roles are created (plain EKS cluster). | <pre>list(object({<br/>    name               = string<br/>    namespace          = string<br/>    labels             = optional(map(string), {})<br/>    subnet_tier        = optional(string)<br/>    pod_execution_role = optional(string)<br/>  }))</pre> | `[]` | no |
+| <a name="input_fargate_profiles"></a> [fargate\_profiles](#input\_fargate\_profiles) | Fargate profiles to create. Empty (default) creates none. See README ('Fargate profiles') for the pod\_execution\_role sharing model. | <pre>list(object({<br/>    name               = string<br/>    namespace          = string<br/>    labels             = optional(map(string), {})<br/>    subnet_tier        = optional(string)<br/>    pod_execution_role = optional(string)<br/>  }))</pre> | `[]` | no |
 | <a name="input_fargate_subnet_tier"></a> [fargate\_subnet\_tier](#input\_fargate\_subnet\_tier) | Key in subnet\_ids\_by\_tier used to place Fargate profiles. Defaults to the first entry of cluster\_subnet\_tiers when null. Ignored when fargate\_profiles is empty. | `string` | `null` | no |
 | <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | ARN of the symmetric CMK used to encrypt Kubernetes secrets. Required when secrets\_encryption\_enabled is true; ignored otherwise. | `string` | `null` | no |
-| <a name="input_node_groups"></a> [node\_groups](#input\_node\_groups) | Managed node groups to create. Each entry creates a node group sharing the project's default node role unless node\_role\_arn is set. When the list is empty, no node groups or node role are created. | <pre>list(object({<br/>    name            = string<br/>    subnet_tier     = optional(string)<br/>    instance_types  = optional(list(string), ["t3.medium"])<br/>    capacity_type   = optional(string, "ON_DEMAND")<br/>    ami_type        = optional(string, "AL2023_x86_64_STANDARD")<br/>    release_version = optional(string)<br/>    disk_size       = optional(number)<br/>    desired_size    = optional(number, 2)<br/>    min_size        = optional(number, 1)<br/>    max_size        = optional(number, 10)<br/>    max_unavailable = optional(number, 1)<br/>    labels          = optional(map(string), {})<br/>    taints = optional(list(object({<br/>      key    = string<br/>      value  = optional(string)<br/>      effect = string<br/>    })), [])<br/>    node_role_arn           = optional(string)<br/>    launch_template_id      = optional(string)<br/>    launch_template_version = optional(string, "$Latest")<br/>  }))</pre> | `[]` | no |
+| <a name="input_node_groups"></a> [node\_groups](#input\_node\_groups) | Managed node groups to create. Each shares the default node role unless node\_role\_arn is set. Empty (default) creates none. | <pre>list(object({<br/>    name            = string<br/>    subnet_tier     = optional(string)<br/>    instance_types  = optional(list(string), ["t3.medium"])<br/>    capacity_type   = optional(string, "ON_DEMAND")<br/>    ami_type        = optional(string, "AL2023_x86_64_STANDARD")<br/>    release_version = optional(string)<br/>    disk_size       = optional(number)<br/>    desired_size    = optional(number, 2)<br/>    min_size        = optional(number, 1)<br/>    max_size        = optional(number, 10)<br/>    max_unavailable = optional(number, 1)<br/>    labels          = optional(map(string), {})<br/>    taints = optional(list(object({<br/>      key    = string<br/>      value  = optional(string)<br/>      effect = string<br/>    })), [])<br/>    node_role_arn           = optional(string)<br/>    launch_template_id      = optional(string)<br/>    launch_template_version = optional(string, "$Latest")<br/>  }))</pre> | `[]` | no |
+| <a name="input_node_role_policy_arns"></a> [node\_role\_policy\_arns](#input\_node\_role\_policy\_arns) | IAM policy ARNs on the shared node role. Replaces the whole set, does not append. See README ('Node IAM role'). | `list(string)` | <pre>[<br/>  "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",<br/>  "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"<br/>]</pre> | no |
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | Propeller framework tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region where the EKS cluster is deployed. | `string` | n/a | yes |
 | <a name="input_secrets_encryption_enabled"></a> [secrets\_encryption\_enabled](#input\_secrets\_encryption\_enabled) | When true, enables CMK envelope encryption for Kubernetes secrets using kms\_key\_arn. | `bool` | `false` | no |
-| <a name="input_subnet_ids_by_tier"></a> [subnet\_ids\_by\_tier](#input\_subnet\_ids\_by\_tier) | Map of tier name to ordered subnet ID list, from workload-vpc.subnet\_ids\_by\_tier. Terraform parses the value as HCL when receiving it via -var, so no jsondecode is needed. | `map(list(string))` | n/a | yes |
+| <a name="input_subnet_ids_by_tier"></a> [subnet\_ids\_by\_tier](#input\_subnet\_ids\_by\_tier) | Map of tier name to ordered subnet ID list, from workload-vpc.subnet\_ids\_by\_tier. See README ('Pipeline inputs'). | `map(list(string))` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Base tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the workload VPC. Sourced from the workload-vpc project output. | `string` | n/a | yes |
 
@@ -142,6 +202,7 @@ supported there).
 | <a name="output_cluster_endpoint"></a> [cluster\_endpoint](#output\_cluster\_endpoint) | Private API server endpoint URL for the EKS cluster. |
 | <a name="output_cluster_name"></a> [cluster\_name](#output\_cluster\_name) | Name of the EKS cluster. |
 | <a name="output_cluster_security_group_id"></a> [cluster\_security\_group\_id](#output\_cluster\_security\_group\_id) | ID of the EKS-managed cluster security group. |
+| <a name="output_cni_role_arn"></a> [cni\_role\_arn](#output\_cni\_role\_arn) | ARN of the IRSA role for the vpc-cni add-on's aws-node ServiceAccount. Wire this into eks-addons as the vpc-cni entry's service\_account\_role\_arn. Null when no node groups are configured or the OIDC provider is disabled. |
 | <a name="output_node_group_names"></a> [node\_group\_names](#output\_node\_group\_names) | Map of node group key to node group name. Null when no node groups are configured. |
 | <a name="output_node_role_arn"></a> [node\_role\_arn](#output\_node\_role\_arn) | ARN of the shared node IAM role. Null when no node groups are configured or all groups supply their own role. |
 | <a name="output_node_role_name"></a> [node\_role\_name](#output\_node\_role\_name) | Name of the shared node IAM role. Null when no node groups are configured or all groups supply their own role. |

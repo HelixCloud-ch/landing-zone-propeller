@@ -14,12 +14,12 @@ variable "vpc_id" {
 
 variable "subnet_ids_by_tier" {
   type        = map(list(string))
-  description = "Map of tier name to ordered subnet ID list, from workload-vpc.subnet_ids_by_tier. Terraform parses the value as HCL when receiving it via -var, so no jsondecode is needed."
+  description = "Map of tier name to ordered subnet ID list, from workload-vpc.subnet_ids_by_tier. See README ('Pipeline inputs')."
 }
 
 variable "cluster_subnet_tiers" {
   type        = list(string)
-  description = "One or more keys in subnet_ids_by_tier whose subnets are attached to the cluster's vpc_config (control-plane cross-account ENIs). aws_eks_cluster allows a single vpc_config block, so all selected tiers are flattened into one subnet_ids list. Requires subnets spanning at least two AZs."
+  description = "Keys in subnet_ids_by_tier attached to the cluster's vpc_config. Requires at least two AZs. See README ('Pipeline inputs')."
 
   validation {
     condition     = length(var.cluster_subnet_tiers) > 0
@@ -57,7 +57,7 @@ variable "fargate_profiles" {
     subnet_tier        = optional(string)
     pod_execution_role = optional(string)
   }))
-  description = "Fargate profiles to create. Each entry maps a profile name to a namespace selector and optional label selectors. Set subnet_tier to place a profile in a specific tier of subnet_ids_by_tier (defaults to fargate_subnet_tier). Set pod_execution_role to a role key so the profile assumes a dedicated pod execution role (e.g. \"test\"/\"prod\" for isolated cross-account ECR pull); profiles sharing a role use the same key, and omitting it uses the shared default role. A role is created for each distinct key referenced. When the list is empty, no Fargate profiles or pod execution roles are created (plain EKS cluster)."
+  description = "Fargate profiles to create. Empty (default) creates none. See README ('Fargate profiles') for the pod_execution_role sharing model."
   default     = []
 }
 
@@ -89,8 +89,17 @@ variable "node_groups" {
     launch_template_id      = optional(string)
     launch_template_version = optional(string, "$Latest")
   }))
-  description = "Managed node groups to create. Each entry creates a node group sharing the project's default node role unless node_role_arn is set. When the list is empty, no node groups or node role are created."
+  description = "Managed node groups to create. Each shares the default node role unless node_role_arn is set. Empty (default) creates none."
   default     = []
+}
+
+variable "node_role_policy_arns" {
+  type        = list(string)
+  description = "IAM policy ARNs on the shared node role. Replaces the whole set, does not append. See README ('Node IAM role')."
+  default = [
+    "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+  ]
 }
 
 # ── Cluster behaviour ──────────────────────────────────────────────────────────
@@ -123,7 +132,7 @@ variable "kms_key_arn" {
 
 variable "api_server_ingress_cidrs" {
   type        = list(string)
-  description = "CIDR blocks allowed to reach the private Kubernetes API server endpoint on TCP 443. When non-empty, this project creates a security group with these ingress rules and attaches it to the cluster. Required for a private-only cluster (endpoint_public_access = false) whenever something outside the cluster's own security group must call the API — notably a VPC-attached deploy runner applying eks-addons (helm/kubernetes providers) and operator networks reaching over TGW/VPN. Empty (default) creates no security group."
+  description = "CIDR blocks allowed to reach the private API server on TCP 443. Empty (default) creates no security group. See README ('API server access')."
   default     = []
 
   validation {
@@ -134,7 +143,7 @@ variable "api_server_ingress_cidrs" {
 
 variable "additional_security_group_ids" {
   type        = list(string)
-  description = "Externally-managed security group IDs to attach to the cluster's cross-account ENIs, in addition to any group this project creates from api_server_ingress_cidrs. Intended for a future centralized security-group plane that owns SG lifecycle: supply IDs here and leave api_server_ingress_cidrs empty. Empty (default) attaches nothing extra."
+  description = "Externally-managed security group IDs attached to the cluster's cross-account ENIs. See README ('API server access')."
   default     = []
 }
 

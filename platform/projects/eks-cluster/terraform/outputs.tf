@@ -74,6 +74,11 @@ output "node_role_name" {
   value       = local.create_node_role ? aws_iam_role.node[0].name : null
 }
 
+output "cni_role_arn" {
+  description = "ARN of the IRSA role for the vpc-cni add-on's aws-node ServiceAccount. Wire this into eks-addons as the vpc-cni entry's service_account_role_arn. Null when no node groups are configured or the OIDC provider is disabled."
+  value       = local.create_cni_role ? aws_iam_role.cni[0].arn : null
+}
+
 output "autoscaling_group_names" {
   description = "Map of node group key to list of ASG names. Null when no node groups are configured."
   value       = one(module.node_groups[*].autoscaling_group_names)
