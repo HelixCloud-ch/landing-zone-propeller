@@ -1,0 +1,55 @@
+# Copy to config.auto.tfvars (framework project) or wire via a consumer
+# overlay. vpc_id, subnet_ids_by_tier, and route_table_ids normally arrive as
+# pipeline inputs from workload-vpc / workload-vpc-routes — set here only for
+# a standalone plan/test.
+
+endpoints = {
+  # Gateway: no NAT/IGW/TGW hop for S3 traffic. Associates every tier that has
+  # a route table; drop the "app" entry if you only want it in specific tiers.
+  "s3" = {
+    type              = "Gateway"
+    route_table_tiers = ["app", "data"]
+  }
+
+  # Interface baseline for a private workload VPC: STS, SSM (+ ssmmessages for
+  # Session Manager), CloudWatch Logs, and both ECR API/DKR endpoints so image
+  # pulls don't hairpin through NAT/TGW. security_group_ids is left unset on
+  # every entry here, so they all join the shared fallback security group
+  # (security_groups.tf) instead of requiring a pre-existing group.
+  "sts" = {
+    type        = "Interface"
+    subnet_tier = "app"
+  }
+
+  "ssm" = {
+    type        = "Interface"
+    subnet_tier = "app"
+  }
+
+  "ssmmessages" = {
+    type        = "Interface"
+    subnet_tier = "app"
+  }
+
+  "logs" = {
+    type        = "Interface"
+    subnet_tier = "app"
+  }
+
+  "ecr.api" = {
+    type        = "Interface"
+    subnet_tier = "app"
+  }
+
+  "ecr.dkr" = {
+    type        = "Interface"
+    subnet_tier = "app"
+  }
+}
+
+# The shared fallback group's ingress defaults to 0.0.0.0/0, all
+# ports/protocols (no assumptions about which port each endpoint answers on).
+# Narrow it if every endpoint sharing the group is known to use the same
+# port(s) — e.g. an all-HTTPS set:
+# security_group_ports = [443]
+# security_group_cidrs = ["10.16.0.0/24"]
