@@ -1,0 +1,16 @@
+region = "eu-central-2"
+
+# Cluster Autoscaler Helm chart version. Pin to match the EKS Kubernetes version
+# per the compatibility matrix: https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler#releases
+chart_version = "9.57.0"
+
+# Override for air-gapped environments where the chart is mirrored locally.
+# chart_repository = "https://kubernetes.github.io/autoscaler"
+
+# Override image repository/tag to pull from a private ECR mirror.
+# image_repository = "123456789012.dkr.ecr.eu-central-2.amazonaws.com/autoscaling/cluster-autoscaler"
+# image_tag        = "v1.35.0"
+
+# cluster_name, cluster_endpoint, cluster_certificate_authority_data,
+# oidc_provider_arn, oidc_provider_url are injected by the pipeline
+# from the eks-cluster project outputs — do NOT set them here.

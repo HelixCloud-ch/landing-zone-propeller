@@ -1,0 +1,11 @@
+name: eks-autoscaler
+description: >-
+  Cluster Autoscaler for EKS managed node groups. Deploys the Kubernetes
+  Cluster Autoscaler via Helm with an IRSA role scoped to the cluster's Auto
+  Scaling Groups. Future: configurable to deploy Karpenter as an alternative.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just
