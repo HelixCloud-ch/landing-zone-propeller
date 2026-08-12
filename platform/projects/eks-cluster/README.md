@@ -75,19 +75,15 @@ node_role_policy_arns = [
 If every node group supplies its own `node_role_arn`, the shared role is not
 created.
 
-## VPC CNI IRSA role
+## VPC CNI IRSA role — not here
 
-`AmazonEKS_CNI_Policy` is **not** attached to the node role. Per [AWS's
+`AmazonEKS_CNI_Policy` is **not** attached to the node role, and this project
+does not create the vpc-cni IRSA role either. Per [AWS's
 recommendation](https://docs.aws.amazon.com/eks/latest/userguide/create-node-role.html),
-this project creates a dedicated IRSA role (`<cluster_name>-vpc-cni`) trusted
-by the `aws-node` ServiceAccount in `kube-system`, scoping ENI/IP-assignment
-permissions to the CNI pods rather than every process on every node. The role
-is created whenever `node_groups` is non-empty and the OIDC provider is
-enabled (default), and exposed via the `cni_role_arn` output.
-
-Wire `cni_role_arn` into `eks-addons` as `vpc_cni_role_arn` so the vpc-cni
-managed add-on uses this role's `service_account_role_arn` instead of falling
-back to node-role permissions.
+that role belongs to `eks-addon-vpc-cni`, which owns both the IRSA role
+(trusted by the `aws-node` ServiceAccount in `kube-system`) and the vpc-cni
+managed add-on itself. Wire `oidc_provider_arn`/`oidc_provider_url` from this
+project's outputs into `eks-addon-vpc-cni`.
 
 ## API server access
 
@@ -117,9 +113,10 @@ supported there).
 
 ## What does NOT belong here
 
-- **Cluster add-ons** (CoreDNS, VPC CNI installation, LB controller) → `eks-addons` / `eks-lb-controller`
+- **Cluster add-ons** (CoreDNS, kube-proxy, LB controller) → `eks-addons` / `eks-addon-lb-controller`
+- **VPC CNI and its IRSA role** → `eks-addon-vpc-cni`
 - **Cross-account ECR pull** → `eks-ecr-pull`
-- **Autoscaler / Karpenter** → `eks-autoscaler` / future `eks-karpenter`
+- **Autoscaler / Karpenter** → `eks-addon-autoscaler` / future `eks-addon-karpenter`
 - **Security group rules for centralized SG plane** → future `security-groups` project
 
 ## References
@@ -157,14 +154,11 @@ supported there).
 | ---- | ---- |
 | [aws_eks_access_entry.additional_admins](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_access_entry) | resource |
 | [aws_eks_access_policy_association.additional_admins](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_access_policy_association) | resource |
-| [aws_iam_role.cni](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role.node](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
-| [aws_iam_role_policy_attachment.cni_AmazonEKS_CNI_Policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
 | [aws_iam_role_policy_attachment.node](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
 | [aws_security_group.api_ingress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_vpc_security_group_ingress_rule.api_ingress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
-| [aws_iam_policy_document.cni_assume](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 
 ## Inputs
 
@@ -202,7 +196,6 @@ supported there).
 | <a name="output_cluster_endpoint"></a> [cluster\_endpoint](#output\_cluster\_endpoint) | Private API server endpoint URL for the EKS cluster. |
 | <a name="output_cluster_name"></a> [cluster\_name](#output\_cluster\_name) | Name of the EKS cluster. |
 | <a name="output_cluster_security_group_id"></a> [cluster\_security\_group\_id](#output\_cluster\_security\_group\_id) | ID of the EKS-managed cluster security group. |
-| <a name="output_cni_role_arn"></a> [cni\_role\_arn](#output\_cni\_role\_arn) | ARN of the IRSA role for the vpc-cni add-on's aws-node ServiceAccount. Wire this into eks-addons as the vpc-cni entry's service\_account\_role\_arn. Null when no node groups are configured or the OIDC provider is disabled. |
 | <a name="output_node_group_names"></a> [node\_group\_names](#output\_node\_group\_names) | Map of node group key to node group name. Null when no node groups are configured. |
 | <a name="output_node_role_arn"></a> [node\_role\_arn](#output\_node\_role\_arn) | ARN of the shared node IAM role. Null when no node groups are configured or all groups supply their own role. |
 | <a name="output_node_role_name"></a> [node\_role\_name](#output\_node\_role\_name) | Name of the shared node IAM role. Null when no node groups are configured or all groups supply their own role. |
