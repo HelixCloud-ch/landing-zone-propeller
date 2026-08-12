@@ -8,10 +8,10 @@ coredns_version      = "v1.11.4-eksbuild.40"
 coredns_compute_type = null # EC2 nodes
 
 # ── Base managed add-ons ──────────────────────────────────────────────────────
-# Simple add-ons that need only a version pin. On EC2 node-group clusters,
-# vpc-cni and kube-proxy should be managed explicitly to control upgrade cadence.
+# Simple add-ons that need only a version pin. vpc-cni has its own project
+# (eks-addon-vpc-cni) since it needs a dedicated IRSA role — it does not
+# belong in this map.
 base_addons = {
-  vpc-cni    = { enabled = true, version = "v1.19.5-eksbuild.1" }
   kube-proxy = { enabled = true, version = "v1.32.0-eksbuild.2" }
   # Not needed until workloads or add-ons use Pod Identity.
   eks-pod-identity-agent = { enabled = false }

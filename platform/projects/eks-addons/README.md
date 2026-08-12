@@ -1,43 +1,56 @@
 # eks-addons
 
 EKS managed add-ons for an Amazon EKS cluster. Manages CoreDNS and simple
-config-light add-ons (vpc-cni, kube-proxy, pod-identity-agent, etc.) as EKS
-managed add-on resources (`aws_eks_addon`). This project uses only the AWS
-provider — no Helm or Kubernetes API access is required.
+config-light add-ons (kube-proxy, pod-identity-agent, etc.) as EKS managed
+add-on resources (`aws_eks_addon`). This project uses only the AWS provider —
+no Helm or Kubernetes API access is required.
 
-Add-ons with complex requirements (IRSA roles, Helm charts, multi-resource
-orchestration) live in their own dedicated projects: `eks-lb-controller`,
-`eks-observability`, `eks-autoscaler`.
+Add-ons needing their own IRSA role or complex orchestration live in their own
+dedicated projects: `eks-addon-vpc-cni`, `eks-addon-lb-controller`,
+`eks-addon-observability`, `eks-addon-autoscaler`.
 
 ## What it deploys
 
 | Add-on | Mechanism | Toggle |
 |--------|-----------|--------|
 | CoreDNS | Dedicated module (`eks-addon-coredns`) | `install_coredns` (default true) |
-| Base add-ons (vpc-cni, kube-proxy, pod-identity-agent, …) | Generic module (`eks-addon-base`) via `for_each` | `base_addons` map |
+| Base add-ons (kube-proxy, pod-identity-agent, …) | Generic module (`eks-addon-base`) via `for_each` | `base_addons` map |
 
 ## Base add-ons (`base_addons`)
 
 The `base_addons` variable is a map intended **exclusively for add-ons that
-require little or no configuration** — typically just a version pin and at most
-a simple `configuration_values` JSON string. Each key is an official EKS add-on
-name; each value controls whether it is deployed, its pinned version, and an
-optional configuration blob.
+require little or no configuration** — typically just a version pin, an
+optional pre-created IRSA role ARN, and at most a simple `configuration_values`
+JSON string. Each key is an official EKS add-on name; each value controls
+whether it is deployed, its pinned version, an optional `service_account_role_arn`,
+and an optional configuration blob.
 
 ```hcl
 base_addons = {
-  vpc-cni    = { enabled = true, version = "v1.19.5-eksbuild.1" }
   kube-proxy = { enabled = true, version = "v1.32.0-eksbuild.2" }
   eks-pod-identity-agent = { enabled = false }
+  aws-ebs-csi-driver = {
+    enabled                   = true
+    version                   = "v1.35.0-eksbuild.1"
+    service_account_role_arn  = module.ebs_csi_irsa.role_arn
+  }
 }
 ```
 
-Add-ons with complex requirements — dedicated IRSA roles, Helm charts, non-
-trivial orchestration, or compute-type awareness — get their own dedicated
-project instead. Do **not** put those in `base_addons`.
+This project creates **no IAM** itself. `service_account_role_arn` is a plain
+pass-through string — the role must already exist (created by another
+project or a shared IRSA module). Add-ons requiring their own IRSA role
+*creation*, Helm charts, non-trivial orchestration, or compute-type awareness
+get their own dedicated project instead. Do **not** put those in
+`base_addons`.
 
 New simple add-ons (e.g. `aws-ebs-csi-driver`, `snapshot-controller`) can be
 added by the consumer in tfvars without any change to this project's code.
+
+**vpc-cni does not belong in this map.** It has its own project,
+`eks-addon-vpc-cni`, because AWS recommends scoping `AmazonEKS_CNI_Policy` to
+the `aws-node` ServiceAccount via a dedicated IRSA role rather than
+special-casing it here. See `eks-addon-vpc-cni`'s README.
 
 ## CoreDNS
 
@@ -81,8 +94,10 @@ it in `config.auto.tfvars`.
 
 - Cluster infrastructure (control plane, Fargate profiles, node groups) — that
   lives in the `eks-cluster` project.
-- AWS Load Balancer Controller — that lives in `eks-lb-controller`.
-- CloudWatch Observability, Cluster Autoscaler — those get their own projects.
+- VPC CNI (needs its own IRSA role) — that lives in `eks-addon-vpc-cni`.
+- AWS Load Balancer Controller — that lives in `eks-addon-lb-controller`.
+- CloudWatch Observability — that lives in `eks-addon-observability`.
+- Cluster Autoscaler — that lives in `eks-addon-autoscaler`.
 - Cross-account ECR pull policy — that lives in the ECR-pull project.
 - IAM policies or roles for unrelated services.
 
@@ -119,7 +134,7 @@ No resources.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_base_addons"></a> [base\_addons](#input\_base\_addons) | Map of EKS managed add-ons to install via the generic eks-addon-base module. Intended for add-ons that need only a version pin and at most a simple configuration\_values JSON string. Keys must match official EKS add-on names. Add-ons requiring dedicated IRSA roles, Helm charts, or complex orchestration should use their own dedicated project instead. | <pre>map(object({<br/>    enabled              = optional(bool, false)<br/>    version              = optional(string, null)<br/>    configuration_values = optional(string, null)<br/>  }))</pre> | <pre>{<br/>  "eks-pod-identity-agent": {<br/>    "enabled": false<br/>  },<br/>  "kube-proxy": {<br/>    "enabled": false<br/>  },<br/>  "vpc-cni": {<br/>    "enabled": false<br/>  }<br/>}</pre> | no |
+| <a name="input_base_addons"></a> [base\_addons](#input\_base\_addons) | Map of EKS managed add-ons to install via the generic eks-addon-base module. See README ('Base add-ons') for the config-light vs. dedicated-project boundary. | <pre>map(object({<br/>    enabled                  = optional(bool, false)<br/>    version                  = optional(string, null)<br/>    configuration_values     = optional(string, null)<br/>    service_account_role_arn = optional(string, null)<br/>  }))</pre> | <pre>{<br/>  "eks-pod-identity-agent": {<br/>    "enabled": false<br/>  },<br/>  "kube-proxy": {<br/>    "enabled": false<br/>  }<br/>}</pre> | no |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster. Sourced from the eks-cluster project output. | `string` | n/a | yes |
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | Consumer-specific tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 | <a name="input_coredns_compute_type"></a> [coredns\_compute\_type](#input\_coredns\_compute\_type) | Compute type CoreDNS pods are scheduled on. Set to "Fargate" for pure-Fargate clusters (requires a kube-system Fargate profile on the cluster). Leave null for EC2-based clusters to use the EKS default. | `string` | `null` | no |

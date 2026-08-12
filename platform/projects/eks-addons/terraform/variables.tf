@@ -33,13 +33,13 @@ variable "coredns_compute_type" {
 
 variable "base_addons" {
   type = map(object({
-    enabled              = optional(bool, false)
-    version              = optional(string, null)
-    configuration_values = optional(string, null)
+    enabled                  = optional(bool, false)
+    version                  = optional(string, null)
+    configuration_values     = optional(string, null)
+    service_account_role_arn = optional(string, null)
   }))
-  description = "Map of EKS managed add-ons to install via the generic eks-addon-base module. Intended for add-ons that need only a version pin and at most a simple configuration_values JSON string. Keys must match official EKS add-on names. Add-ons requiring dedicated IRSA roles, Helm charts, or complex orchestration should use their own dedicated project instead."
+  description = "Map of EKS managed add-ons to install via the generic eks-addon-base module. See README ('Base add-ons') for the config-light vs. dedicated-project boundary."
   default = {
-    vpc-cni                = { enabled = false }
     kube-proxy             = { enabled = false }
     eks-pod-identity-agent = { enabled = false }
   }
