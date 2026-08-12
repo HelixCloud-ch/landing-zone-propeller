@@ -16,16 +16,9 @@ coredns_version = "v1.11.4-eksbuild.40"
 # the cluster needs a kube-system Fargate profile). Omit for EC2-based clusters.
 coredns_compute_type = "Fargate"
 
-# AWS Load Balancer Controller (optional). Leave install_lb_controller = false
-# for clusters that only need internal DNS. When true, pin lbc_chart_version;
-# the chart version tracks the controller appVersion (3.4.0 installs v3.4.0).
-install_lb_controller = false
-# lbc_chart_version = "3.4.0"
+# Base managed add-ons (vpc-cni, kube-proxy, pod-identity-agent) are not needed
+# on pure-Fargate clusters. Leave the default (all disabled) or omit entirely.
+# base_addons = {}
 
-# Set lbc_use_pod_identity = true to use EKS Pod Identity instead of IRSA/OIDC.
-# Requires the Pod Identity Agent add-on; not supported on pure-Fargate clusters.
-# lbc_use_pod_identity = false
-
-# cluster_name, cluster_endpoint, cluster_certificate_authority_data,
-# oidc_provider_arn, oidc_provider_url, and vpc_id are injected by the pipeline
-# from the eks-cluster and workload-vpc project outputs — do NOT set them here.
+# cluster_name is injected by the pipeline from the eks-cluster project
+# output — do NOT set it here.
