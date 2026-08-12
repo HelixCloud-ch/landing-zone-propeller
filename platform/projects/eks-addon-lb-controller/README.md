@@ -1,4 +1,4 @@
-# eks-lb-controller
+# eks-addon-lb-controller
 
 AWS Load Balancer Controller for an Amazon EKS cluster. Deploys the controller
 via Helm with an IRSA role (or EKS Pod Identity) so it can provision ALBs and
@@ -51,7 +51,7 @@ step outputs; `vpc_id` from the `workload-vpc` step. Do **not** set them in
 `config.auto.tfvars`.
 
 ```yaml
-- name: eks-lb-controller
+- name: eks-addon-lb-controller
   target: workload-account
   depends_on: [eks-addons]
   inputs:

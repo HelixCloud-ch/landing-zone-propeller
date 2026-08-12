@@ -1,4 +1,4 @@
-# eks-autoscaler
+# eks-addon-autoscaler
 
 Deploys the Kubernetes [Cluster Autoscaler](https://github.com/kubernetes/autoscaler)
 on an EKS cluster with EC2 managed node groups.

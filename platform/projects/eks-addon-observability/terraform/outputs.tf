@@ -22,6 +22,28 @@ output "metrics_log_group" {
   value       = one(module.fargate_metrics[*].cloudwatch_log_group)
 }
 
+# ── CloudWatch Observability add-on (EC2 nodes) ───────────────────────────────
+
+output "cloudwatch_observability_addon_version" {
+  description = "Resolved version of the CloudWatch Observability add-on. Null when not installed."
+  value       = one(module.cloudwatch_observability[*].addon_version)
+}
+
+output "cloudwatch_observability_addon_arn" {
+  description = "ARN of the CloudWatch Observability add-on. Null when not installed."
+  value       = one(module.cloudwatch_observability[*].addon_arn)
+}
+
+output "cloudwatch_observability_role_arn" {
+  description = "ARN of the IRSA role for the CloudWatch Observability add-on. Null when not installed."
+  value       = one(aws_iam_role.cw_obs[*].arn)
+}
+
+output "cloudwatch_observability_role_name" {
+  description = "Name of the IRSA role for the CloudWatch Observability add-on. Null when not installed."
+  value       = one(aws_iam_role.cw_obs[*].name)
+}
+
 # ── Tracing backend ────────────────────────────────────────────────────────────
 
 output "trace_segment_destination" {

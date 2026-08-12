@@ -1,4 +1,4 @@
-name: eks-autoscaler
+name: eks-addon-autoscaler
 description: >-
   Cluster Autoscaler for EKS managed node groups. Deploys the Kubernetes
   Cluster Autoscaler via Helm with an IRSA role scoped to the cluster's Auto
