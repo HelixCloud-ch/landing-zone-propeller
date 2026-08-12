@@ -31,4 +31,12 @@ resource "aws_eks_addon" "this" {
   service_account_role_arn    = var.service_account_role_arn
   preserve                    = var.preserve
   tags                        = var.tags
+
+  dynamic "pod_identity_association" {
+    for_each = var.pod_identity_association != null ? [var.pod_identity_association] : []
+    content {
+      role_arn        = pod_identity_association.value.role_arn
+      service_account = pod_identity_association.value.service_account
+    }
+  }
 }

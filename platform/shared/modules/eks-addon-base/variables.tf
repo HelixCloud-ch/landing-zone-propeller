@@ -34,8 +34,22 @@ variable "configuration_values" {
 
 variable "service_account_role_arn" {
   type        = string
-  description = "ARN of an IAM role to bind to the add-on's service account. Null uses the node IAM role permissions."
+  description = "ARN of an IRSA role to bind to the add-on's service account. Null uses the node IAM role permissions. Mutually exclusive with pod_identity_association."
   default     = null
+}
+
+variable "pod_identity_association" {
+  type = object({
+    role_arn        = string
+    service_account = string
+  })
+  description = "EKS Pod Identity association for the add-on, as an alternative to IRSA. Null (default) does not configure Pod Identity. Mutually exclusive with service_account_role_arn."
+  default     = null
+
+  validation {
+    condition     = var.pod_identity_association == null || var.service_account_role_arn == null
+    error_message = "pod_identity_association and service_account_role_arn are mutually exclusive; set at most one."
+  }
 }
 
 variable "preserve" {
