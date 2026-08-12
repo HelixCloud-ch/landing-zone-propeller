@@ -28,6 +28,21 @@ def load_base_pipeline(path: Path) -> Pipeline:
     return Pipeline(**yaml.safe_load(path.read_text()))
 
 
+def _find_consumer_root(start: Path) -> Path | None:
+    """Walk up from `start` to the consumer root, marked by a `.propeller-root` file.
+
+    `sources:` and `overlays:` patterns resolve against this, so they read the
+    same regardless of how deep the pipeline file sits. A dedicated marker keeps
+    the anchor stable under per-pipeline version pinning. Returns None for
+    framework-local runs (no marker), where resolution falls back to the pipeline
+    file's directory.
+    """
+    for d in [start, *start.parents]:
+        if (d / ".propeller-root").is_file():
+            return d
+    return None
+
+
 def load_overrides(path: Path) -> PropellerConfig:
     return PropellerConfig(**yaml.safe_load(path.read_text()))
 
@@ -474,11 +489,26 @@ def resolve(
         _apply_stage_order(pipeline, config.pipeline)
         targets = config.pipeline.targets
         consumer_tags = {**dict(pipeline.tags), **dict(config.tags or {})}
-        consumer_dirs = sources.consumer_dirs(overrides_path, config.sources)
+        override_sources = config.sources
     else:
         targets = {}
         consumer_tags = dict(pipeline.tags)
-        consumer_dirs = []
+        override_sources = []
+
+    # Anchor for `sources:` and `overlays:`. Overrides mode keeps its historical
+    # anchor (the overrides file's directory, which is the consumer root). Direct
+    # mode anchors to the consumer root found via .propeller-version, falling back
+    # to the pipeline file's directory for framework-local runs.
+    if overrides_path:
+        consumer_root = overrides_path.parent
+    else:
+        consumer_root = _find_consumer_root(base_path.parent) or base_path.parent
+
+    # local: search path: pipeline-declared sources plus any override-declared
+    # sources, all resolved against the consumer root, in order.
+    consumer_dirs = [
+        (consumer_root / d).resolve() for d in [*pipeline.sources, *override_sources]
+    ]
 
     # The version is supplied by the consumer tooling (read from the version
     # pin file and passed via --version). Defaults to "dev" for framework-local
@@ -504,7 +534,7 @@ def resolve(
         propeller_dir,
         consumer_dirs,
         adjacent,
-        overlay_root=overrides_path.parent if overrides_path else base_path.parent,
+        overlay_root=consumer_root,
     )
     _expand_step_io(pipeline)
     _apply_targets(pipeline, targets)

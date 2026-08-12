@@ -153,3 +153,71 @@ describe("startBuild codebuild overrides", () => {
     expect(inputs[0]!.privilegedModeOverride).toBe(true);
   });
 });
+
+describe("startBuild idempotency token", () => {
+  it("sets a deterministic token for the same execution, project and phase", async () => {
+    const { client, inputs } = mockCodeBuild();
+    // Two calls with identical (executionId, project, deployAction) — as happens
+    // when a durable step replays before its buildId is checkpointed. CodeBuild
+    // dedupes on the token, so the duplicate collapses to one build.
+    await startBuild(client, step({ project: "p1" }), config, ctx({ executionId: "e1" }));
+    await startBuild(client, step({ project: "p1" }), config, ctx({ executionId: "e1" }));
+    expect(inputs[0]!.idempotencyToken).toBeTruthy();
+    expect(inputs[0]!.idempotencyToken).toBe(inputs[1]!.idempotencyToken);
+  });
+
+  it("stays within CodeBuild's 64-char token limit regardless of input length", async () => {
+    const { client, inputs } = mockCodeBuild();
+    // A realistic long execution name (pipeline__action__sha__timestamp) and a
+    // pathologically long one. The token is a fixed-length hash digest, so its
+    // length must not grow with the inputs and must never exceed 64.
+    await startBuild(
+      client,
+      step({ project: "deploy-runner-workload" }),
+      config,
+      ctx({ executionId: "tenant-infra-dev__apply__95ee303__20260807T135558" }),
+    );
+    await startBuild(
+      client,
+      step({ project: "p".repeat(500) }),
+      config,
+      ctx({ executionId: "e".repeat(5000) }),
+    );
+    for (const p of inputs) {
+      expect(p.idempotencyToken.length).toBeLessThanOrEqual(64);
+    }
+    // Fixed-length by construction: long and short inputs yield the same length.
+    expect(inputs[0]!.idempotencyToken.length).toBe(inputs[1]!.idempotencyToken.length);
+  });
+
+  it("differs by phase, project and execution", async () => {
+    const { client, inputs } = mockCodeBuild();
+    await startBuild(
+      client,
+      step({ project: "p1" }),
+      config,
+      ctx({ executionId: "e1", deployAction: "apply" }),
+    );
+    await startBuild(
+      client,
+      step({ project: "p1" }),
+      config,
+      ctx({ executionId: "e1", deployAction: "plan" }),
+    );
+    await startBuild(
+      client,
+      step({ project: "p2" }),
+      config,
+      ctx({ executionId: "e1", deployAction: "apply" }),
+    );
+    await startBuild(
+      client,
+      step({ project: "p1" }),
+      config,
+      ctx({ executionId: "e2", deployAction: "apply" }),
+    );
+    const tokens = inputs.map((p) => p.idempotencyToken);
+    // apply/plan (phase), p1/p2 (project), e1/e2 (execution) all yield distinct tokens
+    expect(new Set(tokens).size).toBe(4);
+  });
+});

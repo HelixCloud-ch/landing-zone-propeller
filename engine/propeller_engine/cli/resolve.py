@@ -28,7 +28,11 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
 
     # Use bottom-to-top for sleep (reverse execution), top-down otherwise
     direction = "BT" if action == "sleep" else "TD"
-    lines = [f"graph {direction}"]
+    # ELK usually renderers packs wide fan-outs better
+    lines = [
+        "%%{init: {'flowchart': {'defaultRenderer': 'elk'}}}%%",
+        f"flowchart {direction}",
+    ]
 
     # Define style classes
     if is_sleep_wake:
@@ -84,7 +88,7 @@ def _generate_mermaid(pipeline: Pipeline, highlight: list[str] | None = None, ac
                     if src_project and not src_project.startswith("@") and not src_project.startswith("/"):
                         if src_project in all_projects and src_project != step.project:
                             edges.add((src_project, step.project))
-                else:
+                elif inp.key:
                     key_parts = inp.key.strip("/").split("/")
                     if len(key_parts) >= 3 and key_parts[0] == "propeller":
                         src_project = key_parts[2]

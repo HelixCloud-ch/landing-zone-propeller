@@ -14,7 +14,6 @@
  */
 
 import type { DurableContext } from "@aws/durable-execution-sdk-js";
-import { PutParameterCommand } from "@aws-sdk/client-ssm";
 import { POLL_INTERVAL_SECONDS, TERMINAL_BUILD_STATUSES } from "../constants.js";
 import type { AWSClients } from "../services/aws.js";
 import { createCloudWatchLogsClient, createCodeBuildClient } from "../services/aws.js";
@@ -119,8 +118,12 @@ export async function executeStep(
     await pctx.statusTracker?.stepCompleted(project, result.status as "succeeded" | "failed");
     return result;
   } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : String(err);
+    const error = describeError(err);
     log.error(`✗ [${project}] failed: ${error}`);
+    // Also log the full details on a second line so CloudWatch searches on
+    // the request id or error code hit; keeps the summary readable.
+    const details = errorDetails(err);
+    if (details) log.error(`  ${details}`);
     await pctx.statusTracker?.stepCompleted(project, "failed");
     return {
       status: "failed",
@@ -128,6 +131,42 @@ export async function executeStep(
       error,
     };
   }
+}
+
+/** Format the error and its `.cause` chain as `Outer: msg ← Inner: msg`.
+ *  ChildContextError from durable-execution wraps the real error in `.cause`,
+ *  so walking the chain surfaces messages the wrapper hides. */
+function describeError(err: unknown): string {
+  const parts: string[] = [];
+  for (let cur: unknown = err; cur && parts.length < 5; ) {
+    if (cur instanceof Error) {
+      parts.push(`${cur.name || "Error"}: ${cur.message || "(no message)"}`);
+      cur = (cur as { cause?: unknown }).cause;
+    } else {
+      parts.push(String(cur));
+      break;
+    }
+  }
+  return parts.join(" ← ");
+}
+
+/** AWS SDK metadata anywhere in the chain, plus the first stack frame. */
+function errorDetails(err: unknown): string {
+  const parts: string[] = [];
+  for (let cur: unknown = err; cur && parts.length < 10; ) {
+    const e = cur as { $metadata?: { requestId?: string; httpStatusCode?: number };
+                      Code?: string; code?: string; cause?: unknown };
+    if (e.$metadata?.requestId) parts.push(`requestId=${e.$metadata.requestId}`);
+    if (e.$metadata?.httpStatusCode) parts.push(`http=${e.$metadata.httpStatusCode}`);
+    const code = e.Code ?? e.code;
+    if (code) parts.push(`code=${code}`);
+    cur = e.cause;
+  }
+  if (err instanceof Error && err.stack) {
+    const frame = err.stack.split("\n").find((l) => l.trim().startsWith("at "));
+    if (frame) parts.push(frame.trim());
+  }
+  return parts.join(" · ");
 }
 
 /**
@@ -292,21 +331,13 @@ async function executeSupervisedStep(
   // Phase 2: Approval (at branch level — visible as sibling to plan/apply)
   branchCtx.logger.info(`⏸ [${project}] awaiting approval`);
   try {
+    // Approval currently comes from the durable-execution console, which lists
+    // pending callbacks directly from the durable service. We deliberately do
+    // NOT persist the callback id to SSM: nothing consumes it yet, and the
+    // approval data layer will be redesigned with the future UI. Publishing it
+    // (Overwrite:true, never deleted) only left stale "pending" records behind.
     await branchCtx.waitForCallback(`approval`, async (callbackId, _ctx) => {
-      await clients.ssm.send(
-        new PutParameterCommand({
-          Name: `/propeller/${pctx.namespace}/approvals/${project}`,
-          Value: JSON.stringify({
-            callbackId,
-            project,
-            executionId: pctx.executionId,
-            buildId: planResult.buildId,
-            requestedAt: new Date().toISOString(),
-          }),
-          Type: "String",
-          Overwrite: true,
-        }),
-      );
+      branchCtx.logger.info(`[${project}] approval callback registered: ${callbackId}`);
     });
     branchCtx.logger.info(`▶ [${project}] approved, applying`);
   } catch {

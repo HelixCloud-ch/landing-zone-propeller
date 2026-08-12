@@ -48,6 +48,9 @@ stages:
 - `namespace` - pipeline identifier, used as prefix for SSM paths, state keys,
   and other scoped resources
 - `stages` - ordered list; stages run sequentially (unless `barrier: false`)
+- `sources` - (optional) list of directories searched to resolve `local:<name>`
+  references. Resolved against the consumer root. See
+  [Source references](#source-references).
 - `overlays` - (optional) list of default overlay patterns for every step; a step
   declaring its own replaces these. See [Overlays](#overlays)
 - `sleep_presets` - (optional) named presets for sleep/wake. Each preset maps
@@ -134,14 +137,22 @@ steps:
     source: local:org-postgres
 ```
 
-`local:` searches the directories listed in `sources:` in
-`propeller.overrides.yaml`, in order, then the `projects/` directory beside the
-pipeline file:
+`local:` searches, in order: the directories listed in the pipeline's own
+`sources:`, then any `sources:` from `propeller.overrides.yaml`, then the
+`projects/` directory beside the pipeline file. The first match wins.
 
 ```yaml
+version: "1"
+namespace: my-platform
+
 sources:
-  - shared-projects/
+  - sources/
 ```
+
+Pipeline-declared `sources:` resolve against the consumer root (see
+[Consumer root](#consumer-root)), so a pipeline at any depth writes the same
+`sources/` path. This lets a pipeline declare where its local projects live
+without a `propeller.overrides.yaml`.
 
 `propeller:` takes a project name, not a path. Framework project names are unique
 across `landing-zone/` and `platform/`, and a project at the framework root is
@@ -178,20 +189,33 @@ matters for a pipeline whose consumers customize it through
 
 ```yaml
 version: "1"
-namespace: landing-zone
+namespace: my-platform
 
 overlays:
-  - projects/${project}
+  - platforms/my-platform/projects/${project}
 ```
 
-Relative patterns resolve against the directory holding
-`propeller.overrides.yaml`, so the pipeline above reads overlays from
-`landing-zone/projects/<project>` in the consumer repo.
+Relative patterns resolve against the consumer root (see
+[Consumer root](#consumer-root)), so a pipeline at any depth writes the full
+path from the root and it always means the same directory.
 
 A step with no overlays, declared or inherited, gets none. `--overlay-dir` does
 not select overlays; it names a root to check for directories no step applies,
 reported as a warning. Bundling fails if that root holds directories and the
 pipeline declares no overlays at all, since every one of them would be ignored.
+
+## Consumer root
+
+`sources:` and `overlays:` patterns resolve against the consumer root: the
+directory holding a committed `.propeller-root` marker file. The engine finds it
+by walking up from the pipeline file. This keeps both knobs reading the same way
+regardless of how deep the pipeline sits, and is stable under per-pipeline
+version pinning.
+
+The consumer init template ships a `.propeller-root` at the repo root. In
+overrides mode the anchor is the directory holding `propeller.overrides.yaml`
+(historically the same place). Framework-local runs with no marker fall back to
+the pipeline file's own directory.
 
 ## Path resolution
 
