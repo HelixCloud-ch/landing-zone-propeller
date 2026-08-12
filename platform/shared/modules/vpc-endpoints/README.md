@@ -28,7 +28,8 @@ Features:
 - Security groups — the module attaches whatever `security_group_ids` an
   Interface endpoint entry supplies; it never creates or manages one. Same
   convention as every other shared module here (e.g. `rds-postgresql`'s
-  `security_group_id`).
+  `security_group_id`). A fallback/shared security group, if wanted, is a
+  caller-level decision — see the `workload-vpc-endpoints` project.
 - Route table ownership — the module only associates Gateway endpoints with
   route table IDs supplied by the caller (typically `workload-vpc-routes`); it
   never creates or modifies route tables itself.
