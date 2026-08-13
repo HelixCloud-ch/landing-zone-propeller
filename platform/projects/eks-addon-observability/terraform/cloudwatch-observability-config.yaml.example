@@ -1,0 +1,42 @@
+# Example configuration_values for the amazon-cloudwatch-observability add-on.
+# Copy to cloudwatch-observability-config.yaml (or .json) next to
+# config.auto.tfvars and point cloudwatch_observability_configuration_values_file
+# at it. Schema source of truth:
+#   aws eks describe-addon-configuration --addon-name amazon-cloudwatch-observability
+
+manager:
+  applicationSignals:
+    autoMonitor:
+      monitorAllServices: false
+      restartPods: true
+      customSelector:
+        java:
+          namespaces:
+            - "<namespace>"
+        python:
+          namespaces:
+            - "<namespace>"
+        nodejs:
+          namespaces:
+            - "<namespace>"
+
+agent:
+  config:
+    logs:
+      metrics_collected:
+        application_signals:
+          rules:
+            - rule_name: Drop Health Checks
+              action: drop
+              selectors:
+                - dimension: Operation
+                  match: "GET /*/health"
+        kubernetes:
+          enhanced_container_insights: true
+    traces:
+      traces_collected:
+        # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Agent-Application_Signals.html
+        application_signals: {}
+
+containerInsights:
+  enabled: false

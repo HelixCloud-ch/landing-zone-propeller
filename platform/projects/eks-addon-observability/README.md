@@ -33,6 +33,36 @@ The collector namespace (`metrics_collector_namespace`, default:
 `fargate-container-insights`) must be covered by a Fargate profile on the
 cluster.
 
+## CloudWatch Observability configuration
+
+The `amazon-cloudwatch-observability` add-on's `configuration_values` schema
+is what `aws eks describe-addon-configuration --addon-name
+amazon-cloudwatch-observability` returns, and both AWS's own docs and most
+consumer configs (Application Signals selectors, Fluent Bit filter chains)
+are written as YAML — often long enough that inlining them as a string in
+`config.auto.tfvars` is unwieldy.
+
+Two variables accept the config, mutually exclusive:
+
+- `cloudwatch_observability_configuration_values_file` — path to a `.json`,
+  `.yaml`, or `.yml` file, relative to this project's `terraform/` directory
+  (i.e. it sits next to `config.auto.tfvars`, the same way a consumer would
+  drop in any other overlay file). Format is inferred from the extension;
+  Terraform decodes it with `yamldecode()` (which parses JSON too — JSON is a
+  YAML subset) and re-encodes it with `jsonencode()` before passing it to the
+  `aws_eks_addon` resource. Use this for anything ported from an existing
+  config — no hand conversion, no drift between two copies of the same
+  value. See `config.auto.tfvars.example` and
+  `cloudwatch-observability-config.yaml.example`.
+- `cloudwatch_observability_configuration_values` — a raw JSON string, passed
+  straight to the add-on. Useful for short values or ones already composed
+  with `jsonencode()` from other Terraform values.
+
+```hcl
+# config.auto.tfvars
+cloudwatch_observability_configuration_values_file = "cloudwatch-observability-config.yaml"
+```
+
 ## Pipeline inputs
 
 `cluster_name`, `cluster_endpoint`, `cluster_certificate_authority_data`,
@@ -109,7 +139,8 @@ the `eks-cluster` step outputs. Do **not** set them in `config.auto.tfvars`.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_cloudwatch_observability_configuration_values"></a> [cloudwatch\_observability\_configuration\_values](#input\_cloudwatch\_observability\_configuration\_values) | JSON-encoded configuration\_values for the CloudWatch Observability add-on. Controls Application Signals auto-monitor, Container Insights, and Fluent Bit log routing. The schema is documented via 'aws eks describe-addon-configuration --addon-name amazon-cloudwatch-observability'. Null uses EKS defaults (enhanced Container Insights enabled). Ignored when install\_cloudwatch\_observability = false. | `string` | `null` | no |
+| <a name="input_cloudwatch_observability_configuration_values"></a> [cloudwatch\_observability\_configuration\_values](#input\_cloudwatch\_observability\_configuration\_values) | JSON-encoded configuration\_values for the CloudWatch Observability add-on. Mutually exclusive with cloudwatch\_observability\_configuration\_values\_file. Null uses EKS defaults. Ignored when install\_cloudwatch\_observability = false. | `string` | `null` | no |
+| <a name="input_cloudwatch_observability_configuration_values_file"></a> [cloudwatch\_observability\_configuration\_values\_file](#input\_cloudwatch\_observability\_configuration\_values\_file) | Path to a JSON or YAML file with the add-on's configuration\_values,<br/>relative to this project's terraform/ directory (next to<br/>config.auto.tfvars). See README ('CloudWatch Observability<br/>configuration') and config.auto.tfvars.example. | `string` | `null` | no |
 | <a name="input_cloudwatch_observability_role_name"></a> [cloudwatch\_observability\_role\_name](#input\_cloudwatch\_observability\_role\_name) | Name of the IRSA role for the CloudWatch Observability add-on. Defaults to '<cluster\_name>-aws-cloudwatch-observability-addon'. | `string` | `null` | no |
 | <a name="input_cloudwatch_observability_version"></a> [cloudwatch\_observability\_version](#input\_cloudwatch\_observability\_version) | Pinned version of the amazon-cloudwatch-observability add-on. Null lets EKS pick the default. Ignored when install\_cloudwatch\_observability = false. | `string` | `null` | no |
 | <a name="input_cluster_certificate_authority_data"></a> [cluster\_certificate\_authority\_data](#input\_cluster\_certificate\_authority\_data) | Base64-encoded certificate authority data for the EKS cluster. Sourced from the eks-cluster project output. Used to configure the kubernetes and helm providers. | `string` | n/a | yes |

@@ -70,6 +70,27 @@ locals {
     "${var.cluster_name}-aws-cloudwatch-observability-addon"
   )
   install_cw_obs = local.is_nodegroup && var.install_cloudwatch_observability
+
+  # Accept the add-on's configuration_values from a JSON or YAML file (the
+  # shapes AWS's own `describe-addon-configuration` docs use) so consumers
+  # don't have to hand-convert an existing config into a JSON string.
+  # yamldecode() parses both YAML and JSON (JSON is a YAML subset), so the
+  # file's format is inferred from its extension, not re-implemented here.
+  # Gated by install_cw_obs so the file() read is skipped entirely — not just
+  # its result discarded — when the add-on isn't installed (e.g. Fargate-only
+  # clusters). Otherwise a stale or not-yet-created path fails plan even when
+  # this value would never be used.
+  cw_obs_configuration_values_from_file = (
+    local.install_cw_obs && var.cloudwatch_observability_configuration_values_file != null
+    ? jsonencode(yamldecode(file("${path.module}/${var.cloudwatch_observability_configuration_values_file}")))
+    : null
+  )
+
+  cw_obs_configuration_values = (
+    local.cw_obs_configuration_values_from_file != null
+    ? local.cw_obs_configuration_values_from_file
+    : var.cloudwatch_observability_configuration_values
+  )
 }
 
 data "aws_iam_policy_document" "cw_obs_assume" {
@@ -123,7 +144,7 @@ module "cloudwatch_observability" {
   cluster_name             = var.cluster_name
   addon_name               = "amazon-cloudwatch-observability"
   addon_version            = var.cloudwatch_observability_version
-  configuration_values     = var.cloudwatch_observability_configuration_values
+  configuration_values     = local.cw_obs_configuration_values
   service_account_role_arn = aws_iam_role.cw_obs[0].arn
 
   depends_on = [

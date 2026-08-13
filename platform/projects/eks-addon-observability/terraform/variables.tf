@@ -145,8 +145,34 @@ variable "cloudwatch_observability_version" {
 
 variable "cloudwatch_observability_configuration_values" {
   type        = string
-  description = "JSON-encoded configuration_values for the CloudWatch Observability add-on. Controls Application Signals auto-monitor, Container Insights, and Fluent Bit log routing. The schema is documented via 'aws eks describe-addon-configuration --addon-name amazon-cloudwatch-observability'. Null uses EKS defaults (enhanced Container Insights enabled). Ignored when install_cloudwatch_observability = false."
+  description = "JSON-encoded configuration_values for the CloudWatch Observability add-on. Mutually exclusive with cloudwatch_observability_configuration_values_file. Null uses EKS defaults. Ignored when install_cloudwatch_observability = false."
   default     = null
+}
+
+variable "cloudwatch_observability_configuration_values_file" {
+  type        = string
+  description = <<-EOT
+    Path to a JSON or YAML file with the add-on's configuration_values,
+    relative to this project's terraform/ directory (next to
+    config.auto.tfvars). See README ('CloudWatch Observability
+    configuration') and config.auto.tfvars.example.
+  EOT
+  default     = null
+
+  validation {
+    condition = (
+      var.cloudwatch_observability_configuration_values_file == null ||
+      endswith(var.cloudwatch_observability_configuration_values_file, ".json") ||
+      endswith(var.cloudwatch_observability_configuration_values_file, ".yaml") ||
+      endswith(var.cloudwatch_observability_configuration_values_file, ".yml")
+    )
+    error_message = "cloudwatch_observability_configuration_values_file must end in .json, .yaml, or .yml."
+  }
+
+  validation {
+    condition     = var.cloudwatch_observability_configuration_values_file == null || var.cloudwatch_observability_configuration_values == null
+    error_message = "cloudwatch_observability_configuration_values_file and cloudwatch_observability_configuration_values are mutually exclusive; set at most one."
+  }
 }
 
 variable "cloudwatch_observability_role_name" {

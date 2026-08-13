@@ -1,0 +1,24 @@
+region = "eu-central-2"
+
+# ── Compute topology ───────────────────────────────────────────────────────────
+compute_topology = "nodegroup"
+
+# ── CloudWatch Observability add-on (nodegroup / mixed) ────────────────────────
+# Pin the add-on version. Null lets EKS pick the default.
+# cloudwatch_observability_version = "v4.4.0-eksbuild.1"
+
+# Configuration values (Application Signals selectors, Fluent Bit filters,
+# etc.) — point at a file next to this one instead of inlining JSON. See
+# cloudwatch-observability-config.yaml.example and the README
+# ('CloudWatch Observability configuration').
+cloudwatch_observability_configuration_values_file = "cloudwatch-observability-config.yaml"
+
+# ── Fargate log router / ADOT metrics (fargate / mixed) ────────────────────────
+# install_fargate_logs    = true
+# install_fargate_metrics = true
+# metrics_chart_version   = "0.108.0"
+
+# cluster_name, cluster_endpoint, cluster_certificate_authority_data,
+# oidc_provider_arn, oidc_provider_url, and pod_execution_role_name are
+# injected by the pipeline from the eks-cluster project outputs — do NOT set
+# them here.
