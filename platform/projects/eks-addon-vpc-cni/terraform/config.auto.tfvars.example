@@ -1,0 +1,7 @@
+region = "eu-central-2"
+
+# Pin the vpc-cni add-on version. Null lets EKS pick the default.
+addon_version = "v1.19.5-eksbuild.1"
+
+# cluster_name, oidc_provider_arn, and oidc_provider_url are injected by the
+# pipeline from the eks-cluster project output — do NOT set them here.
