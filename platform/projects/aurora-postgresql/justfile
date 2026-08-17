@@ -44,7 +44,15 @@ sleep-snapshot: tf-init
     fi
     DEL_PROT=$(aws rds describe-db-clusters --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION" --query 'DBClusters[0].DeletionProtection' --output text)
     [[ "$DEL_PROT" == "True" ]] && echo "ERROR: deletion_protection is enabled. Disable in project config." && exit 1
-    # Destroy the cluster and instances with a final snapshot
+    # Targeted apply: set final_snapshot_identifier in state
+    terraform apply -auto-approve \
+      -target='module.aurora_postgresql.aws_rds_cluster.this' \
+      $(just _propeller-vars) \
+      -var "skip_final_snapshot=false" \
+      -var "final_snapshot_identifier={{ _sleep_snapshot_id }}" \
+      -var "apply_immediately=true"
+    # Targeted destroy: instances + cluster in one run (Terraform reverses
+    # the dependency graph, so instances are deleted before the cluster).
     terraform apply -destroy \
       -target='module.aurora_postgresql.aws_rds_cluster_instance.this' \
       -target='module.aurora_postgresql.aws_rds_cluster.this' \
