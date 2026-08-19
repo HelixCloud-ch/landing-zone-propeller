@@ -53,8 +53,8 @@ stages:
 
   - name: cluster-addons
     steps:
-      - project: eks-lb-controller
-        source: eks-lb-controller
+      - project: eks-addon-lb-controller
+        source: eks-addon-lb-controller
         target: my-account
         runner: deploy-runner-vpc     # ← uses the VPC runner
         inputs:

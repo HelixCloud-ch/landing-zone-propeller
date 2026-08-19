@@ -44,12 +44,12 @@ variable "pod_execution_role_name" {
 
 variable "compute_topology" {
   type        = string
-  description = "Compute topology of the cluster. Controls which observability modules are installed. 'fargate' installs the Fargate log router and ADOT metrics collector. 'nodegroup' is reserved for the CloudWatch Observability add-on (not yet implemented). 'mixed' is reserved for future use combining both paths."
+  description = "Compute topology of the cluster. Controls which observability modules are installed. 'fargate' installs the Fargate log router and ADOT metrics collector. 'nodegroup' installs the CloudWatch Observability EKS add-on (DaemonSet-based). 'mixed' installs both Fargate and EC2 paths."
   default     = "fargate"
 
   validation {
     condition     = contains(["fargate", "nodegroup", "mixed"], var.compute_topology)
-    error_message = "compute_topology must be 'fargate', 'nodegroup', or 'mixed'. 'nodegroup' and 'mixed' are reserved for future use."
+    error_message = "compute_topology must be 'fargate', 'nodegroup', or 'mixed'."
   }
 }
 
@@ -126,6 +126,58 @@ variable "metrics_role_name" {
 variable "metrics_image_repository" {
   type        = string
   description = "Container image repository for the ADOT Collector. Defaults to the upstream ghcr.io contrib release. Override to an ECR mirror in air-gapped or restricted environments."
+  default     = null
+}
+
+# ── CloudWatch Observability add-on (EC2 node groups) ─────────────────────────
+
+variable "install_cloudwatch_observability" {
+  type        = bool
+  description = "Whether to install the amazon-cloudwatch-observability EKS managed add-on. Deploys Container Insights (enhanced observability), Fluent Bit log collection, and Application Signals as DaemonSets on EC2 nodes. Applies when compute_topology = 'nodegroup' or 'mixed'."
+  default     = true
+}
+
+variable "cloudwatch_observability_version" {
+  type        = string
+  description = "Pinned version of the amazon-cloudwatch-observability add-on. Null lets EKS pick the default. Ignored when install_cloudwatch_observability = false."
+  default     = null
+}
+
+variable "cloudwatch_observability_configuration_values" {
+  type        = string
+  description = "JSON-encoded configuration_values for the CloudWatch Observability add-on. Mutually exclusive with cloudwatch_observability_configuration_values_file. Null uses EKS defaults. Ignored when install_cloudwatch_observability = false."
+  default     = null
+}
+
+variable "cloudwatch_observability_configuration_values_file" {
+  type        = string
+  description = <<-EOT
+    Path to a JSON or YAML file with the add-on's configuration_values,
+    relative to this project's terraform/ directory (next to
+    config.auto.tfvars). See README ('CloudWatch Observability
+    configuration') and config.auto.tfvars.example.
+  EOT
+  default     = null
+
+  validation {
+    condition = (
+      var.cloudwatch_observability_configuration_values_file == null ||
+      endswith(var.cloudwatch_observability_configuration_values_file, ".json") ||
+      endswith(var.cloudwatch_observability_configuration_values_file, ".yaml") ||
+      endswith(var.cloudwatch_observability_configuration_values_file, ".yml")
+    )
+    error_message = "cloudwatch_observability_configuration_values_file must end in .json, .yaml, or .yml."
+  }
+
+  validation {
+    condition     = var.cloudwatch_observability_configuration_values_file == null || var.cloudwatch_observability_configuration_values == null
+    error_message = "cloudwatch_observability_configuration_values_file and cloudwatch_observability_configuration_values are mutually exclusive; set at most one."
+  }
+}
+
+variable "cloudwatch_observability_role_name" {
+  type        = string
+  description = "Name of the IRSA role for the CloudWatch Observability add-on. Defaults to '<cluster_name>-aws-cloudwatch-observability-addon'."
   default     = null
 }
 

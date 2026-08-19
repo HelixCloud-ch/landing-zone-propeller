@@ -69,7 +69,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_addon_version"></a> [addon\_version](#input\_addon\_version) | Pinned CoreDNS managed add-on version (e.g. 'v1.11.4-eksbuild.40'). Null lets EKS pick the default version for the cluster's Kubernetes release. | `string` | `null` | no |
+| <a name="input_addon_version"></a> [addon\_version](#input\_addon\_version) | Pinned CoreDNS managed add-on version (e.g. 'v1.11.4-eksbuild.40'). Null lets EKS pick the default version for the cluster's Kubernetes release. For EKS 1.32, use 'v1.11.4-eksbuild.40'. | `string` | `null` | no |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster to install the CoreDNS add-on on. | `string` | n/a | yes |
 | <a name="input_compute_type"></a> [compute\_type](#input\_compute\_type) | Compute type CoreDNS pods are scheduled on. Set to 'Fargate' for pure-Fargate clusters (requires a kube-system Fargate profile). Leave null for EC2-based clusters to use the EKS default. | `string` | `null` | no |
 | <a name="input_resolve_conflicts_on_create"></a> [resolve\_conflicts\_on\_create](#input\_resolve\_conflicts\_on\_create) | How to resolve field-management conflicts when first creating the add-on over the self-managed CoreDNS that EKS installs by default. | `string` | `"OVERWRITE"` | no |

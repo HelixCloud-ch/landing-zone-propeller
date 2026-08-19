@@ -2,7 +2,7 @@
 
 variable "region" {
   type        = string
-  description = "AWS region where the Fargate pod execution role lives."
+  description = "AWS region where the IAM roles live."
 }
 
 variable "ecr_region" {
@@ -15,7 +15,14 @@ variable "ecr_region" {
 
 variable "pod_execution_role_name" {
   type        = string
-  description = "Name of the Fargate pod execution role the ECR pull policy is attached to. Sourced from the eks-cluster project output pod_execution_role_name (or a keyed entry of pod_execution_role_names)."
+  description = "Name of the Fargate pod execution role the ECR pull policy is attached to. Sourced from the eks-cluster project output pod_execution_role_name (or a keyed entry of pod_execution_role_names). Null when the cluster has no Fargate profiles."
+  default     = null
+}
+
+variable "additional_role_names" {
+  type        = list(string)
+  description = "Additional IAM role names to attach the ECR pull policy to. Use this for the node role on EC2 clusters (eks-cluster.node_role_name) or any other role that needs cross-account ECR pull."
+  default     = []
 }
 
 # ── ECR ────────────────────────────────────────────────────────────────────────

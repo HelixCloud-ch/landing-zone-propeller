@@ -1,0 +1,11 @@
+name: eks-addon-vpc-cni
+description: >-
+  Amazon VPC CNI managed EKS add-on with a dedicated IRSA role. Scopes
+  AmazonEKS_CNI_Policy to the aws-node ServiceAccount per AWS's recommended
+  practice, instead of attaching it to the node role.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just

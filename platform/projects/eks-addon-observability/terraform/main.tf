@@ -2,8 +2,8 @@
 #
 # Selects the right observability modules for the cluster's compute topology:
 #   fargate   → eks-obs-fargate-logs + eks-obs-fargate-metrics
-#   nodegroup → eks-obs-cloudwatch-addon (reserved, not yet implemented)
-#   mixed     → all of the above (reserved, not yet implemented)
+#   nodegroup → eks-obs-cloudwatch-addon (CloudWatch Observability EKS add-on)
+#   mixed     → all of the above
 #
 # Each module is independently toggled so consumers can install logs-only,
 # metrics-only, or neither without changing the project template.
@@ -13,7 +13,8 @@
 # depends_on ensures ordering.
 
 locals {
-  is_fargate = contains(["fargate", "mixed"], var.compute_topology)
+  is_fargate   = contains(["fargate", "mixed"], var.compute_topology)
+  is_nodegroup = contains(["nodegroup", "mixed"], var.compute_topology)
 
   # Default log group follows the Container Insights convention.
   effective_log_group = coalesce(
@@ -53,6 +54,103 @@ module "fargate_metrics" {
   collector_image_repository = var.metrics_image_repository
   collector_replicas         = var.metrics_collector_replicas
   role_name                  = var.metrics_role_name
+}
+
+# ── EC2 node groups: CloudWatch Observability EKS add-on ──────────────────────
+# Deploys the CloudWatch Agent + Fluent Bit DaemonSets via the managed add-on.
+# Container Insights enhanced observability + Application Signals + container
+# log shipping are all handled by this single add-on.
+#
+# The IRSA role is created here (project owns orchestration) and passed to the
+# generic eks-addon-base module which manages the add-on lifecycle.
+
+locals {
+  cw_obs_role_name = coalesce(
+    var.cloudwatch_observability_role_name,
+    "${var.cluster_name}-aws-cloudwatch-observability-addon"
+  )
+  install_cw_obs = local.is_nodegroup && var.install_cloudwatch_observability
+
+  # Accept the add-on's configuration_values from a JSON or YAML file (the
+  # shapes AWS's own `describe-addon-configuration` docs use) so consumers
+  # don't have to hand-convert an existing config into a JSON string.
+  # yamldecode() parses both YAML and JSON (JSON is a YAML subset), so the
+  # file's format is inferred from its extension, not re-implemented here.
+  # Gated by install_cw_obs so the file() read is skipped entirely — not just
+  # its result discarded — when the add-on isn't installed (e.g. Fargate-only
+  # clusters). Otherwise a stale or not-yet-created path fails plan even when
+  # this value would never be used.
+  cw_obs_configuration_values_from_file = (
+    local.install_cw_obs && var.cloudwatch_observability_configuration_values_file != null
+    ? jsonencode(yamldecode(file("${path.module}/${var.cloudwatch_observability_configuration_values_file}")))
+    : null
+  )
+
+  cw_obs_configuration_values = (
+    local.cw_obs_configuration_values_from_file != null
+    ? local.cw_obs_configuration_values_from_file
+    : var.cloudwatch_observability_configuration_values
+  )
+}
+
+data "aws_iam_policy_document" "cw_obs_assume" {
+  count = local.install_cw_obs ? 1 : 0
+
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [var.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "${var.oidc_provider_url}:sub"
+      values = [
+        "system:serviceaccount:amazon-cloudwatch:amazon-cloudwatch-observability-controller-manager",
+        "system:serviceaccount:amazon-cloudwatch:cloudwatch-agent",
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "cw_obs" {
+  count = local.install_cw_obs ? 1 : 0
+
+  name               = local.cw_obs_role_name
+  assume_role_policy = data.aws_iam_policy_document.cw_obs_assume[0].json
+}
+
+resource "aws_iam_role_policy_attachment" "cw_obs_cloudwatch_agent" {
+  count = local.install_cw_obs ? 1 : 0
+
+  role       = aws_iam_role.cw_obs[0].name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+resource "aws_iam_role_policy_attachment" "cw_obs_xray_write" {
+  count = local.install_cw_obs ? 1 : 0
+
+  role       = aws_iam_role.cw_obs[0].name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess"
+}
+
+module "cloudwatch_observability" {
+  count  = local.install_cw_obs ? 1 : 0
+  source = "../../../shared/modules/eks-addon-base"
+
+  cluster_name             = var.cluster_name
+  addon_name               = "amazon-cloudwatch-observability"
+  addon_version            = var.cloudwatch_observability_version
+  configuration_values     = local.cw_obs_configuration_values
+  service_account_role_arn = aws_iam_role.cw_obs[0].arn
+
+  depends_on = [
+    aws_iam_role_policy_attachment.cw_obs_cloudwatch_agent,
+    aws_iam_role_policy_attachment.cw_obs_xray_write,
+  ]
 }
 
 # ── Tracing backend — account/region-scoped ───────────────────────────────────

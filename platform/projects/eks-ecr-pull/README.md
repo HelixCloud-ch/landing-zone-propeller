@@ -70,7 +70,7 @@ ecr_account_id = "111111111111"  # account hosting ECR
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.52.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.0 |
 
 ## Modules
 
@@ -87,12 +87,13 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_additional_role_names"></a> [additional\_role\_names](#input\_additional\_role\_names) | Additional IAM role names to attach the ECR pull policy to. Use this for the node role on EC2 clusters (eks-cluster.node\_role\_name) or any other role that needs cross-account ECR pull. | `list(string)` | `[]` | no |
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | Consumer-specific tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 | <a name="input_ecr_account_id"></a> [ecr\_account\_id](#input\_ecr\_account\_id) | AWS account ID that hosts the shared ECR registry. Must be set in config.auto.tfvars; no default. | `string` | n/a | yes |
 | <a name="input_ecr_region"></a> [ecr\_region](#input\_ecr\_region) | AWS region of the shared ECR account. Defaults to var.region when null. | `string` | `null` | no |
-| <a name="input_pod_execution_role_name"></a> [pod\_execution\_role\_name](#input\_pod\_execution\_role\_name) | Name of the Fargate pod execution role the ECR pull policy is attached to. Sourced from the eks-cluster project output pod\_execution\_role\_name (or a keyed entry of pod\_execution\_role\_names). | `string` | n/a | yes |
+| <a name="input_pod_execution_role_name"></a> [pod\_execution\_role\_name](#input\_pod\_execution\_role\_name) | Name of the Fargate pod execution role the ECR pull policy is attached to. Sourced from the eks-cluster project output pod\_execution\_role\_name (or a keyed entry of pod\_execution\_role\_names). Null when the cluster has no Fargate profiles. | `string` | `null` | no |
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | Propeller framework tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
-| <a name="input_region"></a> [region](#input\_region) | AWS region where the Fargate pod execution role lives. | `string` | n/a | yes |
+| <a name="input_region"></a> [region](#input\_region) | AWS region where the IAM roles live. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Base tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 
 ## Outputs

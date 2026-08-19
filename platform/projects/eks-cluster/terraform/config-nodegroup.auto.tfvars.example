@@ -1,0 +1,63 @@
+# ── EKS cluster with EC2 managed node groups (no Fargate) ─────────────────────
+
+region       = "eu-central-2"
+cluster_name = "apps"
+eks_version  = "1.36"
+
+cluster_subnet_tiers = ["app"]
+
+# ── Node groups ───────────────────────────────────────────────────────────────
+# Each entry creates a managed node group with its own IAM role and launch
+# template. EKS attaches the cluster security group to nodes automatically.
+
+node_groups = [
+  {
+    name           = "system"
+    instance_types = ["t3.medium"]
+    desired_size   = 2
+    min_size       = 2
+    max_size       = 4
+    labels         = { "node-role" = "system" }
+    # Reserve system nodes for cluster-critical workloads
+    taints = [
+      { key = "CriticalAddonsOnly", effect = "PREFER_NO_SCHEDULE" }
+    ]
+  },
+  {
+    name           = "workload"
+    instance_types = ["c7i-flex.large", "m7i-flex.large"]
+    desired_size   = 3
+    min_size       = 1
+    max_size       = 20
+    labels         = { "node-role" = "workload" }
+    # Optional: place workload nodes in a specific subnet tier
+    # subnet_tier = "compute"
+    # Optional: use a different IAM role for this node group (overrides the
+    # shared role created by this project)
+    # node_role_arn = "arn:aws:iam::111111111111:role/custom-node-role"
+  },
+]
+
+# Default tier for node groups when not overridden per-group.
+# Defaults to the first entry of cluster_subnet_tiers when omitted.
+# node_group_subnet_tier = "app"
+
+# No Fargate profiles — pure EC2 cluster. CoreDNS, kube-proxy, and vpc-cni run
+# as DaemonSets on the system node group.
+fargate_profiles = []
+
+# ── Security ──────────────────────────────────────────────────────────────────
+
+secrets_encryption_enabled = false
+
+# Private API access — allow deploy runner and operator VPN to reach the API.
+# api_server_ingress_cidrs = ["10.150.34.0/23"]
+
+# ── Future: centralized security group management ─────────────────────────────
+# When a dedicated security-groups project owns all SG lifecycle, pass its
+# output IDs here. The cluster attaches them to the control plane ENIs,
+# and node groups inherit the cluster SG automatically (EKS behaviour).
+# additional_security_group_ids = ["sg-0123456789abcdef0"]
+
+# ── Access ────────────────────────────────────────────────────────────────────
+# additional_admin_role_names = ["deploy-runner-vpc-app-service-role"]

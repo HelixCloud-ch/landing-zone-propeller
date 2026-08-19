@@ -3,3 +3,88 @@ import "../../../shared/recipes/terraform.just"
 plan: tf-plan
 apply: tf-apply
 destroy: tf-destroy
+
+# ── Sleep/Wake modes ──────────────────────────────────────────────────────────
+# Supported modes:
+#   scale-zero  - Scale all node groups to 0 (cluster stays warm, no EC2 cost)
+#   destroy     - Full terraform destroy/apply (inherited from shared recipe)
+#
+# For Fargate-only clusters sleep/wake is a no-op (Fargate has no idle cost).
+
+sleep-default: sleep-scale-zero
+wake-default: wake-scale-zero
+
+sleep-scale-zero: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    CLUSTER=$(terraform output -raw cluster_name 2>/dev/null || true)
+    [[ -z "$CLUSTER" ]] && echo "ERROR: cluster_name not in state." && exit 1
+    NG_JSON=$(terraform output -json node_group_names 2>/dev/null || echo '{}')
+    NG_KEYS=$(echo "$NG_JSON" | jq -r 'keys[]' 2>/dev/null || true)
+    [[ -z "$NG_KEYS" ]] && echo "No node groups configured. Nothing to sleep." && exit 0
+    SLEEP_STATE="{}"
+    for NG_KEY in $NG_KEYS; do
+      NG_NAME=$(echo "$NG_JSON" | jq -r ".\"$NG_KEY\"")
+      CURRENT_DESIRED=$(aws eks describe-nodegroup \
+        --cluster-name "$CLUSTER" \
+        --nodegroup-name "$NG_NAME" \
+        --region "$AWS_REGION" \
+        --query 'nodegroup.scalingConfig.desiredSize' \
+        --output text 2>/dev/null || echo "0")
+      CURRENT_MIN=$(aws eks describe-nodegroup \
+        --cluster-name "$CLUSTER" \
+        --nodegroup-name "$NG_NAME" \
+        --region "$AWS_REGION" \
+        --query 'nodegroup.scalingConfig.minSize' \
+        --output text 2>/dev/null || echo "0")
+      CURRENT_MAX=$(aws eks describe-nodegroup \
+        --cluster-name "$CLUSTER" \
+        --nodegroup-name "$NG_NAME" \
+        --region "$AWS_REGION" \
+        --query 'nodegroup.scalingConfig.maxSize' \
+        --output text 2>/dev/null || echo "10")
+      if [[ "$CURRENT_DESIRED" == "0" ]]; then
+        echo "  $NG_NAME: already at 0, skipping."
+        continue
+      fi
+      SLEEP_STATE=$(echo "$SLEEP_STATE" | jq --arg k "$NG_NAME" --argjson d "$CURRENT_DESIRED" --argjson m "$CURRENT_MIN" --argjson x "$CURRENT_MAX" '. + {($k): {desired: $d, min: $m, max: $x}}')
+      aws eks update-nodegroup-config \
+        --cluster-name "$CLUSTER" \
+        --nodegroup-name "$NG_NAME" \
+        --region "$AWS_REGION" \
+        --scaling-config "minSize=0,maxSize=$CURRENT_MAX,desiredSize=0"
+      echo "  $NG_NAME: scaled to 0 (was desired=$CURRENT_DESIRED)"
+    done
+    just _sleep-state-write "$SLEEP_STATE"
+
+wake-scale-zero: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    CLUSTER=$(terraform output -raw cluster_name 2>/dev/null || true)
+    [[ -z "$CLUSTER" ]] && echo "ERROR: cluster_name not in state." && exit 1
+    NG_JSON=$(terraform output -json node_group_names 2>/dev/null || echo '{}')
+    NG_KEYS=$(echo "$NG_JSON" | jq -r 'keys[]' 2>/dev/null || true)
+    [[ -z "$NG_KEYS" ]] && echo "No node groups configured. Nothing to wake." && exit 0
+    SLEEP_STATE=$(just _sleep-state-read)
+    for NG_KEY in $NG_KEYS; do
+      NG_NAME=$(echo "$NG_JSON" | jq -r ".\"$NG_KEY\"")
+      DESIRED=$(echo "$SLEEP_STATE" | jq -r ".\"$NG_NAME\".desired // 2")
+      MIN_SIZE=$(echo "$SLEEP_STATE" | jq -r ".\"$NG_NAME\".min // 1")
+      MAX_SIZE=$(echo "$SLEEP_STATE" | jq -r ".\"$NG_NAME\".max // 10")
+      aws eks update-nodegroup-config \
+        --cluster-name "$CLUSTER" \
+        --nodegroup-name "$NG_NAME" \
+        --region "$AWS_REGION" \
+        --scaling-config "minSize=$MIN_SIZE,maxSize=$MAX_SIZE,desiredSize=$DESIRED"
+      echo "  $NG_NAME: restored to desired=$DESIRED (min=$MIN_SIZE, max=$MAX_SIZE)"
+    done
+    echo "Waiting for node groups to become active..."
+    for NG_KEY in $NG_KEYS; do
+      NG_NAME=$(echo "$NG_JSON" | jq -r ".\"$NG_KEY\"")
+      aws eks wait nodegroup-active \
+        --cluster-name "$CLUSTER" \
+        --nodegroup-name "$NG_NAME" \
+        --region "$AWS_REGION"
+    done

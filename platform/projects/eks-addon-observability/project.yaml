@@ -1,4 +1,4 @@
-name: eks-observability
+name: eks-addon-observability
 description: >-
   EKS observability — composable signal collection for Fargate and EC2
   clusters. Installs the native Fargate log router (aws-observability namespace

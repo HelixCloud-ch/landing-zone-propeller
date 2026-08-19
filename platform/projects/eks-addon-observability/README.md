@@ -1,4 +1,4 @@
-# eks-observability
+# eks-addon-observability
 
 EKS observability composition project. Selects and wires the right
 observability modules based on the cluster's compute topology.
@@ -33,6 +33,36 @@ The collector namespace (`metrics_collector_namespace`, default:
 `fargate-container-insights`) must be covered by a Fargate profile on the
 cluster.
 
+## CloudWatch Observability configuration
+
+The `amazon-cloudwatch-observability` add-on's `configuration_values` schema
+is what `aws eks describe-addon-configuration --addon-name
+amazon-cloudwatch-observability` returns, and both AWS's own docs and most
+consumer configs (Application Signals selectors, Fluent Bit filter chains)
+are written as YAML — often long enough that inlining them as a string in
+`config.auto.tfvars` is unwieldy.
+
+Two variables accept the config, mutually exclusive:
+
+- `cloudwatch_observability_configuration_values_file` — path to a `.json`,
+  `.yaml`, or `.yml` file, relative to this project's `terraform/` directory
+  (i.e. it sits next to `config.auto.tfvars`, the same way a consumer would
+  drop in any other overlay file). Format is inferred from the extension;
+  Terraform decodes it with `yamldecode()` (which parses JSON too — JSON is a
+  YAML subset) and re-encodes it with `jsonencode()` before passing it to the
+  `aws_eks_addon` resource. Use this for anything ported from an existing
+  config — no hand conversion, no drift between two copies of the same
+  value. See `config.auto.tfvars.example` and
+  `cloudwatch-observability-config.yaml.example`.
+- `cloudwatch_observability_configuration_values` — a raw JSON string, passed
+  straight to the add-on. Useful for short values or ones already composed
+  with `jsonencode()` from other Terraform values.
+
+```hcl
+# config.auto.tfvars
+cloudwatch_observability_configuration_values_file = "cloudwatch-observability-config.yaml"
+```
+
 ## Pipeline inputs
 
 `cluster_name`, `cluster_endpoint`, `cluster_certificate_authority_data`,
@@ -40,8 +70,8 @@ cluster.
 the `eks-cluster` step outputs. Do **not** set them in `config.auto.tfvars`.
 
 ```yaml
-- project: eks-observability
-  source: eks-observability
+- project: eks-addon-observability
+  source: eks-addon-observability
   target: workload-account
   runner: deploy-runner-vpc-app
   depends_on: [eks-addons]
@@ -82,12 +112,15 @@ the `eks-cluster` step outputs. Do **not** set them in `config.auto.tfvars`.
 
 ## Providers
 
-No providers.
+| Name | Version |
+| ---- | ------- |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.0 |
 
 ## Modules
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
+| <a name="module_cloudwatch_observability"></a> [cloudwatch\_observability](#module\_cloudwatch\_observability) | ../../../shared/modules/eks-addon-base | n/a |
 | <a name="module_fargate_logs"></a> [fargate\_logs](#module\_fargate\_logs) | ../../../shared/modules/eks-obs-fargate-logs | n/a |
 | <a name="module_fargate_metrics"></a> [fargate\_metrics](#module\_fargate\_metrics) | ../../../shared/modules/eks-obs-fargate-metrics | n/a |
 | <a name="module_traces_collector"></a> [traces\_collector](#module\_traces\_collector) | ../../../shared/modules/eks-obs-traces | n/a |
@@ -95,18 +128,28 @@ No providers.
 
 ## Resources
 
-No resources.
+| Name | Type |
+| ---- | ---- |
+| [aws_iam_role.cw_obs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role_policy_attachment.cw_obs_cloudwatch_agent](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.cw_obs_xray_write](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_policy_document.cw_obs_assume](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_cloudwatch_observability_configuration_values"></a> [cloudwatch\_observability\_configuration\_values](#input\_cloudwatch\_observability\_configuration\_values) | JSON-encoded configuration\_values for the CloudWatch Observability add-on. Mutually exclusive with cloudwatch\_observability\_configuration\_values\_file. Null uses EKS defaults. Ignored when install\_cloudwatch\_observability = false. | `string` | `null` | no |
+| <a name="input_cloudwatch_observability_configuration_values_file"></a> [cloudwatch\_observability\_configuration\_values\_file](#input\_cloudwatch\_observability\_configuration\_values\_file) | Path to a JSON or YAML file with the add-on's configuration\_values,<br/>relative to this project's terraform/ directory (next to<br/>config.auto.tfvars). See README ('CloudWatch Observability<br/>configuration') and config.auto.tfvars.example. | `string` | `null` | no |
+| <a name="input_cloudwatch_observability_role_name"></a> [cloudwatch\_observability\_role\_name](#input\_cloudwatch\_observability\_role\_name) | Name of the IRSA role for the CloudWatch Observability add-on. Defaults to '<cluster\_name>-aws-cloudwatch-observability-addon'. | `string` | `null` | no |
+| <a name="input_cloudwatch_observability_version"></a> [cloudwatch\_observability\_version](#input\_cloudwatch\_observability\_version) | Pinned version of the amazon-cloudwatch-observability add-on. Null lets EKS pick the default. Ignored when install\_cloudwatch\_observability = false. | `string` | `null` | no |
 | <a name="input_cluster_certificate_authority_data"></a> [cluster\_certificate\_authority\_data](#input\_cluster\_certificate\_authority\_data) | Base64-encoded certificate authority data for the EKS cluster. Sourced from the eks-cluster project output. Used to configure the kubernetes and helm providers. | `string` | n/a | yes |
 | <a name="input_cluster_endpoint"></a> [cluster\_endpoint](#input\_cluster\_endpoint) | HTTPS endpoint of the EKS API server. Sourced from the eks-cluster project output. Used to configure the kubernetes and helm providers. | `string` | n/a | yes |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster. Sourced from the eks-cluster project output. Used in metric dimensions and IRSA trust policies. | `string` | n/a | yes |
-| <a name="input_compute_topology"></a> [compute\_topology](#input\_compute\_topology) | Compute topology of the cluster. Controls which observability modules are installed. 'fargate' installs the Fargate log router and ADOT metrics collector. 'nodegroup' is reserved for the CloudWatch Observability add-on (not yet implemented). 'mixed' is reserved for future use combining both paths. | `string` | `"fargate"` | no |
+| <a name="input_compute_topology"></a> [compute\_topology](#input\_compute\_topology) | Compute topology of the cluster. Controls which observability modules are installed. 'fargate' installs the Fargate log router and ADOT metrics collector. 'nodegroup' installs the CloudWatch Observability EKS add-on (DaemonSet-based). 'mixed' installs both Fargate and EC2 paths. | `string` | `"fargate"` | no |
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | Consumer-specific tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 | <a name="input_enable_tracing"></a> [enable\_tracing](#input\_enable\_tracing) | Whether to configure the Transaction Search tracing backend. Enables aws\_xray\_trace\_segment\_destination → CloudWatchLogs, the default indexing rule, and the required CloudWatch Logs resource-based policy. Account/region-scoped: affects all workloads sending spans in the account, not only this cluster. | `bool` | `true` | no |
+| <a name="input_install_cloudwatch_observability"></a> [install\_cloudwatch\_observability](#input\_install\_cloudwatch\_observability) | Whether to install the amazon-cloudwatch-observability EKS managed add-on. Deploys Container Insights (enhanced observability), Fluent Bit log collection, and Application Signals as DaemonSets on EC2 nodes. Applies when compute\_topology = 'nodegroup' or 'mixed'. | `bool` | `true` | no |
 | <a name="input_install_fargate_logs"></a> [install\_fargate\_logs](#input\_install\_fargate\_logs) | Whether to install the native Fargate log router (aws-observability namespace + aws-logging ConfigMap). Applies when compute\_topology = 'fargate'. | `bool` | `true` | no |
 | <a name="input_install_fargate_metrics"></a> [install\_fargate\_metrics](#input\_install\_fargate\_metrics) | Whether to install the ADOT Collector for Fargate Container Insights metrics (cAdvisor scrape via API-server proxy → CloudWatch EMF). Applies when compute\_topology = 'fargate'. | `bool` | `true` | no |
 | <a name="input_install_traces_collector"></a> [install\_traces\_collector](#input\_install\_traces\_collector) | Whether to deploy the ADOT traces collector (OTLP receiver → awsxray exporter). Gives application pods an in-cluster OTLP endpoint whose spans reach X-Ray / Transaction Search. Opt-in: requires application OTel-SDK instrumentation to be useful, and enable\_tracing (the backend) to be true. | `bool` | `false` | no |
@@ -140,6 +183,10 @@ No resources.
 | ---- | ----------- |
 | <a name="output_adot_collector_role_arn"></a> [adot\_collector\_role\_arn](#output\_adot\_collector\_role\_arn) | ARN of the IRSA role for the ADOT Collector. Null when install\_fargate\_metrics = false. |
 | <a name="output_adot_collector_role_name"></a> [adot\_collector\_role\_name](#output\_adot\_collector\_role\_name) | Name of the IRSA role for the ADOT Collector. Null when install\_fargate\_metrics = false. |
+| <a name="output_cloudwatch_observability_addon_arn"></a> [cloudwatch\_observability\_addon\_arn](#output\_cloudwatch\_observability\_addon\_arn) | ARN of the CloudWatch Observability add-on. Null when not installed. |
+| <a name="output_cloudwatch_observability_addon_version"></a> [cloudwatch\_observability\_addon\_version](#output\_cloudwatch\_observability\_addon\_version) | Resolved version of the CloudWatch Observability add-on. Null when not installed. |
+| <a name="output_cloudwatch_observability_role_arn"></a> [cloudwatch\_observability\_role\_arn](#output\_cloudwatch\_observability\_role\_arn) | ARN of the IRSA role for the CloudWatch Observability add-on. Null when not installed. |
+| <a name="output_cloudwatch_observability_role_name"></a> [cloudwatch\_observability\_role\_name](#output\_cloudwatch\_observability\_role\_name) | Name of the IRSA role for the CloudWatch Observability add-on. Null when not installed. |
 | <a name="output_fargate_log_group_name"></a> [fargate\_log\_group\_name](#output\_fargate\_log\_group\_name) | CloudWatch Logs log group for container application logs. Null when install\_fargate\_logs = false. |
 | <a name="output_metrics_log_group"></a> [metrics\_log\_group](#output\_metrics\_log\_group) | CloudWatch Logs log group for Container Insights EMF performance events. Null when install\_fargate\_metrics = false. |
 | <a name="output_spans_log_group_name"></a> [spans\_log\_group\_name](#output\_spans\_log\_group\_name) | CloudWatch Logs log group where X-Ray spans land. Null when tracing is disabled. |

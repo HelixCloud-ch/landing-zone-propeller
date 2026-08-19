@@ -1,0 +1,60 @@
+# ── EKS cluster with mixed mode: EC2 node groups + Fargate profiles ───────────
+#
+# Mixed mode is useful when:
+# - Long-running workloads need EC2 (GPU, high-memory, persistent local storage)
+# - Burst/batch workloads benefit from Fargate (no capacity planning)
+# - CoreDNS must run on Fargate if no EC2 nodes are guaranteed to be available
+#   at all times (e.g. if node groups sleep to zero)
+
+region       = "eu-central-2"
+cluster_name = "platform"
+eks_version  = "1.36"
+
+cluster_subnet_tiers = ["app"]
+
+# ── Node groups (EC2) ─────────────────────────────────────────────────────────
+
+node_groups = [
+  {
+    name           = "general"
+    instance_types = ["m7i-flex.large", "m6i.large"]
+    desired_size   = 2
+    min_size       = 1
+    max_size       = 10
+    labels         = { "node-role" = "general" }
+  },
+]
+
+# ── Fargate profiles ──────────────────────────────────────────────────────────
+# CoreDNS on Fargate ensures DNS availability even when node groups are scaled
+# to zero (e.g. during sleep). Batch jobs in the "jobs" namespace run on Fargate
+# to avoid pre-provisioning capacity.
+
+fargate_profiles = [
+  { name = "coredns", namespace = "kube-system", labels = { "k8s-app" = "kube-dns" } },
+  { name = "batch-jobs", namespace = "jobs" },
+]
+
+# ── Security ──────────────────────────────────────────────────────────────────
+
+secrets_encryption_enabled = false
+
+# api_server_ingress_cidrs = ["10.150.34.0/23"]
+
+# ── Future: centralized security group management ─────────────────────────────
+# A dedicated security-groups project can own all SG lifecycle and export IDs.
+# This project consumes those IDs without managing SG resources itself:
+#
+#   additional_security_group_ids = ["sg-aaa...", "sg-bbb..."]
+#
+# The cluster attaches them to its control-plane ENIs. Managed node groups
+# automatically inherit the EKS-managed cluster security group, so no
+# per-node-group SG wiring is needed.
+#
+# For node-specific supplementary SGs (e.g. allow monitoring/bastion access
+# to nodes only), the centralized project creates those SGs and passes their
+# IDs via the node_groups[*].security_group_ids field (not yet exposed in
+# this project — add when the centralized plane materializes).
+
+# ── Access ────────────────────────────────────────────────────────────────────
+# additional_admin_role_names = ["deploy-runner-vpc-app-service-role"]
