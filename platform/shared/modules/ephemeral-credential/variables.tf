@@ -46,53 +46,16 @@ variable "parameter_arn" {
   }
 }
 
-# ── Username Generation ───────────────────────────────────────────────────────
+# ── Username ──────────────────────────────────────────────────────────────────
 
 variable "username" {
-  type = object({
-    prefix              = optional(string, "usr")
-    length              = optional(number, 8)
-    exclude_characters  = optional(string, "")
-    exclude_numbers     = optional(bool, false)
-    exclude_lowercase   = optional(bool, false)
-    exclude_uppercase   = optional(bool, true)
-    exclude_punctuation = optional(bool, true)
-    include_space       = optional(bool, false)
-  })
+  type        = string
   description = <<-EOT
-    When set, the stored value becomes JSON {"username":"...","password":"..."}.
-    The username is built as prefix concatenated with a random suffix of the
-    given length. Defaults produce lowercase alphanumeric suffixes.
-    Set to null to store only a plain password string.
+    When set, the stored value becomes JSON {"username":"...","password":"..."}
+    matching the RDS managed secret convention. The username is stored as-is.
+    Set to null to store only the plain password string.
   EOT
   default     = null
-
-  validation {
-    condition     = var.username == null || can(regex("^[a-zA-Z][a-zA-Z0-9_]*$", var.username.prefix))
-    error_message = "username.prefix must start with a letter and contain only alphanumerics and underscores."
-  }
-
-  validation {
-    condition     = var.username == null || (var.username.length >= 1 && var.username.length <= 20)
-    error_message = "username.length must be between 1 and 20."
-  }
-}
-
-# ── Password Generation ───────────────────────────────────────────────────────
-
-variable "password" {
-  type = object({
-    length                     = optional(number, 28)
-    exclude_characters         = optional(string, "/@\"\\'\n")
-    exclude_lowercase          = optional(bool, false)
-    exclude_numbers            = optional(bool, false)
-    exclude_punctuation        = optional(bool, false)
-    exclude_uppercase          = optional(bool, false)
-    include_space              = optional(bool, false)
-    require_each_included_type = optional(bool, true)
-  })
-  description = "Password generation parameters."
-  default     = {}
 }
 
 # ── Metadata ──────────────────────────────────────────────────────────────────
@@ -119,11 +82,28 @@ variable "kms_key_id" {
   }
 }
 
+# ── Password Generation (create modes) ───────────────────────────────────────
+
+variable "password" {
+  type = object({
+    length                     = optional(number, 28)
+    exclude_characters         = optional(string, "/@\"\\'\n")
+    exclude_lowercase          = optional(bool, false)
+    exclude_numbers            = optional(bool, false)
+    exclude_punctuation        = optional(bool, false)
+    exclude_uppercase          = optional(bool, false)
+    include_space              = optional(bool, false)
+    require_each_included_type = optional(bool, true)
+  })
+  description = "Password generation parameters (create modes only)."
+  default     = {}
+}
+
 # ── Rotation ──────────────────────────────────────────────────────────────────
 
 variable "password_version" {
   type        = number
-  description = "Rotation trigger. Bump to generate and store new credentials."
+  description = "Rotation trigger. Bump to generate and store a new password."
   default     = 1
 
   validation {

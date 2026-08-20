@@ -5,28 +5,18 @@ locals {
     ? ephemeral.aws_secretsmanager_secret_version.this[0].secret_string
     : ephemeral.aws_ssm_parameter.this[0].value
   )
-
-  # Parse JSON when username mode is active
-  credential = local.include_user ? jsondecode(local.raw_value) : null
 }
 
 output "password" {
   description = "The password value. Ephemeral: never persisted in state or plan."
-  value       = local.include_user ? local.credential["password"] : local.raw_value
-  ephemeral   = true
-  sensitive   = true
-}
-
-output "username" {
-  description = "The generated username. Ephemeral. Null when username is not configured."
-  value       = local.include_user ? local.credential["username"] : null
+  value       = local.include_user ? jsondecode(local.raw_value)["password"] : local.raw_value
   ephemeral   = true
   sensitive   = true
 }
 
 output "credential_json" {
   description = <<-EOT
-    The full stored value as a string. When username is configured this is
+    The full stored value as a string. When username is set this is
     JSON {"username":"...","password":"..."}. Ephemeral.
   EOT
   value       = local.raw_value

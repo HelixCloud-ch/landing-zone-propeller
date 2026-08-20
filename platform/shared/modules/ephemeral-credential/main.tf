@@ -11,11 +11,8 @@ locals {
   # Build the credential value to store
   secret_value = (
     local.include_user
-    ? jsonencode({
-      username = "${var.username.prefix}${ephemeral.aws_secretsmanager_random_password.username[0].random_password}"
-      password = ephemeral.aws_secretsmanager_random_password.password[0].random_password
-    })
-    : ephemeral.aws_secretsmanager_random_password.password[0].random_password
+    ? jsonencode({ username = var.username, password = ephemeral.aws_secretsmanager_random_password.this[0].random_password })
+    : ephemeral.aws_secretsmanager_random_password.this[0].random_password
   )
 }
 
@@ -23,7 +20,7 @@ locals {
 # Password generation (create modes)
 # ══════════════════════════════════════════════════════════════════════════════
 
-ephemeral "aws_secretsmanager_random_password" "password" {
+ephemeral "aws_secretsmanager_random_password" "this" {
   count = local.is_create ? 1 : 0
 
   password_length            = var.password.length
@@ -34,25 +31,6 @@ ephemeral "aws_secretsmanager_random_password" "password" {
   exclude_uppercase          = var.password.exclude_uppercase
   include_space              = var.password.include_space
   require_each_included_type = var.password.require_each_included_type
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Username generation (create modes, when username is configured)
-# ══════════════════════════════════════════════════════════════════════════════
-# Generates a random suffix. The full username is "{prefix}{suffix}" — the
-# caller controls the separator (or lack thereof) via the prefix value.
-
-ephemeral "aws_secretsmanager_random_password" "username" {
-  count = local.is_create && local.include_user ? 1 : 0
-
-  password_length            = var.username.length
-  exclude_characters         = var.username.exclude_characters
-  exclude_lowercase          = var.username.exclude_lowercase
-  exclude_numbers            = var.username.exclude_numbers
-  exclude_uppercase          = var.username.exclude_uppercase
-  exclude_punctuation        = var.username.exclude_punctuation
-  include_space              = var.username.include_space
-  require_each_included_type = false
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
