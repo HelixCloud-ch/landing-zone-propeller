@@ -116,4 +116,52 @@ module "db_credential" {
 - **Non-password secrets** — scoped to storage credentials.
 
 <!-- BEGIN_TF_DOCS -->
+## Requirements
+
+| Name | Version |
+| ---- | ------- |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.14 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.0 |
+
+## Providers
+
+| Name | Version |
+| ---- | ------- |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.0 |
+
+## Modules
+
+No modules.
+
+## Resources
+
+| Name | Type |
+| ---- | ---- |
+| [aws_secretsmanager_secret.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
+| [aws_secretsmanager_secret_version.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
+| [aws_ssm_parameter.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ssm_parameter) | resource |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+| ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_description"></a> [description](#input\_description) | Description for the created secret or parameter. | `string` | `null` | no |
+| <a name="input_kms_key_id"></a> [kms\_key\_id](#input\_kms\_key\_id) | KMS key ARN or alias for encryption. Uses the service default<br/>key (aws/secretsmanager or aws/ssm) if null. | `string` | `null` | no |
+| <a name="input_parameter_arn"></a> [parameter\_arn](#input\_parameter\_arn) | ARN of an EXISTING SSM parameter to read. | `string` | `null` | no |
+| <a name="input_parameter_name"></a> [parameter\_name](#input\_parameter\_name) | Full path (starting with /) for a NEW SSM SecureString parameter to create. | `string` | `null` | no |
+| <a name="input_password"></a> [password](#input\_password) | Password generation parameters (create modes only). | <pre>object({<br/>    length                     = optional(number, 28)<br/>    exclude_characters         = optional(string, "/@\"\\'\n")<br/>    exclude_lowercase          = optional(bool, false)<br/>    exclude_numbers            = optional(bool, false)<br/>    exclude_punctuation        = optional(bool, false)<br/>    exclude_uppercase          = optional(bool, false)<br/>    include_space              = optional(bool, false)<br/>    require_each_included_type = optional(bool, true)<br/>  })</pre> | `{}` | no |
+| <a name="input_password_version"></a> [password\_version](#input\_password\_version) | Rotation trigger. Bump to generate and store a new password. | `number` | `1` | no |
+| <a name="input_secret_arn"></a> [secret\_arn](#input\_secret\_arn) | ARN of an EXISTING Secrets Manager secret to read. | `string` | `null` | no |
+| <a name="input_secret_name"></a> [secret\_name](#input\_secret\_name) | Friendly name for a NEW Secrets Manager secret to create. | `string` | `null` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to the created resource (create modes only). | `map(string)` | `{}` | no |
+| <a name="input_username"></a> [username](#input\_username) | When set, the stored value becomes JSON {"username":"...","password":"..."}<br/>matching the RDS managed secret convention. The username is stored as-is.<br/>Set to null to store only the plain password string. | `string` | `null` | no |
+
+## Outputs
+
+| Name | Description |
+| ---- | ----------- |
+| <a name="output_credential_json"></a> [credential\_json](#output\_credential\_json) | The full stored value as a string. When username is set this is<br/>JSON {"username":"...","password":"..."}. Ephemeral. |
+| <a name="output_password"></a> [password](#output\_password) | The password value. Ephemeral: never persisted in state or plan. |
+| <a name="output_password_version"></a> [password\_version](#output\_password\_version) | Current password version. Pass to downstream password\_wo\_version arguments. |
+| <a name="output_secret_arn"></a> [secret\_arn](#output\_secret\_arn) | ARN of the Secrets Manager secret or SSM parameter. |
 <!-- END_TF_DOCS -->
