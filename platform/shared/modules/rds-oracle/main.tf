@@ -107,9 +107,11 @@ resource "aws_db_instance" "this" {
   character_set_name = var.snapshot_identifier != "" ? null : var.character_set_name
   username           = var.snapshot_identifier != "" ? null : var.username
 
-  # Credentials managed by Secrets Manager
-  manage_master_user_password   = true
+  # Credentials
+  manage_master_user_password   = local.use_managed_password ? true : null
   master_user_secret_kms_key_id = var.master_user_secret_kms_key_id
+  password_wo                   = local.use_managed_password || var.snapshot_identifier != "" ? null : var.password
+  password_wo_version           = local.use_managed_password || var.snapshot_identifier != "" ? null : var.password_wo_version
 
   # Maintenance & backups
   backup_retention_period = var.backup_retention_period
