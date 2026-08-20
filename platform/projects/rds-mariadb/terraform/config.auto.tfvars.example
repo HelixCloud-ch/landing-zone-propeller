@@ -1,0 +1,74 @@
+region         = "eu-central-2"
+identifier     = "my-mariadb"
+engine_version = "10.11"
+
+# ── Engine ────────────────────────────────────────────────────────────────────
+# instance_class = "db.t3.medium"
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+# allocated_storage     = 20    # Initial GiB
+# max_allocated_storage = 40    # Autoscale up to this (0 = disable)
+# storage_type          = "gp3"
+# storage_encrypted     = true
+# kms_key_id            = null  # Uses default aws/rds key
+
+# ── Database ──────────────────────────────────────────────────────────────────
+# db_name  = "appdb"
+# username = "dbadmin"
+
+# ── Credential strategy ───────────────────────────────────────────────────────
+# Option 1: RDS-managed password (default — leave credential empty or set kms_key_id)
+# credential = {}
+
+# Option 2: Generate and store password in Secrets Manager
+# credential = {
+#   secret_name      = "platform/myapp/rds-mariadb-master"
+#   password_version = 1
+#   kms_key_id       = "arn:aws:kms:eu-central-2:123456789012:key/abcd-1234"
+#   password = {
+#     length = 32
+#   }
+# }
+
+# Option 3: Read existing secret from Secrets Manager
+# credential = {
+#   secret_arn = "arn:aws:secretsmanager:eu-central-2:123456789012:secret:my-db-AbCdEf"
+# }
+
+# Option 4: Generate and store in SSM Parameter Store
+# credential = {
+#   parameter_name   = "/platform/myapp/rds-mariadb-master"
+#   password_version = 1
+# }
+
+# Option 5: Read existing SSM parameter
+# credential = {
+#   parameter_arn = "arn:aws:ssm:eu-central-2:123456789012:parameter/platform/myapp/rds-mariadb"
+# }
+
+# ── Network (from pipeline inputs) ───────────────────────────────────────────
+# vpc_id and subnet_ids_json come from the Landing Zone via pipeline wiring.
+# subnet_tier = "data"  # Which tier in the subnet map to use
+
+# ── Access control ────────────────────────────────────────────────────────────
+# allowed_cidrs              = [] # e.g. ["10.0.0.0/8"]
+# allowed_security_group_ids = [] # e.g. ["sg-0123456789abcdef0"]
+
+# ── Availability ──────────────────────────────────────────────────────────────
+# multi_az = false
+
+# ── Backups & Maintenance ─────────────────────────────────────────────────────
+# backup_retention_period = 7
+# backup_window           = "03:00-04:00"
+# maintenance_window      = "sun:05:00-sun:06:00"
+
+# ── Protection ────────────────────────────────────────────────────────────────
+# deletion_protection = true   # Prevent accidental deletion
+# skip_final_snapshot = false  # Take snapshot before deletion
+
+# ── Upgrades ──────────────────────────────────────────────────────────────────
+# auto_minor_version_upgrade = true
+# apply_immediately          = false  # Wait for maintenance window
+
+# ── Monitoring ────────────────────────────────────────────────────────────────
+# performance_insights_enabled = true
