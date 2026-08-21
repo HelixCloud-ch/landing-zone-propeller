@@ -55,28 +55,39 @@ resource "helm_release" "this" {
   namespace  = var.namespace
   replace    = true
 
-  set = [
-    {
-      name  = "clusterName"
-      value = var.cluster_name
-    },
-    {
-      name  = "region"
-      value = var.region
-    },
-    {
-      name  = "vpcId"
-      value = var.vpc_id
-    },
-    {
-      name  = "serviceAccount.create"
-      value = tostring(var.create_service_account)
-    },
-    {
-      name  = "serviceAccount.name"
-      value = var.service_account_name
-    },
-  ]
+  set = concat(
+    [
+      {
+        name  = "clusterName"
+        value = var.cluster_name
+      },
+      {
+        name  = "region"
+        value = var.region
+      },
+      {
+        name  = "vpcId"
+        value = var.vpc_id
+      },
+      {
+        name  = "serviceAccount.create"
+        value = tostring(var.create_service_account)
+      },
+      {
+        name  = "serviceAccount.name"
+        value = var.service_account_name
+      },
+    ],
+    var.image_repository != null ? [{
+      name  = "image.repository"
+      value = var.image_repository
+    }] : [],
+    var.image_tag != null ? [{
+      name  = "image.tag"
+      value = var.image_tag
+    }] : [],
+    var.extra_set,
+  )
 
   set_sensitive = (var.use_pod_identity || !var.create_service_account) ? [] : [
     {
