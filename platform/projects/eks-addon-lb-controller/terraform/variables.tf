@@ -52,6 +52,27 @@ variable "chart_repository" {
   default     = "https://aws.github.io/eks-charts"
 }
 
+variable "image_repository" {
+  type        = string
+  description = "Container image repository for the controller. Override to an ECR mirror in air-gapped environments. Null uses the chart default."
+  default     = null
+}
+
+variable "image_tag" {
+  type        = string
+  description = "Container image tag for the controller. Null uses the chart's appVersion."
+  default     = null
+}
+
+variable "extra_set" {
+  type = list(object({
+    name  = string
+    value = string
+  }))
+  description = "Additional Helm set values passed to the release."
+  default     = []
+}
+
 variable "role_name" {
   type        = string
   description = "Name of the IRSA role created for the LB Controller. Defaults to '<cluster_name>-aws-load-balancer-controller'. Override only when the naming convention conflicts with an existing role or IAM path constraint."

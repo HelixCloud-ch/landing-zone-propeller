@@ -30,6 +30,19 @@ https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v
 
 Current snapshot corresponds to controller **v2.14.1** (chart 3.2.2).
 
+## Mirrored charts and images (no-egress clusters)
+
+For clusters whose nodes/runner have no public egress, point both the chart and
+the image at in-VPC mirrors:
+
+- `chart_repository` — an OCI registry (`oci://<ecr>/...`) or S3/Helm-plugin URL
+  reachable via VPC endpoints, instead of the public eks-charts repo.
+- `image_repository` / `image_tag` — an ECR mirror of the controller image
+  (e.g. a shared third-party ECR repo). Same mechanism as `eks-addon-autoscaler`.
+- `extra_set` — any additional Helm values (e.g. `enableShield=false`).
+
+Leave all null to use the chart defaults (public sources).
+
 ## Pod Identity vs IRSA
 
 `use_pod_identity` defaults to `false` (IRSA/OIDC). Pod Identity is not
