@@ -42,7 +42,7 @@ variable "name_prefix" {
 
 variable "tiers" {
   type = map(object({
-    enabled                 = bool
+    enabled                 = optional(bool, true)
     cidrs                   = optional(list(string))
     newbits                 = optional(number)
     netnum_base             = optional(number)
