@@ -8,10 +8,11 @@ output "gateway_prefix_list_ids" {
   value       = module.vpc_endpoints.gateway_prefix_list_ids
 }
 
-output "interface_dns_entries" {
-  description = "Map of Interface endpoint key to its list of {dns_name, hosted_zone_id} objects. Useful when private_dns_enabled is false and a caller must wire its own Route 53 record."
-  value       = module.vpc_endpoints.interface_dns_entries
-}
+# todo: too big to fit into a propeller output, commented out for now
+# output "interface_dns_entries" {
+#   description = "Map of Interface endpoint key to its list of {dns_name, hosted_zone_id} objects. Useful when private_dns_enabled is false and a caller must wire its own Route 53 record."
+#   value       = module.vpc_endpoints.interface_dns_entries
+# }
 
 output "shared_security_group_id" {
   description = "ID of the shared fallback security group created for Interface endpoints that didn't bring their own security_group_ids, or null when every Interface entry supplied its own (or there are no Interface endpoints)."
