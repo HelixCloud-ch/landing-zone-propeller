@@ -1,0 +1,21 @@
+# ── Spoke with a public tier (ALB/NLB ingress) ───────────────────────────────
+#
+# Public subnets route internet traffic via the IGW for load balancers.
+# Private tiers route everything to the TGW (centralized egress/inspection).
+
+region      = "eu-central-2"
+name_prefix = "acme-web-vpc"
+
+# ── Routing policy (static, committed) ───────────────────────────────────────
+
+tier_routes = {
+  public = [{ destination = "0.0.0.0/0", igw = true }]
+  app    = [{ destination = "0.0.0.0/0", tgw_key = "main" }]
+  data   = [{ destination = "0.0.0.0/0", tgw_key = "main" }]
+}
+
+# ── Pipeline inputs (injected by propeller, do NOT set manually) ─────────────
+# vpc_id             — from vpc.vpc_id
+# subnet_ids_by_tier — from vpc.subnet_ids_by_tier
+# igw_id             — from vpc-igw.igw_id
+# tgw_ids            — wired as: { main = workload-parameters.tgw_id }

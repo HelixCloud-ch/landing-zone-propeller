@@ -1,0 +1,39 @@
+# ── Split egress: local NAT + multiple TGWs + peering ────────────────────────
+#
+# Complex workload with local NAT gateways for internet egress, multiple
+# Transit Gateways for network segmentation (corporate vs shared-services),
+# and a VPC peering for a time-boxed migration.
+#
+# Public tier: IGW for ALB/NLB ingress.
+# App tier:    local NAT for internet, corporate TGW for RFC1918, shared-svc
+#              TGW for platform services, peering for a legacy migration.
+# Data tier:   no internet, only private reachability via TGWs.
+
+region      = "eu-central-2"
+name_prefix = "acme-platform-vpc"
+
+# ── Routing policy (static, committed) ───────────────────────────────────────
+
+tier_routes = {
+  public = [{ destination = "0.0.0.0/0", igw = true }]
+  app = [
+    { destination = "0.0.0.0/0", natgw_key = "az1" },
+    { destination = "10.0.0.0/8", tgw_key = "corporate" },
+    { destination = "172.16.0.0/12", tgw_key = "shared-svc" },
+    { destination = "192.168.50.0/24", peering_key = "legacy-migration" },
+  ]
+  data = [
+    { destination = "10.0.0.0/8", tgw_key = "corporate" },
+    { destination = "172.16.0.0/12", tgw_key = "shared-svc" },
+  ]
+}
+
+# ── Pipeline inputs (injected by propeller, do NOT set manually) ─────────────
+# vpc_id             — from vpc.vpc_id
+# subnet_ids_by_tier — from vpc.subnet_ids_by_tier
+# igw_id             — from vpc-igw.igw_id
+# tgw_ids            — wired as:
+#                        corporate  = workload-parameters.tgw_id
+#                        shared-svc = workload-parameters.shared_svc_tgw_id
+# natgw_ids          — wired as: { az1 = vpc-nat.natgw_ids["az1"] }
+# peering_ids        — wired as: { legacy-migration = vpc-peering.peering_id }
