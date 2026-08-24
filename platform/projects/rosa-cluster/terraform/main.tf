@@ -1,9 +1,8 @@
 # ── Subnet decoding ───────────────────────────────────────────────────────────
 
 locals {
-  subnets_by_tier = jsondecode(var.subnet_ids_json)
-  all_private_ids = local.subnets_by_tier[var.private_subnet_tier]
-  all_public_ids  = try(local.subnets_by_tier[var.public_subnet_tier], [])
+  all_private_ids = var.subnet_ids_by_tier[var.private_subnet_tier]
+  all_public_ids  = try(var.subnet_ids_by_tier[var.public_subnet_tier], [])
 }
 
 # Look up AZ for each private subnet so we can filter by requested AZs

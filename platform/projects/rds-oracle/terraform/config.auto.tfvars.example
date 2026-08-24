@@ -50,8 +50,7 @@ engine_version = "19"  # Required. Use: aws rds describe-db-engine-versions --en
 # }
 
 # ── Network (from pipeline inputs) ───────────────────────────────────────────
-# vpc_id and subnet_ids_json come from the Landing Zone via pipeline wiring.
-# subnet_tier = "data"  # Which tier in the subnet map to use
+# vpc_id and subnet_ids come from the Landing Zone via pipeline wiring.
 
 # ── Access control ────────────────────────────────────────────────────────────
 # allowed_cidrs              = [] # e.g. ["10.0.0.0/8"]

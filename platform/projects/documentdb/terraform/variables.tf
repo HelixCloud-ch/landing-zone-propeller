@@ -10,16 +10,11 @@ variable "vpc_id" {
   description = "VPC ID (from VPC project output)."
 }
 
-variable "subnet_ids_json" {
-  type        = string
-  description = "JSON string of subnet tier map (from VPC project output). Decoded to extract the selected tier."
+variable "subnet_ids" {
+  type        = list(string)
+  description = "Subnet IDs for the DB subnet group (from VPC project output)."
 }
 
-variable "subnet_tier" {
-  type        = string
-  description = "Key in the subnet map to use for the DB subnet group."
-  default     = "data"
-}
 
 # ── Cluster identity ──────────────────────────────────────────────────────────
 

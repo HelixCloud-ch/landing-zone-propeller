@@ -1,6 +1,4 @@
 locals {
-  subnets_by_tier = jsondecode(var.subnet_ids_json)
-  data_subnet_ids = local.subnets_by_tier[var.subnet_tier]
 }
 
 module "redis" {
@@ -8,7 +6,7 @@ module "redis" {
 
   identifier = var.identifier
   vpc_id     = var.vpc_id
-  subnet_ids = local.data_subnet_ids
+  subnet_ids = var.subnet_ids
   port       = var.port
 
   # Access
