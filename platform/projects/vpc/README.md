@@ -2,8 +2,6 @@
 
 Runs in a **workload account** (e.g. `test-acc-1`) via a platform pipeline. Builds the workload VPC and attaches it to the landing-zone Transit Gateway. Reachability across the TGW is decided by `network-spokes` in the network account; this project only owns the VPC, its subnets, the intra-VPC route tables, and the TGW VPC attachment.
 
-See [ADR-009](../../../../../notes/wiki/decisions/ADR-009-vpc-platform.md) for the design rationale.
-
 ## VPC and hygiene
 
 The `vpc` module creates the VPC (DNS support and hostnames on), a DHCP options set pinned to AmazonProvidedDNS, and locks the default security group down to no rules. No internet gateway is attached: workload egress goes through the hub VPC's regional NAT via the TGW.
@@ -84,8 +82,6 @@ After this platform applies, the bring-up sequence continues in the landing-zone
 
 ## References
 
-- [ADR-007: Network Plane Design](../../../../../notes/wiki/decisions/ADR-007-network-plane-design.md)
-- [ADR-009: Workload VPC Platform Pipeline](../../../../../notes/wiki/decisions/ADR-009-vpc-platform.md)
 - [AWS — Transit Gateway design best practices](https://docs.aws.amazon.com/vpc/latest/tgw/tgw-best-design-practices.html)
 - [AWS — Amazon VPC attachments in AWS Transit Gateway](https://docs.aws.amazon.com/vpc/latest/tgw/tgw-vpc-attachments.html)
 - [Terraform — `aws_ec2_transit_gateway_vpc_attachment`](https://registry.terraform.io/providers/hashicorp/aws/6.41.0/docs/resources/ec2_transit_gateway_vpc_attachment)
