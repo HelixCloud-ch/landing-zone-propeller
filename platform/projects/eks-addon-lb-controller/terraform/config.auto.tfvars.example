@@ -11,4 +11,4 @@ chart_version = "3.2.2"
 
 # cluster_name, cluster_endpoint, cluster_certificate_authority_data,
 # oidc_provider_arn, oidc_provider_url, and vpc_id are injected by the pipeline
-# from the eks-cluster and workload-vpc project outputs — do NOT set them here.
+# from the eks-cluster and vpc project outputs — do NOT set them here.

@@ -5,7 +5,7 @@ variable "region" {
   description = "AWS region where the EKS cluster is deployed."
 }
 
-# ── Pipeline inputs (from eks-cluster and workload-vpc outputs) ───────────────
+# ── Pipeline inputs (from eks-cluster and vpc outputs) ───────────────
 
 variable "cluster_name" {
   type        = string
@@ -36,7 +36,7 @@ variable "oidc_provider_url" {
 
 variable "vpc_id" {
   type        = string
-  description = "ID of the workload VPC. Sourced from the workload-vpc project output. Passed to the LB Controller Helm release as vpcId."
+  description = "ID of the workload VPC. Sourced from the vpc project output. Passed to the LB Controller Helm release as vpcId."
 }
 
 # ── LB Controller configuration ───────────────────────────────────────────────

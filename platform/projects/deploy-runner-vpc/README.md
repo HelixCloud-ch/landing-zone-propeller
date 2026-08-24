@@ -26,16 +26,16 @@ and is used only by steps that need private network access.
 stages:
   - name: network
     steps:
-      - project: workload-vpc
+      - project: vpc
         # ...
       - project: deploy-runner-vpc
         source: deploy-runner-vpc
         target: my-account
-        depends_on: [workload-vpc]
+        depends_on: [vpc]
         inputs:
-          - name: workload-vpc.vpc_id
+          - name: vpc.vpc_id
             var: vpc_id
-          - name: workload-vpc.subnet_ids_by_tier
+          - name: vpc.subnet_ids_by_tier
             var: subnet_ids_json
           - name: "@landing-zone/workload-parameters.autopilot_role_arn"
             var: caller_arn

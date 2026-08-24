@@ -25,11 +25,11 @@ stages:
     steps:
       - project: redis
         target: workload-account
-        depends_on: [workload-vpc]
+        depends_on: [vpc]
         inputs:
-          - name: workload-vpc.vpc_id
+          - name: vpc.vpc_id
             var: vpc_id
-          - name: workload-vpc.subnet_ids_by_tier
+          - name: vpc.subnet_ids_by_tier
             var: subnet_ids_json
         outputs:
           - name: primary_endpoint
