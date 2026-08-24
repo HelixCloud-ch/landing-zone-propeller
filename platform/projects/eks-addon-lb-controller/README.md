@@ -160,7 +160,7 @@ No modules.
 
 | Name | Description |
 | ---- | ----------- |
-| <a name="output_role_arn"></a> [role\_arn](#output\_role\_arn) | ARN of the IRSA role assumed by the LB Controller service account. Null when use\_pod\_identity = true. |
-| <a name="output_role_name"></a> [role\_name](#output\_role\_name) | Name of the LB Controller IRSA role. Null when use\_pod\_identity = true. |
+| <a name="output_role_arn"></a> [role\_arn](#output\_role\_arn) | ARN of the IAM role for the LB Controller. Null when use\_pod\_identity = true and no existing\_role\_arn is provided. |
+| <a name="output_role_name"></a> [role\_name](#output\_role\_name) | Name of the IAM role for the LB Controller. Null when the role is not managed by this project. |
 | <a name="output_service_account_name"></a> [service\_account\_name](#output\_service\_account\_name) | Name of the Kubernetes service account the LB Controller uses. |
 <!-- END_TF_DOCS -->
