@@ -1,9 +1,15 @@
 locals {
-  role_name = coalesce(var.role_name, "${var.cluster_name}-aws-load-balancer-controller")
+  role_name  = coalesce(var.role_name, "${var.cluster_name}-aws-load-balancer-controller")
+  create_iam = !var.use_pod_identity && var.existing_role_arn == null
+  effective_role_arn = (
+    var.existing_role_arn != null
+    ? var.existing_role_arn
+    : local.create_iam ? aws_iam_role.this[0].arn : null
+  )
 }
 
 data "aws_iam_policy_document" "assume" {
-  count = var.use_pod_identity ? 0 : 1
+  count = local.create_iam ? 1 : 0
 
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -29,22 +35,24 @@ data "aws_iam_policy_document" "assume" {
 }
 
 resource "aws_iam_role" "this" {
-  count = var.use_pod_identity ? 0 : 1
+  count = local.create_iam ? 1 : 0
 
   name               = local.role_name
   assume_role_policy = data.aws_iam_policy_document.assume[0].json
 }
 
 resource "aws_iam_policy" "this" {
+  count = local.create_iam ? 1 : 0
+
   name   = "${local.role_name}-policy"
   policy = coalesce(var.iam_policy_json, file("${path.module}/iam_policy.json"))
 }
 
 resource "aws_iam_role_policy_attachment" "this" {
-  count = var.use_pod_identity ? 0 : 1
+  count = local.create_iam ? 1 : 0
 
   role       = aws_iam_role.this[0].name
-  policy_arn = aws_iam_policy.this.arn
+  policy_arn = aws_iam_policy.this[0].arn
 }
 
 resource "helm_release" "this" {
@@ -89,10 +97,12 @@ resource "helm_release" "this" {
     var.extra_set,
   )
 
-  set_sensitive = (var.use_pod_identity || !var.create_service_account) ? [] : [
+  set_sensitive = (!var.use_pod_identity && var.create_service_account && local.effective_role_arn != null) ? [
     {
       name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-      value = aws_iam_role.this[0].arn
-    }
-  ]
+      value = local.effective_role_arn
+    },
+  ] : []
+
+  depends_on = [aws_iam_role_policy_attachment.this]
 }

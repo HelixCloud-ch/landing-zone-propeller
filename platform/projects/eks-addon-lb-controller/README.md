@@ -126,6 +126,7 @@ No modules.
 | [aws_iam_role.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role_policy_attachment.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
 | [helm_release.this](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
+| [aws_ecr_authorization_token.chart](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ecr_authorization_token) | data source |
 | [aws_iam_policy_document.assume](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 
 ## Inputs
@@ -139,7 +140,11 @@ No modules.
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster. Sourced from the eks-cluster project output. | `string` | n/a | yes |
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | Consumer-specific tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 | <a name="input_create_service_account"></a> [create\_service\_account](#input\_create\_service\_account) | Whether Helm creates the LB Controller's Kubernetes ServiceAccount. Set to false when the ServiceAccount is managed externally (pre-created, GitOps, or a Pod Identity association). When false under IRSA, the external ServiceAccount must already carry the eks.amazonaws.com/role-arn annotation. | `bool` | `true` | no |
+| <a name="input_existing_role_arn"></a> [existing\_role\_arn](#input\_existing\_role\_arn) | ARN of a pre-existing IAM role to use instead of creating one. When set, no role or policy resources are created — the provided role is annotated on the ServiceAccount directly. Useful when the role is managed outside this project or shared across clusters. | `string` | `null` | no |
+| <a name="input_extra_set"></a> [extra\_set](#input\_extra\_set) | Additional Helm set values passed to the release. | <pre>list(object({<br/>    name  = string<br/>    value = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_iam_policy_json"></a> [iam\_policy\_json](#input\_iam\_policy\_json) | JSON string of the IAM policy to attach to the controller role. When null (the default), the bundled iam\_policy.json matching the default chart\_version is used. Override to supply a policy matching a different controller version or to restrict permissions further. | `string` | `null` | no |
+| <a name="input_image_repository"></a> [image\_repository](#input\_image\_repository) | Container image repository for the controller. Override to an ECR mirror in air-gapped environments. Null uses the chart default. | `string` | `null` | no |
+| <a name="input_image_tag"></a> [image\_tag](#input\_image\_tag) | Container image tag for the controller. Null uses the chart's appVersion. | `string` | `null` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Namespace to install the controller into. | `string` | `"kube-system"` | no |
 | <a name="input_oidc_provider_arn"></a> [oidc\_provider\_arn](#input\_oidc\_provider\_arn) | ARN of the IAM OIDC identity provider associated with the EKS cluster. Sourced from the eks-cluster project output. Used as the IRSA trust principal. Required when use\_pod\_identity = false. | `string` | `null` | no |
 | <a name="input_oidc_provider_url"></a> [oidc\_provider\_url](#input\_oidc\_provider\_url) | Issuer URL of the OIDC provider (without the https:// prefix). Sourced from the eks-cluster project output. Used in the IRSA sub condition. Required when use\_pod\_identity = false. | `string` | `null` | no |
@@ -155,7 +160,7 @@ No modules.
 
 | Name | Description |
 | ---- | ----------- |
-| <a name="output_role_arn"></a> [role\_arn](#output\_role\_arn) | ARN of the IRSA role assumed by the LB Controller service account. Null when use\_pod\_identity = true. |
-| <a name="output_role_name"></a> [role\_name](#output\_role\_name) | Name of the LB Controller IRSA role. Null when use\_pod\_identity = true. |
+| <a name="output_role_arn"></a> [role\_arn](#output\_role\_arn) | ARN of the IAM role for the LB Controller. Null when use\_pod\_identity = true and no existing\_role\_arn is provided. |
+| <a name="output_role_name"></a> [role\_name](#output\_role\_name) | Name of the IAM role for the LB Controller. Null when the role is not managed by this project. |
 | <a name="output_service_account_name"></a> [service\_account\_name](#output\_service\_account\_name) | Name of the Kubernetes service account the LB Controller uses. |
 <!-- END_TF_DOCS -->
