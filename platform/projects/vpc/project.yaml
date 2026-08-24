@@ -1,0 +1,13 @@
+name: vpc
+description: >-
+  Builds a multi-AZ VPC with configurable subnet tiers and a Transit Gateway
+  VPC attachment against the RAM-shared landing-zone TGW. The TGW route table
+  association/propagation and the spoke reachability routes are out of scope;
+  they are owned by network-spokes in the network account. SRA-aligned: no
+  IGW, no NAT — egress is via TGW only.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just
