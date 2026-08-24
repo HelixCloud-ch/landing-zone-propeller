@@ -1,5 +1,5 @@
 module "vpc" {
-  source = "./modules/vpc"
+  source = "../../../shared/modules/vpc"
 
   vpc_cidr    = var.vpc_cidr
   name_prefix = var.name_prefix
@@ -7,7 +7,7 @@ module "vpc" {
 }
 
 module "subnets" {
-  source = "./modules/subnets"
+  source = "../../../shared/modules/vpc-subnets"
 
   vpc_id             = module.vpc.vpc_id
   vpc_cidr           = module.vpc.vpc_cidr
@@ -17,7 +17,7 @@ module "subnets" {
 }
 
 module "tgw_attach" {
-  source = "./modules/tgw-attach"
+  source = "../../../shared/modules/vpc-tgw-attach"
 
   vpc_id      = module.vpc.vpc_id
   tgw_id      = var.tgw_id
