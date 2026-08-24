@@ -91,6 +91,12 @@ variable "use_pod_identity" {
   default     = false
 }
 
+variable "existing_role_arn" {
+  type        = string
+  description = "ARN of a pre-existing IAM role to use instead of creating one. When set, no role or policy resources are created — the provided role is annotated on the ServiceAccount directly. Useful when the role is managed outside this project or shared across clusters."
+  default     = null
+}
+
 variable "service_account_name" {
   type        = string
   description = "Name of the Kubernetes service account the controller uses. Must match the IRSA trust policy subject or the Pod Identity association."
