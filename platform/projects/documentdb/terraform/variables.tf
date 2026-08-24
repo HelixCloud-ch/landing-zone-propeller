@@ -12,7 +12,7 @@ variable "vpc_id" {
 
 variable "subnet_ids_json" {
   type        = string
-  description = "JSON string of subnet tier map (from VPC project output). Decoded to extract the data tier."
+  description = "JSON string of subnet tier map (from VPC project output). Decoded to extract the selected tier."
 }
 
 variable "subnet_tier" {
@@ -21,56 +21,41 @@ variable "subnet_tier" {
   default     = "data"
 }
 
-# ── Instance identity ─────────────────────────────────────────────────────────
+# ── Cluster identity ──────────────────────────────────────────────────────────
 
-variable "identifier" {
+variable "cluster_identifier" {
   type        = string
-  description = "Unique identifier for the RDS instance."
+  description = "Unique identifier for the DocumentDB cluster."
 
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{0,62}$", var.identifier))
-    error_message = "Identifier must be lowercase, start with a letter, contain only alphanumerics and hyphens, max 63 chars."
+    condition     = can(regex("^[a-z][a-z0-9-]{0,62}$", var.cluster_identifier)) && !can(regex("--", var.cluster_identifier)) && !can(regex("-$", var.cluster_identifier))
+    error_message = "Cluster identifier must be 1-63 chars, lowercase, start with a letter, alphanumerics and hyphens only, no consecutive/trailing hyphens."
   }
 }
 
 # ── Engine ────────────────────────────────────────────────────────────────────
 
-variable "engine" {
-  type    = string
-  default = "oracle-se2"
-}
-
 variable "engine_version" {
   type        = string
-  description = "Oracle engine version (e.g. '19'). Use `aws rds describe-db-engine-versions --engine oracle-se2` to list available versions."
+  description = "DocumentDB engine version (e.g. '8.0.0')."
+  default     = "8.0.0"
 }
 
-variable "license_model" {
-  type    = string
-  default = "license-included"
+# ── Instances ─────────────────────────────────────────────────────────────────
+
+variable "instance_count" {
+  type        = number
+  description = "Number of cluster instances (1 writer + N-1 readers)."
+  default     = 1
 }
 
 variable "instance_class" {
-  type    = string
-  default = "db.t3.medium"
+  type        = string
+  description = "Instance class for cluster instances."
+  default     = "db.t3.medium"
 }
 
 # ── Storage ───────────────────────────────────────────────────────────────────
-
-variable "allocated_storage" {
-  type    = number
-  default = 20
-}
-
-variable "max_allocated_storage" {
-  type    = number
-  default = 40
-}
-
-variable "storage_type" {
-  type    = string
-  default = "gp3"
-}
 
 variable "storage_encrypted" {
   type    = bool
@@ -82,33 +67,23 @@ variable "kms_key_id" {
   default = null
 }
 
-# ── Database ──────────────────────────────────────────────────────────────────
-
-variable "db_name" {
+variable "storage_type" {
   type    = string
-  default = "ORCL"
-
-  validation {
-    condition     = can(regex("^[A-Z][A-Z0-9]{0,7}$", var.db_name))
-    error_message = "db_name (Oracle SID) must be uppercase, alphanumeric, start with a letter, max 8 characters."
-  }
+  default = "standard"
 }
 
-variable "character_set_name" {
-  type    = string
-  default = "AL32UTF8"
-}
+# ── Authentication ────────────────────────────────────────────────────────────
 
-variable "username" {
+variable "master_username" {
   type    = string
-  default = "admin"
+  default = "docdbadmin"
 }
 
 # ── Credential ────────────────────────────────────────────────────────────────
 
 variable "credential" {
   type = object({
-    # Identity — set exactly one, or leave all null for RDS-managed mode
+    # Identity — set exactly one, or leave all null for DocDB-managed mode
     secret_name    = optional(string)
     secret_arn     = optional(string)
     parameter_name = optional(string)
@@ -117,7 +92,7 @@ variable "credential" {
     # Password generation
     password = optional(object({
       length                     = optional(number, 28)
-      exclude_characters         = optional(string, "/@\"\\'\n")
+      exclude_characters         = optional(string, "/@\"\\\n")
       exclude_lowercase          = optional(bool, false)
       exclude_numbers            = optional(bool, false)
       exclude_punctuation        = optional(bool, false)
@@ -134,7 +109,7 @@ variable "credential" {
   description = <<-EOT
     Credential strategy. Set one of secret_name/secret_arn/parameter_name/
     parameter_arn to use the ephemeral-credential module. Leave all null to
-    use RDS-managed master password (manage_master_user_password=true with
+    use DocDB-managed master password (manage_master_user_password=true with
     kms_key_id for encryption).
   EOT
   default     = {}
@@ -144,7 +119,7 @@ variable "credential" {
 
 variable "port" {
   type    = number
-  default = 1521
+  default = 27017
 }
 
 variable "allowed_cidrs" {
@@ -157,13 +132,6 @@ variable "allowed_security_group_ids" {
   default = []
 }
 
-# ── Availability ──────────────────────────────────────────────────────────────
-
-variable "multi_az" {
-  type    = bool
-  default = false
-}
-
 # ── Backups & Maintenance ─────────────────────────────────────────────────────
 
 variable "backup_retention_period" {
@@ -171,12 +139,12 @@ variable "backup_retention_period" {
   default = 7
 }
 
-variable "backup_window" {
+variable "preferred_backup_window" {
   type    = string
   default = "03:00-04:00"
 }
 
-variable "maintenance_window" {
+variable "preferred_maintenance_window" {
   type    = string
   default = "sun:05:00-sun:06:00"
 }
@@ -194,51 +162,50 @@ variable "skip_final_snapshot" {
 }
 
 variable "final_snapshot_identifier" {
-  type        = string
-  description = "Override for final snapshot name on deletion (used by sleep-snapshot mode)."
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "snapshot_identifier" {
-  type        = string
-  description = "DB snapshot to restore from on create (used by wake-snapshot mode). Empty = create fresh."
-  default     = ""
+  type    = string
+  default = ""
 }
 
 # ── Upgrades ──────────────────────────────────────────────────────────────────
-
-variable "auto_minor_version_upgrade" {
-  type    = bool
-  default = true
-}
 
 variable "apply_immediately" {
   type    = bool
   default = false
 }
 
-# ── Monitoring ────────────────────────────────────────────────────────────────
-
-variable "performance_insights_enabled" {
+variable "allow_major_version_upgrade" {
   type    = bool
   default = true
 }
 
-# ── S3 Integration ────────────────────────────────────────────────────────────
+# ── Parameters ────────────────────────────────────────────────────────────────
 
-variable "enable_s3_integration" {
-  type        = bool
-  description = "Enable S3 integration for Oracle Data Pump import/export."
-  default     = false
+variable "cluster_parameters" {
+  type        = map(string)
+  description = "DocumentDB cluster parameter group parameters (e.g. {tls = \"enabled\"})."
+  default     = {}
 }
 
-variable "enable_jvm" {
-  type        = bool
-  description = "Enable Oracle JVM (required for Spatial, Java stored procedures, and other features that depend on the JVM)."
-  default     = false
+# ── Monitoring ────────────────────────────────────────────────────────────────
+
+variable "enable_performance_insights" {
+  type    = bool
+  default = true
 }
 
-# ── Tags ─────────────────────────────────────────────────────────────────────
+# ── Logging ───────────────────────────────────────────────────────────────────
+
+variable "enabled_cloudwatch_logs_exports" {
+  type    = list(string)
+  default = ["audit"]
+}
+
+# ── Tags ──────────────────────────────────────────────────────────────────────
 
 variable "tags" {
   type    = map(string)

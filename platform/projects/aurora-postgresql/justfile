@@ -1,0 +1,75 @@
+import "../../../shared/recipes/terraform.just"
+
+plan: tf-plan
+apply: tf-apply
+destroy: tf-destroy
+
+# ── Sleep/Wake modes ──────────────────────────────────────────────────────────
+# Supported modes:
+#   pause     - Scale to min_capacity=0 (auto-pause on idle). Fastest, zero-cost
+#               at idle. Resumes automatically on next connection.
+#   snapshot  - Destroy cluster with final snapshot, recreate on wake.
+#   destroy   - Full terraform destroy/apply (inherited from shared recipe).
+#
+# Aurora Serverless v2 with min_capacity=0 auto-pauses after
+# seconds_until_auto_pause of inactivity — the "pause" sleep mode just ensures
+# the scaling config allows it (idempotent if already configured).
+
+sleep-default: sleep-pause
+wake-default: wake-pause
+
+sleep-pause: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    echo "Aurora auto-pause is configured at the infrastructure level (min_capacity=0)."
+    echo "The cluster will pause automatically after the configured idle timeout."
+    echo "No action needed — sleep-pause is a no-op when min_capacity is already 0."
+
+wake-pause: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    echo "Aurora resumes automatically on the next connection. No action needed."
+    echo "If the cluster is paused, the first query will take ~25s to resume."
+
+sleep-snapshot: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    CLUSTER_ID=$(terraform output -raw cluster_identifier 2>/dev/null || true)
+    [[ -z "$CLUSTER_ID" ]] && echo "ERROR: no cluster_identifier in state." && exit 1
+    if ! aws rds describe-db-clusters --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION" &>/dev/null; then
+      echo "Cluster '$CLUSTER_ID' not found. Already sleeping." && exit 0
+    fi
+    DEL_PROT=$(aws rds describe-db-clusters --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION" --query 'DBClusters[0].DeletionProtection' --output text)
+    [[ "$DEL_PROT" == "True" ]] && echo "ERROR: deletion_protection is enabled. Disable in project config." && exit 1
+    # Targeted apply: set final_snapshot_identifier in state
+    terraform apply -auto-approve \
+      -target='module.aurora_postgresql.aws_rds_cluster.this' \
+      $(just _propeller-vars) \
+      -var "skip_final_snapshot=false" \
+      -var "final_snapshot_identifier={{ _sleep_snapshot_id }}" \
+      -var "apply_immediately=true"
+    # Targeted destroy: instances + cluster in one run (Terraform reverses
+    # the dependency graph, so instances are deleted before the cluster).
+    terraform apply -destroy \
+      -target='module.aurora_postgresql.aws_rds_cluster_instance.this' \
+      -target='module.aurora_postgresql.aws_rds_cluster.this' \
+      -auto-approve $(just _propeller-vars) \
+      -var "skip_final_snapshot=false" \
+      -var "final_snapshot_identifier={{ _sleep_snapshot_id }}" \
+      -var "apply_immediately=true"
+
+wake-snapshot: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    terraform apply -auto-approve $(just _propeller-vars) \
+      -var "snapshot_identifier={{ _sleep_snapshot_id }}"
+    CLUSTER_ID=$(terraform output -raw cluster_identifier)
+    echo "Waiting for cluster instances to become available..."
+    for i in $(aws rds describe-db-clusters --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION" --query 'DBClusters[0].DBClusterMembers[*].DBInstanceIdentifier' --output text); do
+      aws rds wait db-instance-available --db-instance-identifier "$i" --region "$AWS_REGION"
+    done
+    aws rds delete-db-cluster-snapshot --db-cluster-snapshot-identifier "{{ _sleep_snapshot_id }}" --region "$AWS_REGION" 2>/dev/null || true

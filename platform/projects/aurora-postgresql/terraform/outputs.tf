@@ -1,30 +1,25 @@
 output "endpoint" {
-  description = "Connection endpoint (address:port)."
-  value       = module.rds_oracle.endpoint
+  description = "Writer endpoint (hostname) of the Aurora cluster."
+  value       = module.aurora_postgresql.endpoint
 }
 
-output "address" {
-  description = "Hostname of the RDS instance."
-  value       = module.rds_oracle.address
+output "reader_endpoint" {
+  description = "Reader endpoint (hostname) of the Aurora cluster."
+  value       = module.aurora_postgresql.reader_endpoint
 }
 
 output "port" {
   description = "Database port."
-  value       = module.rds_oracle.port
+  value       = module.aurora_postgresql.port
 }
 
 output "security_group_id" {
-  description = "Security group ID for the RDS instance."
-  value       = module.rds_oracle.security_group_id
+  description = "Security group ID for the Aurora cluster."
+  value       = module.aurora_postgresql.security_group_id
 }
 
-output "s3_bucket_name" {
-  description = "S3 bucket for Oracle Data Pump import/export (null if S3 integration disabled)."
-  value       = module.rds_oracle.s3_bucket_name
-}
-
-output "db_instance_identifier" {
-  description = "RDS instance identifier."
+output "cluster_identifier" {
+  description = "Aurora cluster identifier (used by sleep/wake justfile recipes)."
   value       = var.identifier
 }
 
@@ -32,7 +27,7 @@ output "db_instance_identifier" {
 
 output "master_user_secret_arn" {
   description = "ARN of the RDS-managed Secrets Manager secret (manage_master_user_password mode only)."
-  value       = try(module.rds_oracle.master_user_secret_arn, null)
+  value       = try(module.aurora_postgresql.master_user_secret_arn, null)
 }
 
 output "credential_secret_arn" {

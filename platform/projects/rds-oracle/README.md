@@ -6,7 +6,8 @@ Secrets Manager, encrypted storage, and configurable networking.
 ## What it deploys
 
 - **DB subnet group** from the data tier subnets
-- **Security group** with configurable ingress (CIDRs or SG references)
+- **Security group** with configurable ingress (CIDRs or SG references), or
+  accepts a BYO security group
 - **RDS Oracle instance** with storage autoscaling
 - **Master credentials** auto-managed in Secrets Manager (no plaintext password)
 
@@ -47,6 +48,22 @@ allowed_cidrs = ["10.0.0.0/8"]
 # deletion_protection = false
 # skip_final_snapshot = true
 ```
+
+## Security group
+
+By default the module creates a dedicated security group with ingress-only rules
+(no egress — per AWS prescriptive guidance, outbound rules don't apply to RDS
+instances unless the database acts as a client).
+
+To bring your own security group instead:
+
+```hcl
+security_group_id = "sg-0123456789abcdef0"
+```
+
+When `security_group_id` is set, the module skips all SG and rule creation. You
+manage rules on the external group. This is mutually exclusive with
+`allowed_cidrs` and `allowed_security_group_ids`.
 
 ## Retrieving credentials
 

@@ -15,29 +15,59 @@ variable "identifier" {
 variable "vpc_id" {
   type        = string
   description = "VPC ID where the security group will be created."
+
+  validation {
+    condition     = can(regex("^vpc-[0-9a-f]{8,17}$", var.vpc_id))
+    error_message = "vpc_id must be a valid VPC ID (e.g. vpc-0123456789abcdef0)."
+  }
 }
 
 variable "subnet_ids" {
   type        = list(string)
-  description = "List of subnet IDs for the DB subnet group (data tier)."
+  description = "List of subnet IDs for the DB subnet group (data tier). At least 2 subnets in different AZs are required by RDS."
+
+  validation {
+    condition     = length(var.subnet_ids) >= 2
+    error_message = "At least 2 subnet IDs are required (RDS requires subnets in at least 2 AZs)."
+  }
+
+  validation {
+    condition     = alltrue([for s in var.subnet_ids : can(regex("^subnet-[0-9a-f]{8,17}$", s))])
+    error_message = "All subnet_ids must be valid subnet IDs (e.g. subnet-0123456789abcdef0)."
+  }
 }
 
 variable "port" {
   type        = number
-  description = "Port the Oracle listener runs on."
-  default     = 1521
+  description = "Port the MariaDB server listens on."
+  default     = 3306
+
+  validation {
+    condition     = var.port >= 1150 && var.port <= 65535
+    error_message = "Port must be between 1150 and 65535 (RDS restriction)."
+  }
 }
 
 variable "allowed_cidrs" {
   type        = list(string)
   description = "CIDR blocks allowed to connect to the database."
   default     = []
+
+  validation {
+    condition     = alltrue([for c in var.allowed_cidrs : can(cidrhost(c, 0))])
+    error_message = "All entries in allowed_cidrs must be valid CIDR blocks (e.g. 10.0.0.0/8)."
+  }
 }
 
 variable "allowed_security_group_ids" {
   type        = list(string)
   description = "Security group IDs allowed to connect to the database."
   default     = []
+
+  validation {
+    condition     = alltrue([for sg in var.allowed_security_group_ids : can(regex("^sg-[0-9a-f]{8,17}$", sg))])
+    error_message = "All entries in allowed_security_group_ids must be valid security group IDs (e.g. sg-0123456789abcdef0)."
+  }
 }
 
 variable "security_group_id" {
@@ -60,25 +90,35 @@ variable "security_group_id" {
 
 variable "engine" {
   type        = string
-  description = "RDS engine name. Use 'oracle-se2' for Standard Edition Two, 'oracle-ee' for Enterprise."
-  default     = "oracle-se2"
+  description = "RDS engine name."
+  default     = "mariadb"
+
+  validation {
+    condition     = contains(["mariadb"], var.engine)
+    error_message = "Engine must be 'mariadb'."
+  }
 }
 
 variable "engine_version" {
   type        = string
-  description = "Oracle engine version (e.g. '19'). Minor version auto-selected if auto_minor_version_upgrade is true."
-}
+  description = "MariaDB major version (e.g. '10.11'). Minor version is auto-selected when auto_minor_version_upgrade is true."
+  default     = "10.11"
 
-variable "license_model" {
-  type        = string
-  description = "License model: 'license-included' (AWS provides license) or 'bring-your-own-license'."
-  default     = "license-included"
+  validation {
+    condition     = can(regex("^[0-9]+(\\.[0-9]+)*$", var.engine_version))
+    error_message = "engine_version must be a numeric version string (e.g. '10.11' or '10.11.6')."
+  }
 }
 
 variable "instance_class" {
   type        = string
-  description = "RDS instance class (e.g. 'db.m5.large', 'db.t3.medium')."
+  description = "RDS instance class (e.g. 'db.m5.large', 'db.t3.medium'). Validated against orderable combinations at plan time."
   default     = "db.t3.medium"
+
+  validation {
+    condition     = can(regex("^db\\.[a-z0-9]+\\.[a-z0-9]+$", var.instance_class))
+    error_message = "instance_class must follow the pattern db.<family>.<size> (e.g. db.t3.medium, db.m5.large)."
+  }
 }
 
 # ── Storage ───────────────────────────────────────────────────────────────────
@@ -87,18 +127,33 @@ variable "allocated_storage" {
   type        = number
   description = "Initial allocated storage in GiB."
   default     = 20
+
+  validation {
+    condition     = var.allocated_storage >= 20 && var.allocated_storage <= 65536
+    error_message = "allocated_storage must be between 20 and 65536 GiB."
+  }
 }
 
 variable "max_allocated_storage" {
   type        = number
   description = "Maximum storage in GiB for autoscaling. Set to 0 to disable."
   default     = 40
+
+  validation {
+    condition     = var.max_allocated_storage == 0 || var.max_allocated_storage >= var.allocated_storage
+    error_message = "max_allocated_storage must be 0 (disabled) or >= allocated_storage."
+  }
 }
 
 variable "storage_type" {
   type        = string
   description = "Storage type: 'gp3', 'io1', 'io2'."
   default     = "gp3"
+
+  validation {
+    condition     = contains(["gp2", "gp3", "io1", "io2"], var.storage_type)
+    error_message = "storage_type must be one of: gp2, gp3, io1, io2."
+  }
 }
 
 variable "storage_encrypted" {
@@ -111,46 +166,47 @@ variable "kms_key_id" {
   type        = string
   description = "KMS key ARN for storage encryption. Uses default aws/rds key if not specified."
   default     = null
+
+  validation {
+    condition     = var.kms_key_id == null || can(regex("^arn:aws:kms:", var.kms_key_id))
+    error_message = "kms_key_id must be a valid KMS key ARN (arn:aws:kms:...) or null."
+  }
 }
 
 # ── Database ──────────────────────────────────────────────────────────────────
 
 variable "db_name" {
   type        = string
-  description = "Oracle SID (database name). Must be uppercase, max 8 chars for Oracle."
-  default     = "ORCL"
+  description = "Name of the initial database to create. Must begin with a letter; subsequent characters can be letters, underscores, or digits (1-64 chars)."
+  default     = "appdb"
 
   validation {
-    condition     = can(regex("^[A-Z][A-Z0-9]{0,7}$", var.db_name))
-    error_message = "db_name (Oracle SID) must be uppercase, alphanumeric, start with a letter, max 8 characters."
+    condition     = can(regex("^[a-zA-Z][a-zA-Z0-9_]{0,63}$", var.db_name))
+    error_message = "db_name must start with a letter, contain only letters, digits, and underscores, max 64 chars (MariaDB constraint)."
   }
-}
-
-variable "character_set_name" {
-  type        = string
-  description = "Database character set. Cannot be changed after creation."
-  default     = "AL32UTF8"
 }
 
 variable "username" {
   type        = string
-  description = "Master username for the database."
-  default     = "admin"
+  description = "Master username for the database. MariaDB allows 1-16 letters or numbers, must start with a letter."
+  default     = "dbadmin"
+
+  validation {
+    condition     = can(regex("^[a-zA-Z][a-zA-Z0-9]{0,15}$", var.username))
+    error_message = "username must start with a letter, contain only letters and digits, max 16 chars (MariaDB constraint)."
+  }
 }
 
 variable "password" {
   type        = string
-  description = <<-EOT
-    Master password. Used only when master_user_secret_kms_key_id is not set.
-    Ephemeral: never written to state (delivered via password_wo).
-  EOT
+  description = "Master password. Used only when master_user_secret_kms_key_id is not set. Mutually exclusive with it. Ephemeral: never written to state or plan (delivered via the write-only password_wo argument). MariaDB allows 8-41 printable ASCII characters excluding '/', single-quote, '\"', '@', and spaces."
   sensitive   = true
   ephemeral   = true
   default     = null
 
   validation {
-    condition     = var.password == null || (length(var.password) >= 8 && length(var.password) <= 30)
-    error_message = "Password must be between 8 and 30 characters for Oracle."
+    condition     = var.password == null || (length(var.password) >= 8 && length(var.password) <= 41)
+    error_message = "Password must be between 8 and 41 characters for MariaDB."
   }
 
   validation {
@@ -160,7 +216,7 @@ variable "password" {
 
   validation {
     condition     = var.password == null || !can(regex("[/@\"']", var.password))
-    error_message = "Password must not contain '/', '@', '\"', or single quote (RDS Oracle restriction)."
+    error_message = "Password must not contain '/', '@', '\"', or single-quote (RDS MariaDB restriction)."
   }
 
   validation {
@@ -182,7 +238,7 @@ variable "password_wo_version" {
 
 variable "master_user_secret_kms_key_id" {
   type        = string
-  description = "KMS key for a Secrets Manager-managed master password. When set, RDS manages rotation and 'password' must not be provided."
+  description = "KMS key for a Secrets Manager-managed master password. When set, credentials are managed by Secrets Manager and 'password' must not be provided."
   default     = null
 
   validation {
@@ -203,20 +259,41 @@ variable "multi_az" {
 
 variable "backup_retention_period" {
   type        = number
-  description = "Days to retain automated backups (0 to disable)."
+  description = "Days to retain automated backups (0 to disable, max 35)."
   default     = 7
+
+  validation {
+    condition     = var.backup_retention_period >= 0 && var.backup_retention_period <= 35
+    error_message = "backup_retention_period must be between 0 and 35."
+  }
 }
 
 variable "backup_window" {
   type        = string
-  description = "Daily time range for automated backups (UTC). Must not overlap maintenance_window."
+  description = "Daily time range for automated backups (UTC). Format: hh:mm-hh:mm."
   default     = "03:00-04:00"
+
+  validation {
+    condition     = can(regex("^[0-2][0-9]:[0-5][0-9]-[0-2][0-9]:[0-5][0-9]$", var.backup_window))
+    error_message = "backup_window must be in the format hh:mm-hh:mm (e.g. 03:00-04:00)."
+  }
 }
 
 variable "maintenance_window" {
   type        = string
-  description = "Weekly maintenance window (UTC)."
+  description = "Weekly maintenance window (UTC). Format: ddd:hh:mm-ddd:hh:mm."
   default     = "sun:05:00-sun:06:00"
+
+  validation {
+    condition     = can(regex("^(mon|tue|wed|thu|fri|sat|sun):[0-2][0-9]:[0-5][0-9]-(mon|tue|wed|thu|fri|sat|sun):[0-2][0-9]:[0-5][0-9]$", var.maintenance_window))
+    error_message = "maintenance_window must be in the format ddd:hh:mm-ddd:hh:mm (e.g. sun:05:00-sun:06:00)."
+  }
+}
+
+variable "snapshot_identifier" {
+  type        = string
+  description = "DB snapshot to restore from on create (e.g. for wake-from-sleep). Empty string means create fresh."
+  default     = ""
 }
 
 # ── Protection ────────────────────────────────────────────────────────────────
@@ -229,19 +306,13 @@ variable "deletion_protection" {
 
 variable "skip_final_snapshot" {
   type        = bool
-  description = "Skip final snapshot on deletion. Set to false for production."
+  description = "Skip final snapshot on deletion. Keep false so a snapshot is taken before destroy."
   default     = false
 }
 
 variable "final_snapshot_identifier" {
   type        = string
   description = "Name for the final snapshot on deletion. If empty, defaults to '{identifier}-final'."
-  default     = ""
-}
-
-variable "snapshot_identifier" {
-  type        = string
-  description = "DB snapshot to restore from (e.g. for wake-from-sleep). Empty string means create fresh."
   default     = ""
 }
 
@@ -267,7 +338,7 @@ variable "performance_insights_enabled" {
   default     = true
 }
 
-# ── Parameter & Option Groups ─────────────────────────────────────────────────
+# ── Parameter Group ───────────────────────────────────────────────────────────
 
 variable "parameter_group_name" {
   type        = string
@@ -275,34 +346,15 @@ variable "parameter_group_name" {
   default     = null
 }
 
-# ── S3 Integration ────────────────────────────────────────────────────────────
+# ── Logging ───────────────────────────────────────────────────────────────────
 
-variable "enable_s3_integration" {
-  type        = bool
-  description = "Enable S3 integration (creates bucket, IAM role, adds S3_INTEGRATION to the option group)."
-  default     = false
-}
+variable "enabled_cloudwatch_logs_exports" {
+  type        = list(string)
+  description = "List of log types to export to CloudWatch. Valid values for MariaDB: 'audit', 'error', 'general', 'slowquery'."
+  default     = ["error", "slowquery"]
 
-# ── JVM ───────────────────────────────────────────────────────────────────────
-
-variable "enable_jvm" {
-  type        = bool
-  description = "Enable Oracle JVM (adds JVM option to the option group). Required for Spatial, Java stored procedures, and other features that depend on the JVM."
-  default     = false
-}
-
-# ── Additional Options ────────────────────────────────────────────────────────
-
-variable "additional_options" {
-  type = list(object({
-    option_name = string
-    version     = optional(string)
-    port        = optional(number)
-    settings = optional(list(object({
-      name  = string
-      value = string
-    })), [])
-  }))
-  description = "Additional options to include in the module-managed option group (e.g. APEX, native network encryption)."
-  default     = []
+  validation {
+    condition     = alltrue([for l in var.enabled_cloudwatch_logs_exports : contains(["audit", "error", "general", "slowquery"], l)])
+    error_message = "enabled_cloudwatch_logs_exports entries must be one or more of: 'audit', 'error', 'general', 'slowquery'."
+  }
 }

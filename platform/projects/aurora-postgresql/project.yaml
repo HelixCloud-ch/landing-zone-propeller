@@ -1,0 +1,11 @@
+name: aurora-postgresql
+description: >-
+  Deploys an Aurora PostgreSQL Serverless v2 cluster with managed credentials
+  (Secrets Manager), encryption at rest, configurable networking, and
+  sleep/wake support (scale-to-zero auto-pause or snapshot modes).
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just

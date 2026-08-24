@@ -24,10 +24,10 @@ module "credential" {
   tags             = var.tags
 }
 
-# ── RDS Instance ──────────────────────────────────────────────────────────────
+# ── Aurora Cluster ────────────────────────────────────────────────────────────
 
-module "rds_oracle" {
-  source = "../../../shared/modules/rds-oracle"
+module "aurora_postgresql" {
+  source = "../../../shared/modules/aurora-postgresql"
 
   identifier = var.identifier
   vpc_id     = var.vpc_id
@@ -39,30 +39,26 @@ module "rds_oracle" {
   allowed_security_group_ids = var.allowed_security_group_ids
 
   # Engine
-  engine         = var.engine
   engine_version = var.engine_version
-  license_model  = var.license_model
-  instance_class = var.instance_class
+
+  # Scaling
+  min_capacity             = var.min_capacity
+  max_capacity             = var.max_capacity
+  seconds_until_auto_pause = var.seconds_until_auto_pause
+  instance_count           = var.instance_count
 
   # Storage
-  allocated_storage     = var.allocated_storage
-  max_allocated_storage = var.max_allocated_storage
-  storage_type          = var.storage_type
-  storage_encrypted     = var.storage_encrypted
-  kms_key_id            = var.kms_key_id
+  storage_encrypted = var.storage_encrypted
+  kms_key_id        = var.kms_key_id
 
   # Database
-  db_name            = var.db_name
-  character_set_name = var.character_set_name
-  username           = var.username
+  db_name  = var.db_name
+  username = var.username
 
   # Credentials — ephemeral or Secrets Manager managed
   password                      = local.use_ephemeral_credential ? module.credential[0].password : null
   password_wo_version           = local.use_ephemeral_credential ? module.credential[0].password_version : null
   master_user_secret_kms_key_id = local.use_ephemeral_credential ? null : var.credential.kms_key_id
-
-  # Availability
-  multi_az = var.multi_az
 
   # Backups
   backup_retention_period = var.backup_retention_period
@@ -81,10 +77,4 @@ module "rds_oracle" {
 
   # Monitoring
   performance_insights_enabled = var.performance_insights_enabled
-
-  # S3 Integration
-  enable_s3_integration = var.enable_s3_integration
-
-  # JVM
-  enable_jvm = var.enable_jvm
 }

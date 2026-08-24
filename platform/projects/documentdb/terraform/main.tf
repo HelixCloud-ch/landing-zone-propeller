@@ -16,7 +16,7 @@ module "credential" {
   parameter_name = var.credential.parameter_name
   parameter_arn  = var.credential.parameter_arn
 
-  username         = var.username
+  username         = var.master_username
   password         = var.credential.password
   password_version = var.credential.password_version
   kms_key_id       = var.credential.kms_key_id
@@ -24,50 +24,44 @@ module "credential" {
   tags             = var.tags
 }
 
-# ── RDS Instance ──────────────────────────────────────────────────────────────
+# ── DocumentDB Cluster ────────────────────────────────────────────────────────
 
-module "rds_oracle" {
-  source = "../../../shared/modules/rds-oracle"
+module "documentdb" {
+  source = "../../../shared/modules/documentdb"
 
-  identifier = var.identifier
-  vpc_id     = var.vpc_id
-  subnet_ids = local.data_subnet_ids
-  port       = var.port
+  cluster_identifier = var.cluster_identifier
+  vpc_id             = var.vpc_id
+  subnet_ids         = local.data_subnet_ids
+  port               = var.port
 
   # Access
   allowed_cidrs              = var.allowed_cidrs
   allowed_security_group_ids = var.allowed_security_group_ids
 
   # Engine
-  engine         = var.engine
   engine_version = var.engine_version
-  license_model  = var.license_model
+
+  # Instances
+  instance_count = var.instance_count
   instance_class = var.instance_class
 
   # Storage
-  allocated_storage     = var.allocated_storage
-  max_allocated_storage = var.max_allocated_storage
-  storage_type          = var.storage_type
-  storage_encrypted     = var.storage_encrypted
-  kms_key_id            = var.kms_key_id
+  storage_encrypted = var.storage_encrypted
+  kms_key_id        = var.kms_key_id
+  storage_type      = var.storage_type
 
-  # Database
-  db_name            = var.db_name
-  character_set_name = var.character_set_name
-  username           = var.username
+  # Authentication
+  master_username = var.master_username
 
   # Credentials — ephemeral or Secrets Manager managed
-  password                      = local.use_ephemeral_credential ? module.credential[0].password : null
-  password_wo_version           = local.use_ephemeral_credential ? module.credential[0].password_version : null
+  master_password               = local.use_ephemeral_credential ? module.credential[0].password : null
+  master_password_wo_version    = local.use_ephemeral_credential ? module.credential[0].password_version : null
   master_user_secret_kms_key_id = local.use_ephemeral_credential ? null : var.credential.kms_key_id
 
-  # Availability
-  multi_az = var.multi_az
-
   # Backups
-  backup_retention_period = var.backup_retention_period
-  backup_window           = var.backup_window
-  maintenance_window      = var.maintenance_window
+  backup_retention_period      = var.backup_retention_period
+  preferred_backup_window      = var.preferred_backup_window
+  preferred_maintenance_window = var.preferred_maintenance_window
 
   # Protection
   deletion_protection       = var.deletion_protection
@@ -76,15 +70,15 @@ module "rds_oracle" {
   snapshot_identifier       = var.snapshot_identifier
 
   # Upgrades
-  auto_minor_version_upgrade = var.auto_minor_version_upgrade
-  apply_immediately          = var.apply_immediately
+  apply_immediately           = var.apply_immediately
+  allow_major_version_upgrade = var.allow_major_version_upgrade
+
+  # Parameters
+  cluster_parameters = var.cluster_parameters
 
   # Monitoring
-  performance_insights_enabled = var.performance_insights_enabled
+  enable_performance_insights = var.enable_performance_insights
 
-  # S3 Integration
-  enable_s3_integration = var.enable_s3_integration
-
-  # JVM
-  enable_jvm = var.enable_jvm
+  # Logging
+  enabled_cloudwatch_logs_exports = var.enabled_cloudwatch_logs_exports
 }

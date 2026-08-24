@@ -1,0 +1,11 @@
+name: documentdb
+description: >-
+  Deploys an Amazon DocumentDB cluster with managed credentials (Secrets Manager),
+  encryption at rest and in transit, configurable networking, and sleep/wake support
+  (stop/snapshot modes).
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just

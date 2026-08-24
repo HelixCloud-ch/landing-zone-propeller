@@ -1,33 +1,3 @@
-# ── Ensure DB is started before modifications ─────────────────────────────────
-# If the instance was stopped (e.g. by sleep/wake), terraform apply would fail.
-# This runs on every apply and starts the instance if it's stopped.
-
-resource "terraform_data" "start_instance" {
-  triggers_replace = {
-    always_run = plantimestamp()
-  }
-
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
-    command     = <<-EOT
-      set -euo pipefail
-      DBID="${var.identifier}"
-      if ! aws rds describe-db-instances --db-instance-identifier "$DBID" >/dev/null 2>&1; then
-        echo "DB $DBID does not exist yet, nothing to start."
-        exit 0
-      fi
-      STATUS=$(aws rds describe-db-instances --db-instance-identifier "$DBID" \
-        --query "DBInstances[0].DBInstanceStatus" --output text)
-      echo "DB $DBID status: $STATUS"
-      if [ "$STATUS" = "stopped" ]; then
-        echo "Starting DB $DBID..."
-        aws rds start-db-instance --db-instance-identifier "$DBID"
-        aws rds wait db-instance-available --db-instance-identifier "$DBID"
-      fi
-    EOT
-  }
-}
-
 # ── DB Subnet Group ───────────────────────────────────────────────────────────
 
 resource "aws_db_subnet_group" "this" {
@@ -45,7 +15,7 @@ resource "aws_security_group" "this" {
   count = var.security_group_id == null ? 1 : 0
 
   name        = "${var.identifier}-rds"
-  description = "Security group for RDS Oracle instance ${var.identifier}"
+  description = "Security group for RDS PostgreSQL instance ${var.identifier}"
   vpc_id      = var.vpc_id
 
   tags = {
@@ -61,7 +31,7 @@ resource "aws_vpc_security_group_ingress_rule" "ingress_cidrs" {
   to_port           = var.port
   ip_protocol       = "tcp"
   cidr_ipv4         = each.value
-  description       = "Oracle access from ${each.value}"
+  description       = "PostgreSQL access from ${each.value}"
 }
 
 resource "aws_vpc_security_group_ingress_rule" "ingress_sgs" {
@@ -72,21 +42,18 @@ resource "aws_vpc_security_group_ingress_rule" "ingress_sgs" {
   to_port                      = var.port
   ip_protocol                  = "tcp"
   referenced_security_group_id = each.value
-  description                  = "Oracle access from ${each.value}"
+  description                  = "PostgreSQL access from ${each.value}"
 }
 
-# ── RDS Oracle Instance ───────────────────────────────────────────────────────
+# ── RDS PostgreSQL Instance ───────────────────────────────────────────────────
 
 resource "aws_db_instance" "this" {
   identifier = var.identifier
 
-  depends_on = [terraform_data.start_instance]
-
   # Engine
   engine         = var.engine
   engine_version = var.engine_version
-  license_model  = var.license_model
-  instance_class = var.instance_class
+  instance_class = data.aws_rds_orderable_db_instance.this.instance_class
 
   # Storage
   allocated_storage     = var.allocated_storage
@@ -102,16 +69,18 @@ resource "aws_db_instance" "this" {
   port                   = var.port
   publicly_accessible    = false
 
-  # Database (omitted when restoring from snapshot - values come from the snapshot)
-  db_name            = var.snapshot_identifier != "" ? null : var.db_name
-  character_set_name = var.snapshot_identifier != "" ? null : var.character_set_name
-  username           = var.snapshot_identifier != "" ? null : var.username
+  # Database. Not set when restoring from a snapshot (values come from the snapshot).
+  db_name  = var.snapshot_identifier != "" ? null : var.db_name
+  username = var.snapshot_identifier != "" ? null : var.username
 
   # Credentials
   manage_master_user_password   = local.use_managed_password ? true : null
   master_user_secret_kms_key_id = var.master_user_secret_kms_key_id
   password_wo                   = local.use_managed_password || var.snapshot_identifier != "" ? null : var.password
   password_wo_version           = local.use_managed_password || var.snapshot_identifier != "" ? null : var.password_wo_version
+
+  # Restore
+  snapshot_identifier = var.snapshot_identifier != "" ? var.snapshot_identifier : null
 
   # Maintenance & backups
   backup_retention_period = var.backup_retention_period
@@ -123,7 +92,6 @@ resource "aws_db_instance" "this" {
   deletion_protection       = var.deletion_protection
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : (var.final_snapshot_identifier != "" ? var.final_snapshot_identifier : "${var.identifier}-final")
-  snapshot_identifier       = var.snapshot_identifier != "" ? var.snapshot_identifier : null
 
   # Upgrades
   auto_minor_version_upgrade  = var.auto_minor_version_upgrade
@@ -133,13 +101,14 @@ resource "aws_db_instance" "this" {
   # Monitoring
   performance_insights_enabled = var.performance_insights_enabled
 
-  # Parameter & option groups
+  # Logging
+  enabled_cloudwatch_logs_exports = var.enabled_cloudwatch_logs_exports
+
+  # Parameter group
   parameter_group_name = var.parameter_group_name
-  option_group_name    = aws_db_option_group.this.name
 
   lifecycle {
     ignore_changes = [
-      # Storage autoscaling adjusts this dynamically
       allocated_storage,
     ]
   }

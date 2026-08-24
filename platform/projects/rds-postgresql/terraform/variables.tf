@@ -12,7 +12,7 @@ variable "vpc_id" {
 
 variable "subnet_ids_json" {
   type        = string
-  description = "JSON string of subnet tier map (from VPC project output). Decoded to extract the data tier."
+  description = "JSON string of subnet tier map (from VPC project output). Decoded to extract the selected tier."
 }
 
 variable "subnet_tier" {
@@ -35,24 +35,16 @@ variable "identifier" {
 
 # ── Engine ────────────────────────────────────────────────────────────────────
 
-variable "engine" {
-  type    = string
-  default = "oracle-se2"
-}
-
 variable "engine_version" {
   type        = string
-  description = "Oracle engine version (e.g. '19'). Use `aws rds describe-db-engine-versions --engine oracle-se2` to list available versions."
-}
-
-variable "license_model" {
-  type    = string
-  default = "license-included"
+  description = "PostgreSQL major version (e.g. '16')."
+  default     = "16"
 }
 
 variable "instance_class" {
-  type    = string
-  default = "db.t3.medium"
+  type        = string
+  description = "RDS instance class."
+  default     = "db.t3.medium"
 }
 
 # ── Storage ───────────────────────────────────────────────────────────────────
@@ -86,22 +78,13 @@ variable "kms_key_id" {
 
 variable "db_name" {
   type    = string
-  default = "ORCL"
-
-  validation {
-    condition     = can(regex("^[A-Z][A-Z0-9]{0,7}$", var.db_name))
-    error_message = "db_name (Oracle SID) must be uppercase, alphanumeric, start with a letter, max 8 characters."
-  }
-}
-
-variable "character_set_name" {
-  type    = string
-  default = "AL32UTF8"
+  default = "appdb"
 }
 
 variable "username" {
-  type    = string
-  default = "admin"
+  type        = string
+  description = "Master username. Ignored when credential.username is set (generated)."
+  default     = "dbadmin"
 }
 
 # ── Credential ────────────────────────────────────────────────────────────────
@@ -144,7 +127,7 @@ variable "credential" {
 
 variable "port" {
   type    = number
-  default = 1521
+  default = 5432
 }
 
 variable "allowed_cidrs" {
@@ -194,15 +177,13 @@ variable "skip_final_snapshot" {
 }
 
 variable "final_snapshot_identifier" {
-  type        = string
-  description = "Override for final snapshot name on deletion (used by sleep-snapshot mode)."
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "snapshot_identifier" {
-  type        = string
-  description = "DB snapshot to restore from on create (used by wake-snapshot mode). Empty = create fresh."
-  default     = ""
+  type    = string
+  default = ""
 }
 
 # ── Upgrades ──────────────────────────────────────────────────────────────────
@@ -224,21 +205,7 @@ variable "performance_insights_enabled" {
   default = true
 }
 
-# ── S3 Integration ────────────────────────────────────────────────────────────
-
-variable "enable_s3_integration" {
-  type        = bool
-  description = "Enable S3 integration for Oracle Data Pump import/export."
-  default     = false
-}
-
-variable "enable_jvm" {
-  type        = bool
-  description = "Enable Oracle JVM (required for Spatial, Java stored procedures, and other features that depend on the JVM)."
-  default     = false
-}
-
-# ── Tags ─────────────────────────────────────────────────────────────────────
+# ── Tags ──────────────────────────────────────────────────────────────────────
 
 variable "tags" {
   type    = map(string)

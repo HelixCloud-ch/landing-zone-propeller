@@ -26,8 +26,8 @@ module "credential" {
 
 # ── RDS Instance ──────────────────────────────────────────────────────────────
 
-module "rds_oracle" {
-  source = "../../../shared/modules/rds-oracle"
+module "rds_postgresql" {
+  source = "../../../shared/modules/rds-postgresql"
 
   identifier = var.identifier
   vpc_id     = var.vpc_id
@@ -39,9 +39,7 @@ module "rds_oracle" {
   allowed_security_group_ids = var.allowed_security_group_ids
 
   # Engine
-  engine         = var.engine
   engine_version = var.engine_version
-  license_model  = var.license_model
   instance_class = var.instance_class
 
   # Storage
@@ -52,9 +50,8 @@ module "rds_oracle" {
   kms_key_id            = var.kms_key_id
 
   # Database
-  db_name            = var.db_name
-  character_set_name = var.character_set_name
-  username           = var.username
+  db_name  = var.db_name
+  username = var.username
 
   # Credentials — ephemeral or Secrets Manager managed
   password                      = local.use_ephemeral_credential ? module.credential[0].password : null
@@ -81,10 +78,4 @@ module "rds_oracle" {
 
   # Monitoring
   performance_insights_enabled = var.performance_insights_enabled
-
-  # S3 Integration
-  enable_s3_integration = var.enable_s3_integration
-
-  # JVM
-  enable_jvm = var.enable_jvm
 }

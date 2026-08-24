@@ -1,0 +1,10 @@
+name: rds-postgresql
+description: >-
+  Deploys an RDS PostgreSQL instance with managed credentials (Secrets Manager),
+  encryption at rest, configurable networking, and sleep/wake support (stop/snapshot modes).
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just

@@ -1,0 +1,77 @@
+region             = "eu-central-2"
+cluster_identifier = "my-docdb"
+engine_version     = "8.0.0"  # Use: aws docdb describe-db-engine-versions --engine docdb
+
+# ── Instances ─────────────────────────────────────────────────────────────────
+# instance_count = 1            # 1 writer + N-1 readers
+# instance_class = "db.t3.medium"  # t3 burstable; r6g for prod
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+# storage_encrypted = true
+# kms_key_id        = null          # Uses default aws/docdb key
+# storage_type      = "standard"    # "iopt1" for I/O-optimized
+
+# ── Authentication ────────────────────────────────────────────────────────────
+# master_username = "docdbadmin"
+
+# ── Credential strategy ───────────────────────────────────────────────────────
+# Option 1: DocDB-managed password (default — leave credential empty or set kms_key_id)
+# credential = {}
+
+# Option 2: Generate and store password in Secrets Manager
+# credential = {
+#   secret_name      = "platform/myapp/docdb-master"
+#   password_version = 1
+#   kms_key_id       = "arn:aws:kms:eu-central-2:123456789012:key/abcd-1234"
+#   password = {
+#     length = 32
+#   }
+# }
+
+# Option 3: Read existing secret from Secrets Manager
+# credential = {
+#   secret_arn = "arn:aws:secretsmanager:eu-central-2:123456789012:secret:my-docdb-AbCdEf"
+# }
+
+# Option 4: Generate and store in SSM Parameter Store
+# credential = {
+#   parameter_name   = "/platform/myapp/docdb-master"
+#   password_version = 1
+# }
+
+# Option 5: Read existing SSM parameter
+# credential = {
+#   parameter_arn = "arn:aws:ssm:eu-central-2:123456789012:parameter/platform/myapp/docdb"
+# }
+
+# ── Network (from pipeline inputs) ───────────────────────────────────────────
+# vpc_id and subnet_ids_json come from the Landing Zone via pipeline wiring.
+# subnet_tier = "data"  # Which tier in the subnet map to use
+
+# ── Access control ────────────────────────────────────────────────────────────
+# allowed_cidrs              = []  # e.g. ["10.0.0.0/8"]
+# allowed_security_group_ids = []  # e.g. ["sg-0123456789abcdef0"]
+
+# ── Cluster parameters ────────────────────────────────────────────────────────
+# Default: TLS enabled (AWS default). Set tls = "disabled" only if your
+# application's MongoDB driver does not support TLS connections.
+# cluster_parameters = { tls = "disabled" }
+
+# ── Backups & Maintenance ─────────────────────────────────────────────────────
+# backup_retention_period      = 7
+# preferred_backup_window      = "03:00-04:00"
+# preferred_maintenance_window = "sun:05:00-sun:06:00"
+
+# ── Protection ────────────────────────────────────────────────────────────────
+# deletion_protection = true    # Prevent accidental deletion
+# skip_final_snapshot = false   # Take snapshot before deletion
+
+# ── Upgrades ──────────────────────────────────────────────────────────────────
+# apply_immediately           = false  # Wait for maintenance window
+# allow_major_version_upgrade = true   # Required when bumping engine_version major
+
+# ── Monitoring ────────────────────────────────────────────────────────────────
+# enable_performance_insights = false
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# enabled_cloudwatch_logs_exports = ["audit"]  # Valid: "audit", "profiler"

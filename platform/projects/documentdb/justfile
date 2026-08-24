@@ -1,0 +1,126 @@
+import "../../../shared/recipes/terraform.just"
+
+plan: _ensure-started tf-plan
+apply: _ensure-started tf-apply
+destroy: _ensure-started tf-destroy
+
+# ── Ensure cluster is started before modifications ────────────────────────────
+# DocumentDB rejects modifications on stopped clusters. This recipe starts the
+# cluster if it's in stopped state before any plan/apply/destroy.
+
+[private]
+_ensure-started: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    CLUSTER_ID=$(terraform output -raw cluster_identifier 2>/dev/null || true)
+    [[ -z "$CLUSTER_ID" ]] && exit 0  # First deploy, nothing to start
+    if ! aws docdb describe-db-clusters --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION" &>/dev/null; then
+      exit 0  # Cluster does not exist yet
+    fi
+    STATUS=$(aws docdb describe-db-clusters --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION" --query 'DBClusters[0].Status' --output text)
+    if [ "$STATUS" = "stopped" ]; then
+      echo "Cluster $CLUSTER_ID is stopped, starting before apply..."
+      aws docdb start-db-cluster --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION"
+      just _wait-cluster-available "$CLUSTER_ID"
+    fi
+
+# ── Sleep/Wake modes ──────────────────────────────────────────────────────────
+# Supported modes:
+#   stop      - DocumentDB stop/start (fast, keeps data, 7-day auto-restart limit)
+#   snapshot  - Targeted destroy with final snapshot, recreate on wake
+#   destroy   - Full terraform destroy/apply (inherited from shared recipe)
+
+sleep-default: sleep-stop
+wake-default: wake-stop
+
+sleep-stop: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    CLUSTER_ID=$(terraform output -raw cluster_identifier 2>/dev/null || true)
+    [[ -z "$CLUSTER_ID" ]] && echo "ERROR: no cluster_identifier in state." && exit 1
+    STATUS=$(aws docdb describe-db-clusters --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION" --query 'DBClusters[0].Status' --output text 2>/dev/null || echo "not-found")
+    case "$STATUS" in
+      stopped)   echo "Already stopped." && exit 0 ;;
+      not-found) echo "ERROR: Cluster '$CLUSTER_ID' not found." && exit 1 ;;
+    esac
+    aws docdb stop-db-cluster --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION"
+
+wake-stop: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    CLUSTER_ID=$(terraform output -raw cluster_identifier)
+    STATUS=$(aws docdb describe-db-clusters --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION" --query 'DBClusters[0].Status' --output text)
+    case "$STATUS" in
+      available) echo "Already running." && exit 0 ;;
+      stopping)  echo "Cluster is stopping, waiting..." && just _wait-cluster-stopped "$CLUSTER_ID" ;;
+    esac
+    aws docdb start-db-cluster --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION"
+    just _wait-cluster-available "$CLUSTER_ID"
+
+sleep-snapshot: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    CLUSTER_ID=$(terraform output -raw cluster_identifier)
+    if ! aws docdb describe-db-clusters --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION" &>/dev/null; then
+      echo "Cluster '$CLUSTER_ID' not found. Already sleeping." && exit 0
+    fi
+    DEL_PROT=$(aws docdb describe-db-clusters --db-cluster-identifier "$CLUSTER_ID" --region "$AWS_REGION" --query 'DBClusters[0].DeletionProtection' --output text)
+    [[ "$DEL_PROT" == "True" ]] && echo "ERROR: deletion_protection is enabled. Disable in project config." && exit 1
+    # Targeted apply: set final_snapshot_identifier in state
+    terraform apply -auto-approve \
+      -target='module.documentdb.aws_docdb_cluster.this' \
+      $(just _propeller-vars) \
+      -var "skip_final_snapshot=false" \
+      -var "final_snapshot_identifier={{ _sleep_snapshot_id }}" \
+      -var "apply_immediately=true"
+    # Targeted destroy: instances + cluster in one run (Terraform reverses
+    # the dependency graph, so instances are deleted before the cluster).
+    terraform apply -destroy \
+      -target='module.documentdb.aws_docdb_cluster_instance.this' \
+      -target='module.documentdb.aws_docdb_cluster.this' \
+      -auto-approve $(just _propeller-vars) \
+      -var "skip_final_snapshot=false" \
+      -var "final_snapshot_identifier={{ _sleep_snapshot_id }}" \
+      -var "apply_immediately=true"
+
+wake-snapshot: tf-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ _tf_dir }}
+    terraform apply -auto-approve $(just _propeller-vars) \
+      -var "snapshot_identifier={{ _sleep_snapshot_id }}"
+    CLUSTER_ID=$(terraform output -raw cluster_identifier)
+    just _wait-cluster-available "$CLUSTER_ID"
+    aws docdb delete-db-cluster-snapshot --db-cluster-snapshot-identifier "{{ _sleep_snapshot_id }}" --region "$AWS_REGION" 2>/dev/null || true
+
+# ── Polling helpers ───────────────────────────────────────────────────────────
+# DocumentDB CLI does not provide cluster-level waiters (only db-instance-available
+# and db-instance-deleted). These recipes poll describe-db-clusters.
+
+[private]
+_wait-cluster-available cluster_id:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Waiting for cluster {{ cluster_id }} to become available..."
+    for i in $(seq 1 120); do
+      STATUS=$(aws docdb describe-db-clusters --db-cluster-identifier "{{ cluster_id }}" --region "$AWS_REGION" --query 'DBClusters[0].Status' --output text)
+      [[ "$STATUS" == "available" ]] && echo "Cluster available." && exit 0
+      sleep 30
+    done
+    echo "ERROR: timed out waiting for cluster {{ cluster_id }} (status: $STATUS)." && exit 1
+
+[private]
+_wait-cluster-stopped cluster_id:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Waiting for cluster {{ cluster_id }} to stop..."
+    for i in $(seq 1 60); do
+      STATUS=$(aws docdb describe-db-clusters --db-cluster-identifier "{{ cluster_id }}" --region "$AWS_REGION" --query 'DBClusters[0].Status' --output text)
+      [[ "$STATUS" == "stopped" ]] && echo "Cluster stopped." && exit 0
+      sleep 30
+    done
+    echo "ERROR: timed out waiting for cluster {{ cluster_id }} to stop (status: $STATUS)." && exit 1

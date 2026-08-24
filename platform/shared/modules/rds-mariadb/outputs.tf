@@ -13,6 +13,16 @@ output "port" {
   value       = aws_db_instance.this.port
 }
 
+output "db_name" {
+  description = "The database name."
+  value       = aws_db_instance.this.db_name
+}
+
+output "username" {
+  description = "The master username for the database."
+  value       = aws_db_instance.this.username
+}
+
 output "db_instance_id" {
   description = "RDS instance identifier."
   value       = aws_db_instance.this.id
@@ -29,16 +39,6 @@ output "master_user_secret_arn" {
 }
 
 output "security_group_id" {
-  description = "ID of the security group used by the RDS instance (created or BYO)."
+  description = "ID of the security group used by the RDS instance (created or caller-provided)."
   value       = local.security_group_id
-}
-
-output "s3_bucket_name" {
-  description = "Name of the S3 bucket for Oracle data import/export (null if S3 integration disabled)."
-  value       = var.enable_s3_integration ? aws_s3_bucket.oracle_data[0].id : null
-}
-
-output "s3_bucket_arn" {
-  description = "ARN of the S3 bucket for Oracle data import/export (null if S3 integration disabled)."
-  value       = var.enable_s3_integration ? aws_s3_bucket.oracle_data[0].arn : null
 }
