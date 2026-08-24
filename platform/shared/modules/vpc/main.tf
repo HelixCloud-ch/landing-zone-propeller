@@ -5,7 +5,7 @@ locals {
 }
 
 resource "aws_vpc" "this" {
-  # checkov:skip=CKV2_AWS_11: VPC flow logs are deferred to a tracked issue (workload-vpc: enable VPC flow logs). Mirrors the hub VPC posture.
+  # checkov:skip=CKV2_AWS_11: VPC flow logs are deferred to a tracked issue (vpc: enable VPC flow logs). Mirrors the hub VPC posture.
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
