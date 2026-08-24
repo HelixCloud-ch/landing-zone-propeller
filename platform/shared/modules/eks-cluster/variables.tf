@@ -14,7 +14,7 @@ variable "eks_version" {
 
 variable "vpc_id" {
   type        = string
-  description = "ID of the workload VPC. Sourced from workload-vpc.vpc_id."
+  description = "ID of the VPC. Sourced from vpc.vpc_id."
 }
 
 variable "subnet_ids" {

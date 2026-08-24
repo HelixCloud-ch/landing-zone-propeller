@@ -1,7 +1,7 @@
 # vpc-endpoints
 
 Shared Terraform module for VPC Interface and Gateway endpoints. Used by the
-`workload-vpc-endpoints` platform project (and available to any project that
+`vpc-endpoints` platform project (and available to any project that
 needs private connectivity to AWS service APIs without routing through NAT or
 a Transit Gateway).
 
@@ -29,9 +29,9 @@ Features:
   Interface endpoint entry supplies; it never creates or manages one. Same
   convention as every other shared module here (e.g. `rds-postgresql`'s
   `security_group_id`). A fallback/shared security group, if wanted, is a
-  caller-level decision — see the `workload-vpc-endpoints` project.
+  caller-level decision — see the `vpc-endpoints` project.
 - Route table ownership — the module only associates Gateway endpoints with
-  route table IDs supplied by the caller (typically `workload-vpc-routes`); it
+  route table IDs supplied by the caller (typically `vpc-routes`); it
   never creates or modifies route tables itself.
 - Availability Zone / subnet selection for interface endpoints — the caller
   passes `subnet_ids` and is responsible for picking subnets whose AZ the
