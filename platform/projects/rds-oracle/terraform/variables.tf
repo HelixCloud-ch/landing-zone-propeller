@@ -104,6 +104,42 @@ variable "username" {
   default = "admin"
 }
 
+# ── Credential ────────────────────────────────────────────────────────────────
+
+variable "credential" {
+  type = object({
+    # Identity — set exactly one, or leave all null for RDS-managed mode
+    secret_name    = optional(string)
+    secret_arn     = optional(string)
+    parameter_name = optional(string)
+    parameter_arn  = optional(string)
+
+    # Password generation
+    password = optional(object({
+      length                     = optional(number, 28)
+      exclude_characters         = optional(string, "/@\"\\'\n")
+      exclude_lowercase          = optional(bool, false)
+      exclude_numbers            = optional(bool, false)
+      exclude_punctuation        = optional(bool, false)
+      exclude_uppercase          = optional(bool, false)
+      include_space              = optional(bool, false)
+      require_each_included_type = optional(bool, true)
+    }), {})
+
+    # Rotation & encryption
+    password_version = optional(number, 1)
+    kms_key_id       = optional(string)
+    description      = optional(string)
+  })
+  description = <<-EOT
+    Credential strategy. Set one of secret_name/secret_arn/parameter_name/
+    parameter_arn to use the ephemeral-credential module. Leave all null to
+    use RDS-managed master password (manage_master_user_password=true with
+    kms_key_id for encryption).
+  EOT
+  default     = {}
+}
+
 # ── Network access ────────────────────────────────────────────────────────────
 
 variable "port" {

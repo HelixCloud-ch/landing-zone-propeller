@@ -79,18 +79,40 @@ variable "master_username" {
   default = "docdbadmin"
 }
 
-variable "master_password" {
-  type        = string
-  description = "Master password. When set, credentials are managed manually (not via Secrets Manager). Ephemeral: never stored in state. 8-100 printable ASCII chars excluding '/', '\"', '@'."
-  sensitive   = true
-  ephemeral   = true
-  default     = null
-}
+# ── Credential ────────────────────────────────────────────────────────────────
 
-variable "master_password_wo_version" {
-  type        = number
-  description = "Bump to rotate the write-only password. Only relevant when master_password is set."
-  default     = 1
+variable "credential" {
+  type = object({
+    # Identity — set exactly one, or leave all null for DocDB-managed mode
+    secret_name    = optional(string)
+    secret_arn     = optional(string)
+    parameter_name = optional(string)
+    parameter_arn  = optional(string)
+
+    # Password generation
+    password = optional(object({
+      length                     = optional(number, 28)
+      exclude_characters         = optional(string, "/@\"\\\n")
+      exclude_lowercase          = optional(bool, false)
+      exclude_numbers            = optional(bool, false)
+      exclude_punctuation        = optional(bool, false)
+      exclude_uppercase          = optional(bool, false)
+      include_space              = optional(bool, false)
+      require_each_included_type = optional(bool, true)
+    }), {})
+
+    # Rotation & encryption
+    password_version = optional(number, 1)
+    kms_key_id       = optional(string)
+    description      = optional(string)
+  })
+  description = <<-EOT
+    Credential strategy. Set one of secret_name/secret_arn/parameter_name/
+    parameter_arn to use the ephemeral-credential module. Leave all null to
+    use DocDB-managed master password (manage_master_user_password=true with
+    kms_key_id for encryption).
+  EOT
+  default     = {}
 }
 
 # ── Network access ────────────────────────────────────────────────────────────

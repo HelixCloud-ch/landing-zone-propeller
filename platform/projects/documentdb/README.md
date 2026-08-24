@@ -115,6 +115,7 @@ No providers.
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
+| <a name="module_credential"></a> [credential](#module\_credential) | ../../../shared/modules/ephemeral-credential | n/a |
 | <a name="module_documentdb"></a> [documentdb](#module\_documentdb) | ../../../shared/modules/documentdb | n/a |
 
 ## Resources
@@ -133,8 +134,9 @@ No resources.
 | <a name="input_cluster_identifier"></a> [cluster\_identifier](#input\_cluster\_identifier) | Unique identifier for the DocumentDB cluster. | `string` | n/a | yes |
 | <a name="input_cluster_parameters"></a> [cluster\_parameters](#input\_cluster\_parameters) | DocumentDB cluster parameter group parameters (e.g. {tls = "enabled"}). | `map(string)` | `{}` | no |
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | n/a | `map(string)` | `{}` | no |
+| <a name="input_credential"></a> [credential](#input\_credential) | Credential strategy. Set one of secret\_name/secret\_arn/parameter\_name/<br/>parameter\_arn to use the ephemeral-credential module. Leave all null to<br/>use DocDB-managed master password (manage\_master\_user\_password=true with<br/>kms\_key\_id for encryption). | <pre>object({<br/>    # Identity — set exactly one, or leave all null for DocDB-managed mode<br/>    secret_name    = optional(string)<br/>    secret_arn     = optional(string)<br/>    parameter_name = optional(string)<br/>    parameter_arn  = optional(string)<br/><br/>    # Password generation<br/>    password = optional(object({<br/>      length                     = optional(number, 28)<br/>      exclude_characters         = optional(string, "/@\"\\\n")<br/>      exclude_lowercase          = optional(bool, false)<br/>      exclude_numbers            = optional(bool, false)<br/>      exclude_punctuation        = optional(bool, false)<br/>      exclude_uppercase          = optional(bool, false)<br/>      include_space              = optional(bool, false)<br/>      require_each_included_type = optional(bool, true)<br/>    }), {})<br/><br/>    # Rotation & encryption<br/>    password_version = optional(number, 1)<br/>    kms_key_id       = optional(string)<br/>    description      = optional(string)<br/>  })</pre> | `{}` | no |
 | <a name="input_deletion_protection"></a> [deletion\_protection](#input\_deletion\_protection) | n/a | `bool` | `true` | no |
-| <a name="input_enable_performance_insights"></a> [enable\_performance\_insights](#input\_enable\_performance\_insights) | n/a | `bool` | `false` | no |
+| <a name="input_enable_performance_insights"></a> [enable\_performance\_insights](#input\_enable\_performance\_insights) | n/a | `bool` | `true` | no |
 | <a name="input_enabled_cloudwatch_logs_exports"></a> [enabled\_cloudwatch\_logs\_exports](#input\_enabled\_cloudwatch\_logs\_exports) | n/a | `list(string)` | <pre>[<br/>  "audit"<br/>]</pre> | no |
 | <a name="input_engine_version"></a> [engine\_version](#input\_engine\_version) | DocumentDB engine version (e.g. '8.0.0'). | `string` | `"8.0.0"` | no |
 | <a name="input_final_snapshot_identifier"></a> [final\_snapshot\_identifier](#input\_final\_snapshot\_identifier) | n/a | `string` | `""` | no |
@@ -161,8 +163,9 @@ No resources.
 | Name | Description |
 | ---- | ----------- |
 | <a name="output_cluster_identifier"></a> [cluster\_identifier](#output\_cluster\_identifier) | DocumentDB cluster identifier (used by sleep/wake justfile recipes). |
+| <a name="output_credential_secret_arn"></a> [credential\_secret\_arn](#output\_credential\_secret\_arn) | ARN of the Secrets Manager secret created by ephemeral-credential (secret\_name mode only). |
 | <a name="output_endpoint"></a> [endpoint](#output\_endpoint) | Primary (writer) endpoint for the DocumentDB cluster. |
-| <a name="output_master_user_secret_arn"></a> [master\_user\_secret\_arn](#output\_master\_user\_secret\_arn) | ARN of the Secrets Manager secret with master credentials. |
+| <a name="output_master_user_secret_arn"></a> [master\_user\_secret\_arn](#output\_master\_user\_secret\_arn) | ARN of the DocDB-managed Secrets Manager secret (manage\_master\_user\_password mode only). |
 | <a name="output_port"></a> [port](#output\_port) | Cluster port. |
 | <a name="output_reader_endpoint"></a> [reader\_endpoint](#output\_reader\_endpoint) | Reader endpoint, load-balanced across replicas. |
 | <a name="output_security_group_id"></a> [security\_group\_id](#output\_security\_group\_id) | Security group ID for the DocumentDB cluster. |

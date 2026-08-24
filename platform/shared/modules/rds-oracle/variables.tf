@@ -138,10 +138,57 @@ variable "username" {
   default     = "admin"
 }
 
+variable "password" {
+  type        = string
+  description = <<-EOT
+    Master password. Used only when master_user_secret_kms_key_id is not set.
+    Ephemeral: never written to state (delivered via password_wo).
+  EOT
+  sensitive   = true
+  ephemeral   = true
+  default     = null
+
+  validation {
+    condition     = var.password == null || (length(var.password) >= 8 && length(var.password) <= 30)
+    error_message = "Password must be between 8 and 30 characters for Oracle."
+  }
+
+  validation {
+    condition     = var.password == null || can(regex("^[\\x21-\\x7E]*$", var.password))
+    error_message = "Password must contain only printable ASCII characters (no spaces)."
+  }
+
+  validation {
+    condition     = var.password == null || !can(regex("[/@\"']", var.password))
+    error_message = "Password must not contain '/', '@', '\"', or single quote (RDS Oracle restriction)."
+  }
+
+  validation {
+    condition     = !(var.password != null && var.master_user_secret_kms_key_id != null)
+    error_message = "Pass either 'password' or 'master_user_secret_kms_key_id', not both."
+  }
+
+  validation {
+    condition     = var.snapshot_identifier != "" || var.password != null || var.master_user_secret_kms_key_id != null
+    error_message = "Provide credentials: set 'master_user_secret_kms_key_id' for Secrets Manager mode, or 'password' for password mode (unless restoring from a snapshot)."
+  }
+}
+
+variable "password_wo_version" {
+  type        = number
+  description = "Bump to rotate the write-only password. Only relevant in password mode."
+  default     = 1
+}
+
 variable "master_user_secret_kms_key_id" {
   type        = string
-  description = "KMS key ID for encrypting the Secrets Manager secret. Uses default key if not specified."
+  description = "KMS key for a Secrets Manager-managed master password. When set, RDS manages rotation and 'password' must not be provided."
   default     = null
+
+  validation {
+    condition     = var.master_user_secret_kms_key_id == null || can(regex("^arn:aws:kms:", var.master_user_secret_kms_key_id))
+    error_message = "master_user_secret_kms_key_id must be a valid KMS key ARN or null."
+  }
 }
 
 # ── Availability ──────────────────────────────────────────────────────────────

@@ -1,23 +1,20 @@
 region         = "eu-central-2"
-identifier     = "my-oracle-db"
-engine_version = "19"  # Required. Use: aws rds describe-db-engine-versions --engine oracle-se2
+identifier     = "my-aurora-pg"
+engine_version = "17"
 
-# ── Engine ────────────────────────────────────────────────────────────────────
-# engine         = "oracle-se2"        # Standard Edition Two (default)
-# license_model  = "license-included"  # AWS provides the Oracle license
-# instance_class = "db.t3.medium"      # t3 is burstable, m5 better for prod
+# ── Serverless v2 scaling ─────────────────────────────────────────────────────
+# min_capacity             = 0     # 0 enables scale-to-zero auto-pause
+# max_capacity             = 4
+# seconds_until_auto_pause = 300   # 5 min idle → pause (only when min=0)
+# instance_count           = 1     # 1 writer + N-1 readers
 
 # ── Storage ───────────────────────────────────────────────────────────────────
-# allocated_storage     = 20    # Initial GiB
-# max_allocated_storage = 40    # Autoscale up to this (0 = disable)
-# storage_type          = "gp3"
-# storage_encrypted     = true
-# kms_key_id            = null  # Uses default aws/rds key
+# storage_encrypted = true
+# kms_key_id        = null  # Uses default aws/rds key
 
 # ── Database ──────────────────────────────────────────────────────────────────
-# db_name            = "ORCL"       # Oracle SID (uppercase, max 8 chars)
-# character_set_name = "AL32UTF8"   # Cannot change after creation
-# username           = "admin"      # Master user
+# db_name  = "appdb"
+# username = "dbadmin"
 
 # ── Credential strategy ───────────────────────────────────────────────────────
 # Option 1: RDS-managed password (default — leave credential empty or set kms_key_id)
@@ -25,11 +22,11 @@ engine_version = "19"  # Required. Use: aws rds describe-db-engine-versions --en
 
 # Option 2: Generate and store password in Secrets Manager
 # credential = {
-#   secret_name      = "platform/myapp/rds-oracle-master"
+#   secret_name      = "platform/myapp/aurora-pg-master"
 #   password_version = 1
 #   kms_key_id       = "arn:aws:kms:eu-central-2:123456789012:key/abcd-1234"
 #   password = {
-#     length = 28
+#     length = 32
 #   }
 # }
 
@@ -40,13 +37,13 @@ engine_version = "19"  # Required. Use: aws rds describe-db-engine-versions --en
 
 # Option 4: Generate and store in SSM Parameter Store
 # credential = {
-#   parameter_name   = "/platform/myapp/rds-oracle-master"
+#   parameter_name   = "/platform/myapp/aurora-pg-master"
 #   password_version = 1
 # }
 
 # Option 5: Read existing SSM parameter
 # credential = {
-#   parameter_arn = "arn:aws:ssm:eu-central-2:123456789012:parameter/platform/myapp/rds-oracle"
+#   parameter_arn = "arn:aws:ssm:eu-central-2:123456789012:parameter/platform/myapp/aurora-pg"
 # }
 
 # ── Network (from pipeline inputs) ───────────────────────────────────────────
@@ -56,9 +53,6 @@ engine_version = "19"  # Required. Use: aws rds describe-db-engine-versions --en
 # ── Access control ────────────────────────────────────────────────────────────
 # allowed_cidrs              = [] # e.g. ["10.0.0.0/8"]
 # allowed_security_group_ids = [] # e.g. ["sg-0123456789abcdef0"]
-
-# ── Availability ──────────────────────────────────────────────────────────────
-# multi_az = false
 
 # ── Backups & Maintenance ─────────────────────────────────────────────────────
 # backup_retention_period = 7
@@ -74,9 +68,4 @@ engine_version = "19"  # Required. Use: aws rds describe-db-engine-versions --en
 # apply_immediately          = false  # Wait for maintenance window
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
-# performance_insights_enabled = false
-
-# ── S3 Integration ────────────────────────────────────────────────────────────
-# Creates an S3 bucket, IAM role, and option group for Oracle Data Pump.
-# Bucket name: <identifier>-oracle-data-<account_id>-<region>-an
-# enable_s3_integration = false
+# performance_insights_enabled = false  # Keep disabled with scale-to-zero

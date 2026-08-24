@@ -1,7 +1,30 @@
 locals {
   subnets_by_tier = jsondecode(var.subnet_ids_json)
   data_subnet_ids = local.subnets_by_tier[var.subnet_tier]
+
+  use_ephemeral_credential = length(compact([var.credential.secret_name, var.credential.secret_arn, var.credential.parameter_name, var.credential.parameter_arn])) == 1
 }
+
+# ── Credential management ─────────────────────────────────────────────────────
+
+module "credential" {
+  count  = local.use_ephemeral_credential ? 1 : 0
+  source = "../../../shared/modules/ephemeral-credential"
+
+  secret_name    = var.credential.secret_name
+  secret_arn     = var.credential.secret_arn
+  parameter_name = var.credential.parameter_name
+  parameter_arn  = var.credential.parameter_arn
+
+  username         = var.master_username
+  password         = var.credential.password
+  password_version = var.credential.password_version
+  kms_key_id       = var.credential.kms_key_id
+  description      = var.credential.description
+  tags             = var.tags
+}
+
+# ── DocumentDB Cluster ────────────────────────────────────────────────────────
 
 module "documentdb" {
   source = "../../../shared/modules/documentdb"
@@ -28,9 +51,12 @@ module "documentdb" {
   storage_type      = var.storage_type
 
   # Authentication
-  master_username            = var.master_username
-  master_password            = var.master_password
-  master_password_wo_version = var.master_password_wo_version
+  master_username = var.master_username
+
+  # Credentials — ephemeral or Secrets Manager managed
+  master_password               = local.use_ephemeral_credential ? module.credential[0].password : null
+  master_password_wo_version    = local.use_ephemeral_credential ? module.credential[0].password_version : null
+  master_user_secret_kms_key_id = local.use_ephemeral_credential ? null : var.credential.kms_key_id
 
   # Backups
   backup_retention_period      = var.backup_retention_period
