@@ -1,4 +1,4 @@
-# workload-vpc-endpoints
+# vpc-endpoints
 
 Runs in a **workload account** via a platform pipeline. Creates VPC Interface
 and Gateway endpoints inside the workload VPC for private connectivity to AWS
@@ -9,10 +9,10 @@ the raw subnet/route-table IDs the module expects.
 
 Independent of whether the account has a Transit Gateway at all: the module
 only needs a VPC ID plus, per endpoint, either subnets (Interface) or route
-table IDs (Gateway). It works the same whether `workload-vpc` is attached to
+table IDs (Gateway). It works the same whether `vpc` is attached to
 the landing-zone TGW or the VPC is fully isolated with no network plane —
 this project has no dependency on TGW attachment state, unlike
-`workload-vpc-routes`.
+`vpc-routes`.
 
 ## Endpoints
 
@@ -25,8 +25,8 @@ replaced with tier names:
 
 | Field | Notes |
 |---|---|
-| `subnet_tier` | Interface only. A key in `subnet_ids_by_tier` (from `workload-vpc`). |
-| `route_table_tiers` | Gateway only. Keys in `route_table_ids` (from `workload-vpc-routes`) whose tables get the service's prefix-list route. |
+| `subnet_tier` | Interface only. A key in `subnet_ids_by_tier` (from `vpc`). |
+| `route_table_tiers` | Gateway only. Keys in `route_table_ids` (from `vpc-routes`) whose tables get the service's prefix-list route. |
 
 ```hcl
 endpoints = {
@@ -94,13 +94,13 @@ per-service isolation and leave others unset to share the fallback group.
 ## Route table dependency (Gateway endpoints)
 
 Gateway endpoints need `route_table_ids`, normally
-`workload-vpc-routes.route_table_ids`. That project fails fast until the TGW
+`vpc-routes.route_table_ids`. That project fails fast until the TGW
 attachment is `available` (see its README), so a pipeline step chained
 strictly behind it inherits that gate even for endpoints that have nothing to
 do with the TGW. If Gateway endpoints must be creatable before TGW
 acceptance — or the VPC has no TGW attachment at all — pass `route_table_ids`
 from a source that isn't gated on attachment state, or configure
-`workload-vpc-routes` for the no-TGW case (tracked separately). Interface-only
+`vpc-routes` for the no-TGW case (tracked separately). Interface-only
 configurations have no such dependency.
 
 ## Organization-scoped endpoint policy
@@ -116,16 +116,16 @@ re-published to platform pipelines yet).
 ## Pipeline usage
 
 ```yaml
-- project: workload-vpc-endpoints
-  source: workload-vpc-endpoints
+- project: vpc-endpoints
+  source: vpc-endpoints
   target: test-rico
-  depends_on: [workload-vpc-routes]
+  depends_on: [vpc-routes]
   inputs:
-    - name: workload-vpc.vpc_id
+    - name: vpc.vpc_id
       var: vpc_id
-    - name: workload-vpc.subnet_ids_by_tier
+    - name: vpc.subnet_ids_by_tier
       var: subnet_ids_by_tier
-    - name: workload-vpc-routes.route_table_ids
+    - name: vpc-routes.route_table_ids
       var: route_table_ids
   outputs:
     - name: endpoint_ids
@@ -133,7 +133,7 @@ re-published to platform pipelines yet).
     - name: shared_security_group_id
 ```
 
-Drop the `workload-vpc-routes` input and `depends_on` entry entirely for an
+Drop the `vpc-routes` input and `depends_on` entry entirely for an
 Interface-only configuration (no Gateway endpoints) — `route_table_ids`
 defaults to `{}`.
 
@@ -142,7 +142,7 @@ defaults to `{}`.
 - Per-service security group rules beyond the shared fallback — a caller
   with custom per-service port requirements supplies its own
   `security_group_ids` on that entry instead of relying on the fallback.
-- Route table ownership — owned by `workload-vpc-routes`; this project only
+- Route table ownership — owned by `vpc-routes`; this project only
   associates Gateway endpoints with route table IDs it's given.
 - Anything not exposed via `aws_vpc_endpoint` (e.g. Route 53 Resolver
   endpoints for hybrid DNS — see `network-resolver` in the network plane).
@@ -152,7 +152,7 @@ defaults to `{}`.
 - [vpc-endpoints module README](../../shared/modules/vpc-endpoints/README.md)
 - [Terraform — `aws_vpc_endpoint`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint)
 - [AWS — Access an AWS service using an interface VPC endpoint](https://docs.aws.amazon.com/vpc/latest/privatelink/create-interface-endpoint.html)
-- [ADR-009: Workload VPC Platform Pipeline](../../../../../notes/wiki/decisions/ADR-009-workload-vpc-platform.md)
+- [ADR-009: Workload VPC Platform Pipeline](../../../../../notes/wiki/decisions/ADR-009-vpc-platform.md)
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
@@ -190,16 +190,16 @@ defaults to `{}`.
 | <a name="input_endpoints"></a> [endpoints](#input\_endpoints) | Map of endpoint key to its configuration, resolved against subnet\_ids\_by\_tier and route\_table\_ids by tier name instead of raw subnet/route-table IDs. See the project README for the field reference and examples. | <pre>map(object({<br/>    name                = optional(string)<br/>    type                = string<br/>    service             = optional(string)<br/>    service_name        = optional(string)<br/>    subnet_tier         = optional(string)<br/>    route_table_tiers   = optional(list(string), [])<br/>    security_group_ids  = optional(list(string), [])<br/>    private_dns_enabled = optional(bool, true)<br/>    policy_json         = optional(string)<br/>  }))</pre> | `{}` | no |
 | <a name="input_organization_id"></a> [organization\_id](#input\_organization\_id) | AWS Organizations ID, e.g. from @landing-zone/workload-parameters.organization\_id (not currently published there — add it if this is wired). Passed straight through to the vpc-endpoints module; see its README for the org-scoped baseline policy it enables. Opt-in: leave null to keep the AWS default (unrestricted) policy. | `string` | `null` | no |
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | Framework-managed tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
-| <a name="input_region"></a> [region](#input\_region) | AWS region the endpoints are created in (must match the workload-vpc region). | `string` | n/a | yes |
-| <a name="input_route_table_ids"></a> [route\_table\_ids](#input\_route\_table\_ids) | Map of tier name to route table ID, from workload-vpc-routes.route\_table\_ids. Required only by endpoints[*] entries that set route\_table\_tiers (Gateway endpoints). Defaults to {} so an Interface-only configuration — or a workload VPC with no route table project at all (e.g. a fully isolated VPC with no Transit Gateway) — does not need to wire this input. | `map(string)` | `{}` | no |
+| <a name="input_region"></a> [region](#input\_region) | AWS region the endpoints are created in (must match the vpc region). | `string` | n/a | yes |
+| <a name="input_route_table_ids"></a> [route\_table\_ids](#input\_route\_table\_ids) | Map of tier name to route table ID, from vpc-routes.route\_table\_ids. Required only by endpoints[*] entries that set route\_table\_tiers (Gateway endpoints). Defaults to {} so an Interface-only configuration — or a workload VPC with no route table project at all (e.g. a fully isolated VPC with no Transit Gateway) — does not need to wire this input. | `map(string)` | `{}` | no |
 | <a name="input_security_group_cidrs"></a> [security\_group\_cidrs](#input\_security\_group\_cidrs) | CIDR blocks allowed to reach the shared fallback security group, all ports/protocols. Defaults to unrestricted (0.0.0.0/0), matching the EOC precedent this project is based on. Narrow it (e.g. to the VPC CIDR) if that default is too broad for your environment. Ignored when the shared group isn't created (see above). | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
 | <a name="input_security_group_name"></a> [security\_group\_name](#input\_security\_group\_name) | Name for the shared fallback security group. Left null (default) so AWS assigns a unique name and this never collides with an existing group — set explicitly only if a fixed name is required downstream. | `string` | `null` | no |
 | <a name="input_security_group_ports"></a> [security\_group\_ports](#input\_security\_group\_ports) | TCP/UDP ports to restrict the shared fallback security group's ingress to. Default is empty, which opens all ports/protocols (see security\_groups.tf for why: not every endpoint service answers on 443, e.g. Amazon MSK varies by auth mode). Set this only when you know exactly which ports every endpoint sharing the group actually needs — e.g. [443] for an all-HTTPS set of endpoints, or [443, 9098] to add MSK/IAM alongside HTTPS ones. | `list(number)` | `[]` | no |
 | <a name="input_security_group_protocol"></a> [security\_group\_protocol](#input\_security\_group\_protocol) | IP protocol applied to every port in security\_group\_ports. Ignored when security\_group\_ports is empty (all protocols are already implied in that case). | `string` | `"tcp"` | no |
 | <a name="input_security_group_source_security_group_ids"></a> [security\_group\_source\_security\_group\_ids](#input\_security\_group\_source\_security\_group\_ids) | Additional security group IDs allowed to reach the shared fallback security group, all ports/protocols, on top of security\_group\_cidrs. Ignored when the shared group isn't created. | `list(string)` | `[]` | no |
-| <a name="input_subnet_ids_by_tier"></a> [subnet\_ids\_by\_tier](#input\_subnet\_ids\_by\_tier) | Map of tier name to ordered subnet ID list, from workload-vpc.subnet\_ids\_by\_tier. Required only by endpoints[*] entries that set subnet\_tier (Interface endpoints). Defaults to {} so a Gateway-only configuration does not need to wire this input. | `map(list(string))` | `{}` | no |
+| <a name="input_subnet_ids_by_tier"></a> [subnet\_ids\_by\_tier](#input\_subnet\_ids\_by\_tier) | Map of tier name to ordered subnet ID list, from vpc.subnet\_ids\_by\_tier. Required only by endpoints[*] entries that set subnet\_tier (Interface endpoints). Defaults to {} so a Gateway-only configuration does not need to wire this input. | `map(list(string))` | `{}` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Per-project tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
-| <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the workload VPC. Sourced from the workload-vpc project output. | `string` | n/a | yes |
+| <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the workload VPC. Sourced from the vpc project output. | `string` | n/a | yes |
 
 ## Outputs
 

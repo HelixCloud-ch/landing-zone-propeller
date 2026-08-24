@@ -1,6 +1,6 @@
 # Copy to config.auto.tfvars (framework project) or wire via a consumer
 # overlay. vpc_id, subnet_ids_by_tier, and route_table_ids normally arrive as
-# pipeline inputs from workload-vpc / workload-vpc-routes — set here only for
+# pipeline inputs from vpc / vpc-routes — set here only for
 # a standalone plan/test.
 
 endpoints = {

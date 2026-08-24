@@ -2,7 +2,7 @@
 
 variable "region" {
   type        = string
-  description = "AWS region the endpoints are created in (must match the workload-vpc region)."
+  description = "AWS region the endpoints are created in (must match the vpc project region)."
 
   validation {
     condition     = can(regex("^[a-z]{2}-[a-z]+-[0-9]$", var.region))
@@ -10,11 +10,11 @@ variable "region" {
   }
 }
 
-# ── Pipeline inputs (from workload-vpc / workload-vpc-routes outputs) ─────────
+# ── Pipeline inputs (from vpc / vpc-routes outputs) ───────────────────────────
 
 variable "vpc_id" {
   type        = string
-  description = "ID of the workload VPC. Sourced from the workload-vpc project output."
+  description = "ID of the VPC. Sourced from the vpc project output."
 
   validation {
     condition     = can(regex("^vpc-[0-9a-f]{8,17}$", var.vpc_id))
@@ -24,13 +24,13 @@ variable "vpc_id" {
 
 variable "subnet_ids_by_tier" {
   type        = map(list(string))
-  description = "Map of tier name to ordered subnet ID list, from workload-vpc.subnet_ids_by_tier. Required only by endpoints[*] entries that set subnet_tier (Interface endpoints). Defaults to {} so a Gateway-only configuration does not need to wire this input."
+  description = "Map of tier name to ordered subnet ID list, from vpc.subnet_ids_by_tier. Required only by endpoints[*] entries that set subnet_tier (Interface endpoints). Defaults to {} so a Gateway-only configuration does not need to wire this input."
   default     = {}
 }
 
 variable "route_table_ids" {
   type        = map(string)
-  description = "Map of tier name to route table ID, from workload-vpc-routes.route_table_ids. Required only by endpoints[*] entries that set route_table_tiers (Gateway endpoints). Defaults to {} so an Interface-only configuration — or a workload VPC with no route table project at all (e.g. a fully isolated VPC with no Transit Gateway) — does not need to wire this input."
+  description = "Map of tier name to route table ID, from vpc-routes.route_table_ids. Required only by endpoints[*] entries that set route_table_tiers (Gateway endpoints). Defaults to {} so an Interface-only configuration — or a VPC with no route table project at all (e.g. a fully isolated VPC with no Transit Gateway) — does not need to wire this input."
   default     = {}
 }
 
@@ -52,7 +52,7 @@ variable "security_group_name" {
 
 variable "security_group_cidrs" {
   type        = list(string)
-  description = "CIDR blocks allowed to reach the shared fallback security group, all ports/protocols. Defaults to unrestricted (0.0.0.0/0), matching the EOC precedent this project is based on. Narrow it (e.g. to the VPC CIDR) if that default is too broad for your environment. Ignored when the shared group isn't created (see above)."
+  description = "CIDR blocks allowed to reach the shared fallback security group, all ports/protocols. Defaults to unrestricted (0.0.0.0/0). Narrow it (e.g. to the VPC CIDR) if that default is too broad for your environment. Ignored when the shared group isn't created (see above)."
   default     = ["0.0.0.0/0"]
 
   validation {
