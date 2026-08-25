@@ -1,6 +1,4 @@
 locals {
-  subnets_by_tier = jsondecode(var.subnet_ids_json)
-  data_subnet_ids = local.subnets_by_tier[var.subnet_tier]
 
   use_ephemeral_credential = length(compact([var.credential.secret_name, var.credential.secret_arn, var.credential.parameter_name, var.credential.parameter_arn])) == 1
 }
@@ -31,7 +29,7 @@ module "rds_oracle" {
 
   identifier = var.identifier
   vpc_id     = var.vpc_id
-  subnet_ids = local.data_subnet_ids
+  subnet_ids = var.subnet_ids
   port       = var.port
 
   # Access

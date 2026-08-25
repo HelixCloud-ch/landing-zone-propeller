@@ -8,8 +8,7 @@ identifier = "my-redis"
 # num_replicas   = 1                 # 1 replica = HA with auto-failover
 
 # ── Network (from pipeline inputs) ───────────────────────────────────────────
-# vpc_id and subnet_ids_json come from the VPC project via pipeline wiring.
-# subnet_tier = "data"  # Which tier in the subnet map to use
+# vpc_id and subnet_ids come from the VPC project via pipeline wiring.
 
 # ── Access control ────────────────────────────────────────────────────────────
 # allowed_cidrs              = ["10.0.0.0/8"]

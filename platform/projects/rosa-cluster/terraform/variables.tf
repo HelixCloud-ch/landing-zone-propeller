@@ -71,9 +71,9 @@ variable "machine_cidr" {
   }
 }
 
-variable "subnet_ids_json" {
-  type        = string
-  description = "JSON string of subnet tier map (from VPC project output). Decoded to extract private/public tiers."
+variable "subnet_ids_by_tier" {
+  type        = map(list(string))
+  description = "Map of tier name to subnet ID list (from VPC project output). Private/public tiers are selected from it."
 }
 
 variable "private_subnet_tier" {
