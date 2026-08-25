@@ -112,7 +112,7 @@ variable "credential" {
     # Password generation
     password = optional(object({
       length                     = optional(number, 28)
-      exclude_characters         = optional(string, "/@\"\\'\n")
+      exclude_characters         = optional(string, "/@\"&\\'\n")
       exclude_lowercase          = optional(bool, false)
       exclude_numbers            = optional(bool, false)
       exclude_punctuation        = optional(bool, false)

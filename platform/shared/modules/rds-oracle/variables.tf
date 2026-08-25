@@ -159,8 +159,8 @@ variable "password" {
   }
 
   validation {
-    condition     = var.password == null || !can(regex("[/@\"']", var.password))
-    error_message = "Password must not contain '/', '@', '\"', or single quote (RDS Oracle restriction)."
+    condition     = var.password == null || !can(regex("[/@\"'&]", var.password))
+    error_message = "Password must not contain '/', '@', '\"', '&', or single quote (RDS Oracle restriction)."
   }
 
   validation {
