@@ -4,7 +4,7 @@
 resource "aws_db_option_group" "this" {
   name                     = "${var.identifier}-options"
   engine_name              = var.engine
-  major_engine_version     = var.engine_version
+  major_engine_version     = local.major_engine_version
   option_group_description = "Option group for ${var.identifier}"
 
   dynamic "option" {

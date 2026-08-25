@@ -66,7 +66,7 @@ variable "engine" {
 
 variable "engine_version" {
   type        = string
-  description = "Oracle engine version (e.g. '19'). Minor version auto-selected if auto_minor_version_upgrade is true."
+  description = "Oracle engine version (e.g. '19' or '19.0.0.0.0'). The major version is extracted automatically for the option group."
 }
 
 variable "license_model" {

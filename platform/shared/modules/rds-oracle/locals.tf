@@ -1,4 +1,8 @@
 locals {
+  # Option groups require only the major engine version (e.g. "19"), but
+  # callers may pass a full version string like "19.0.0.0.0".
+  major_engine_version = split(".", data.aws_rds_engine_version.this.version_actual)[0]
+
   # Secrets Manager manages the master password when a secret KMS key is supplied,
   # otherwise the provided password is used. The two are mutually exclusive
   # (enforced by a validation on the password variable).
