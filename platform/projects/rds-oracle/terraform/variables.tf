@@ -133,6 +133,11 @@ variable "credential" {
     kms_key_id for encryption).
   EOT
   default     = {}
+
+  validation {
+    condition     = var.credential.password == null || (var.credential.password.length >= 8 && var.credential.password.length <= 30)
+    error_message = "password.length must be between 8 and 30 characters (RDS Oracle constraint)."
+  }
 }
 
 # ── Network access ────────────────────────────────────────────────────────────

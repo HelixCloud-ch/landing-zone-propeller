@@ -1,5 +1,4 @@
 locals {
-
   use_ephemeral_credential = length(compact([var.credential.secret_name, var.credential.secret_arn, var.credential.parameter_name, var.credential.parameter_arn])) == 1
 }
 
