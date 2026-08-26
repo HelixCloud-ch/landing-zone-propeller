@@ -18,7 +18,7 @@ export const CODEBUILD_PROJECT_NAME = "deploy-runner";
 export const RUN_ROLE_NAME = "deploy-runner-run-role";
 
 /** Interval in seconds between CodeBuild status polls. */
-export const POLL_INTERVAL_SECONDS = 15;
+export const POLL_INTERVAL_SECONDS = 25;
 
 /** Terminal build statuses that indicate a build has completed. */
 export const TERMINAL_BUILD_STATUSES: Set<string> = new Set([
