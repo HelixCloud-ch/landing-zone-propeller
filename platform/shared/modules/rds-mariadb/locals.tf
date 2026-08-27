@@ -1,4 +1,8 @@
 locals {
+  create_parameter_group = var.parameter_group_name == null && length(var.parameters) > 0
+  parameter_group_family = "mariadb${join(".", slice(split(".", var.engine_version), 0, 2))}"
+  parameter_group_name   = coalesce(var.parameter_group_name, try(aws_db_parameter_group.this[0].name, null))
+
   # Secrets Manager manages the master password when a secret KMS key is supplied,
   # otherwise the provided password is used. The two are mutually exclusive
   # (enforced by a precondition on the DB instance).

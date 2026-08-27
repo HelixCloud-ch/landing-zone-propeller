@@ -76,4 +76,8 @@ module "rds_mariadb" {
 
   # Monitoring
   performance_insights_enabled = var.performance_insights_enabled
+
+  # Parameter group
+  parameter_group_name = var.parameter_group_name
+  parameters           = var.parameters
 }

@@ -42,3 +42,7 @@ output "security_group_id" {
   description = "ID of the security group used by the RDS instance (created or caller-provided)."
   value       = local.security_group_id
 }
+output "parameter_group_name" {
+  description = "Name of the DB parameter group attached to the instance (existing or module-created), or null when engine default is used."
+  value       = local.parameter_group_name
+}

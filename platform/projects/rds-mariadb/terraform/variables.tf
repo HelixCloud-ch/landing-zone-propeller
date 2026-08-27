@@ -215,3 +215,15 @@ variable "propeller_tags" {
   type    = map(string)
   default = {}
 }
+
+# ── Parameter Group ───────────────────────────────────────────────────────────
+variable "parameter_group_name" {
+  type        = string
+  default     = null
+  description = "Existing DB parameter group to attach (bring-your-own). Wins over `parameters` when both are set. Falls back to the engine default when both are unset."
+}
+variable "parameters" {
+  type        = map(string)
+  default     = {}
+  description = "Extra DB parameter group values as name -> value. When non-empty (and no parameter_group_name), the module creates a per-instance parameter group and attaches it."
+}
