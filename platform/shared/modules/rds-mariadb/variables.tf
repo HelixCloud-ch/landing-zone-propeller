@@ -342,8 +342,14 @@ variable "performance_insights_enabled" {
 
 variable "parameter_group_name" {
   type        = string
-  description = "DB parameter group name. Uses engine default if not specified."
+  description = "Existing DB parameter group to attach (bring-your-own). Wins over `parameters` when both are set. Falls back to the engine default when both are unset."
   default     = null
+}
+
+variable "parameters" {
+  type        = map(string)
+  description = "Extra DB parameter group values as name -> value. When non-empty and parameter_group_name is null, the module creates a per-instance aws_db_parameter_group and attaches it. Default apply_method is pending-reboot, safe for both static and dynamic params."
+  default     = {}
 }
 
 # ── Logging ───────────────────────────────────────────────────────────────────

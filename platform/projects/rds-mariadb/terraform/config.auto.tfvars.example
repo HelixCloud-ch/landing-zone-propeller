@@ -71,3 +71,12 @@ engine_version = "10.11"
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
 # performance_insights_enabled = true
+
+# ── Parameter group ───────────────────────────────────────────────────────────
+# Attach an existing group (wins over `parameters`):
+# parameter_group_name = "my-shared-mariadb-params"
+# Or let the module create a per-instance group with these values:
+# parameters = {
+#   lower_case_table_names          = "1"
+#   log_bin_trust_function_creators = "1"
+# }

@@ -34,3 +34,7 @@ output "credential_secret_arn" {
   description = "ARN of the Secrets Manager secret created by ephemeral-credential (secret_name mode only)."
   value       = try(module.credential[0].secret_arn, null)
 }
+output "parameter_group_name" {
+  description = "Name of the DB parameter group attached to the instance."
+  value       = module.rds_mariadb.parameter_group_name
+}

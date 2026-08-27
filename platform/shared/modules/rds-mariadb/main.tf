@@ -45,6 +45,30 @@ resource "aws_vpc_security_group_ingress_rule" "ingress_sgs" {
   description                  = "MariaDB access from ${each.value}"
 }
 
+# ── DB Parameter Group ────────────────────────────────────────────────────────
+
+resource "aws_db_parameter_group" "this" {
+  count       = local.create_parameter_group ? 1 : 0
+  name_prefix = "${var.identifier}-"
+  family      = local.parameter_group_family
+  description = "Custom MariaDB parameters for ${var.identifier}"
+
+  dynamic "parameter" {
+    for_each = var.parameters
+    content {
+      name         = parameter.key
+      value        = parameter.value
+      apply_method = "pending-reboot"
+    }
+  }
+
+  # family changes when the caller bumps engine_version across
+  # major/minor; the new group must exist before the instance switches over.
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # ── RDS MariaDB Instance ──────────────────────────────────────────────────────
 
 resource "aws_db_instance" "this" {
@@ -105,7 +129,7 @@ resource "aws_db_instance" "this" {
   enabled_cloudwatch_logs_exports = var.enabled_cloudwatch_logs_exports
 
   # Parameter group
-  parameter_group_name = var.parameter_group_name
+  parameter_group_name = local.parameter_group_name
 
   lifecycle {
     ignore_changes = [
