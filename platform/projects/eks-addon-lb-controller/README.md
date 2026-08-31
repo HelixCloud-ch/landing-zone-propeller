@@ -60,7 +60,7 @@ CoreDNS and the base addons).
 
 `cluster_name`, `cluster_endpoint`, `cluster_certificate_authority_data`,
 `oidc_provider_arn`, `oidc_provider_url` are injected from the `eks-cluster`
-step outputs; `vpc_id` from the `workload-vpc` step. Do **not** set them in
+step outputs; `vpc_id` from the `vpc` step. Do **not** set them in
 `config.auto.tfvars`.
 
 ```yaml
@@ -68,7 +68,7 @@ step outputs; `vpc_id` from the `workload-vpc` step. Do **not** set them in
   target: workload-account
   depends_on: [eks-addons]
   inputs:
-    - name: workload-vpc.vpc_id
+    - name: vpc.vpc_id
       var: vpc_id
     - name: eks-cluster.cluster_name
       var: cluster_name
@@ -154,7 +154,7 @@ No modules.
 | <a name="input_service_account_name"></a> [service\_account\_name](#input\_service\_account\_name) | Name of the Kubernetes service account the controller uses. Must match the IRSA trust policy subject or the Pod Identity association. | `string` | `"aws-load-balancer-controller"` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Base tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 | <a name="input_use_pod_identity"></a> [use\_pod\_identity](#input\_use\_pod\_identity) | Whether to use EKS Pod Identity for the Load Balancer Controller. Set to true if the Pod Identity Agent add-on is installed. Not supported on pure-Fargate clusters. Default: false (uses IRSA/OIDC). | `bool` | `false` | no |
-| <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the workload VPC. Sourced from the workload-vpc project output. Passed to the LB Controller Helm release as vpcId. | `string` | n/a | yes |
+| <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the workload VPC. Sourced from the vpc project output. Passed to the LB Controller Helm release as vpcId. | `string` | n/a | yes |
 
 ## Outputs
 

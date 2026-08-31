@@ -1,0 +1,12 @@
+name: vpc-routes
+description: >-
+  Creates one route table per subnet tier, associates the tier's subnets, and
+  installs routes from a per-tier policy map. Targets are named by keyword and
+  resolved against gateway IDs supplied by sibling projects (vpc-igw, a TGW
+  attachment, NAT gateways, peering connections). When a TGW attachment ID is
+  supplied the plan fails until the attachment has been accepted via
+  network-spokes.
+metadata:
+  cost-center: platform
+deploy:
+  type: just

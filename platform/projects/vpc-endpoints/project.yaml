@@ -1,0 +1,14 @@
+name: vpc-endpoints
+description: >-
+  Creates VPC Interface and Gateway endpoints for private connectivity to
+  AWS service APIs, without routing through NAT or a Transit Gateway.
+  Consumes vpc.subnet_ids_by_tier and, for Gateway endpoints,
+  vpc-routes.route_table_ids. Security groups for Interface endpoints are
+  the caller's responsibility. Independent of whether the account has a
+  Transit Gateway — suitable for both hub-attached and isolated VPCs.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just

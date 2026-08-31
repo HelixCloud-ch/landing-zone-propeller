@@ -1,0 +1,9 @@
+name: vpc-igw
+description: >-
+  Attaches an Internet Gateway to an existing VPC. Outputs igw_id for
+  consumption by vpc-routes (igw_tiers). Designed to be composed with
+  vpc-generic or vpc — never creates the VPC itself.
+metadata:
+  cost-center: platform
+deploy:
+  type: just

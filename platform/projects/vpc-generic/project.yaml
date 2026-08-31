@@ -1,0 +1,10 @@
+name: vpc-generic
+description: >-
+  Builds a multi-AZ VPC with configurable subnet tiers but no connectivity
+  assumptions (no TGW attachment, no IGW, no NAT). Use this project for VPCs
+  that compose their connectivity via separate projects (vpc-igw, vpc-tgw,
+  vpc-natgw). Calls the shared vpc and vpc-subnets modules.
+metadata:
+  cost-center: platform
+deploy:
+  type: just

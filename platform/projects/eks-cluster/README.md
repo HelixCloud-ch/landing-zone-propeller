@@ -23,7 +23,7 @@ and `config-mixed.auto.tfvars.example` for concrete examples.
 ## Pipeline inputs
 
 `vpc_id` and `subnet_ids_by_tier` are injected by the pipeline from the
-`workload-vpc` step outputs — do **not** set them in `config.auto.tfvars`
+`vpc` step outputs — do **not** set them in `config.auto.tfvars`
 (the latter arrives pre-parsed as HCL, no `jsondecode` needed). The cluster's
 `vpc_config` attaches the subnets from `cluster_subnet_tiers` (one
 `vpc_config` block, so all selected tiers flatten into one subnet list —
@@ -182,9 +182,9 @@ supported there).
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | Propeller framework tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region where the EKS cluster is deployed. | `string` | n/a | yes |
 | <a name="input_secrets_encryption_enabled"></a> [secrets\_encryption\_enabled](#input\_secrets\_encryption\_enabled) | When true, enables CMK envelope encryption for Kubernetes secrets using kms\_key\_arn. | `bool` | `false` | no |
-| <a name="input_subnet_ids_by_tier"></a> [subnet\_ids\_by\_tier](#input\_subnet\_ids\_by\_tier) | Map of tier name to ordered subnet ID list, from workload-vpc.subnet\_ids\_by\_tier. See README ('Pipeline inputs'). | `map(list(string))` | n/a | yes |
+| <a name="input_subnet_ids_by_tier"></a> [subnet\_ids\_by\_tier](#input\_subnet\_ids\_by\_tier) | Map of tier name to ordered subnet ID list, from vpc.subnet\_ids\_by\_tier. See README ('Pipeline inputs'). | `map(list(string))` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Base tags merged into the provider default\_tags block. | `map(string)` | `{}` | no |
-| <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the workload VPC. Sourced from the workload-vpc project output. | `string` | n/a | yes |
+| <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the workload VPC. Sourced from the vpc project output. | `string` | n/a | yes |
 
 ## Outputs
 

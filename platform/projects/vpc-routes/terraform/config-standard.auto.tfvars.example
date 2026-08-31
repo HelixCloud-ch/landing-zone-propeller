@@ -1,0 +1,19 @@
+# ── Standard spoke: all traffic to TGW (centralized egress) ──────────────────
+#
+# Typical landing-zone workload. Private tiers route everything to the hub VPC's
+# TGW, which handles NAT and inspection centrally. No IGW, no local NAT.
+
+region      = "eu-central-2"
+name_prefix = "acme-app1-vpc"
+
+# ── Routing policy (static, committed) ───────────────────────────────────────
+
+tier_routes = {
+  app  = [{ destination = "0.0.0.0/0", tgw_key = "main" }]
+  data = [{ destination = "0.0.0.0/0", tgw_key = "main" }]
+}
+
+# ── Pipeline inputs (injected by propeller, do NOT set manually) ─────────────
+# vpc_id             — from vpc.vpc_id
+# subnet_ids_by_tier — from vpc.subnet_ids_by_tier
+# tgw_ids            — wired as: { main = workload-parameters.tgw_id }

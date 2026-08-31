@@ -37,7 +37,7 @@ secrets_encryption_enabled = false
 # kms_key_arn = "arn:aws:kms:eu-central-2:<account_id>:key/<key_id>"
 
 # vpc_id and subnet_ids_by_tier are injected by the pipeline from the
-# workload-vpc project outputs — do NOT set them here.
+# vpc project outputs — do NOT set them here.
 
 # One or more tiers attached to the cluster's vpc_config (control-plane ENIs).
 # Flattened into a single subnet list — aws_eks_cluster allows one vpc_config.

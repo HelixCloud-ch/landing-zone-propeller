@@ -5,16 +5,16 @@ variable "region" {
   description = "AWS region where the EKS cluster is deployed."
 }
 
-# ── Pipeline inputs (from workload-vpc outputs) ────────────────────────────────
+# ── Pipeline inputs (from vpc outputs) ────────────────────────────────
 
 variable "vpc_id" {
   type        = string
-  description = "ID of the workload VPC. Sourced from the workload-vpc project output."
+  description = "ID of the workload VPC. Sourced from the vpc project output."
 }
 
 variable "subnet_ids_by_tier" {
   type        = map(list(string))
-  description = "Map of tier name to ordered subnet ID list, from workload-vpc.subnet_ids_by_tier. See README ('Pipeline inputs')."
+  description = "Map of tier name to ordered subnet ID list, from vpc.subnet_ids_by_tier. See README ('Pipeline inputs')."
 }
 
 variable "cluster_subnet_tiers" {
