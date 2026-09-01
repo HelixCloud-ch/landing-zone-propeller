@@ -11,8 +11,6 @@ destroy: tf-destroy
 #
 # For Fargate-only clusters sleep/wake is a no-op (Fargate has no idle cost).
 
-sleep-default: sleep-scale-zero
-wake-default: wake-scale-zero
 
 sleep-scale-zero: tf-init
     #!/usr/bin/env bash
