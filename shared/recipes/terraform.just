@@ -108,6 +108,15 @@ wake:
 sleep-destroy: tf-destroy
 wake-destroy: tf-apply
 
+# "apply-on-wake" mode: sleep is a no-op (assumes the enclosing environment,
+# e.g. the EKS cluster, is torn down separately so the resources evaporate
+# with it); wake runs a full apply. Useful for install-into-cluster projects
+# where a real terraform destroy on sleep would either be wasteful or fail.
+sleep-apply-on-wake:
+    @echo "sleep-apply-on-wake: no-op"
+
+wake-apply-on-wake: tf-apply
+
 # ── Sleep state helpers ───────────────────────────────────────────────────────
 # For modes that need to pass arbitrary data between sleep and wake (beyond
 # deterministic naming conventions), use the state bucket.
