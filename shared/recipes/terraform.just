@@ -94,19 +94,33 @@ tf-outputs: tf-init
 # Convention for snapshot-based modes: use a deterministic snapshot ID
 # "propeller-sleep-{PROJECT_NAME}" so wake can find it without state passing.
 
-_sleep_mode := env("PROPELLER_SLEEP_MODE", "default")
 _sleep_snapshot_id := "propeller-sleep-" + env("PROJECT_NAME")
 _sleep_state_key := "propeller/" + env("PROPELLER_NAMESPACE") + "/" + env("PROJECT_NAME") + "/sleep-state.json"
 
+# PROPELLER_SLEEP_MODE is required (no implicit default), so a missing mode
+# fails fast instead of silently picking sleep-default.
 sleep:
-    just sleep-{{ _sleep_mode }}
+    #!/usr/bin/env bash
+    : "${PROPELLER_SLEEP_MODE:?PROPELLER_SLEEP_MODE required (declare an explicit mode in the sleep preset)}"
+    just sleep-${PROPELLER_SLEEP_MODE}
 
 wake:
-    just wake-{{ _sleep_mode }}
+    #!/usr/bin/env bash
+    : "${PROPELLER_SLEEP_MODE:?PROPELLER_SLEEP_MODE required (declare an explicit mode in the sleep preset)}"
+    just wake-${PROPELLER_SLEEP_MODE}
 
 # Explicit "destroy" mode
 sleep-destroy: tf-destroy
 wake-destroy: tf-apply
+
+# "apply-on-wake" mode: sleep is a no-op (assumes the enclosing environment,
+# e.g. the EKS cluster, is torn down separately so the resources evaporate
+# with it); wake runs a full apply. Useful for install-into-cluster projects
+# where a real terraform destroy on sleep would either be wasteful or fail.
+sleep-apply-on-wake:
+    @echo "sleep-apply-on-wake: no-op"
+
+wake-apply-on-wake: tf-apply
 
 # ── Sleep state helpers ───────────────────────────────────────────────────────
 # For modes that need to pass arbitrary data between sleep and wake (beyond

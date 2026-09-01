@@ -10,8 +10,6 @@ destroy: tf-destroy
 #   snapshot  - Targeted destroy with final snapshot, recreate on wake
 #   destroy   - Full terraform destroy/apply (inherited from shared recipe)
 
-sleep-default: sleep-stop
-wake-default: wake-stop
 
 sleep-stop: tf-init
     #!/usr/bin/env bash

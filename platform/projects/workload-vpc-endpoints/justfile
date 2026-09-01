@@ -10,5 +10,3 @@ destroy: tf-destroy
 # monthly line item. destroy/apply is lossless here (no data, no state to
 # preserve across the nap), so it is the only mode needed.
 
-sleep-default: sleep-destroy
-wake-default: wake-destroy

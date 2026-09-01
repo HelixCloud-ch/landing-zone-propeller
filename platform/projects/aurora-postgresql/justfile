@@ -15,8 +15,6 @@ destroy: tf-destroy
 # seconds_until_auto_pause of inactivity — the "pause" sleep mode just ensures
 # the scaling config allows it (idempotent if already configured).
 
-sleep-default: sleep-pause
-wake-default: wake-pause
 
 sleep-pause: tf-init
     #!/usr/bin/env bash
