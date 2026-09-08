@@ -162,13 +162,16 @@ export async function execute(
     }
   }
 
-  // Filter pipeline to only the specified projects (if set)
-  if (only.size > 0) {
-    for (const stage of pipeline.stages) {
-      stage.steps = stage.steps.filter((s) => only.has(s.project));
-    }
-    pipeline.stages = pipeline.stages.filter((s) => s.steps.length > 0);
-  }
+  // Filter to only the specified projects (if set). Do not mutate
+  // event.pipeline: promotion writes the full manifest to
+  // bundles-active/<ns>/pipeline.json so partial (--only) applies still
+  // record the complete pipeline.
+  const filteredStages =
+    only.size === 0
+      ? pipeline.stages
+      : pipeline.stages
+          .map((s) => ({ ...s, steps: s.steps.filter((st) => only.has(st.project)) }))
+          .filter((s) => s.steps.length > 0);
 
   // Destroy safety: require explicit project list or destroy_all flag
   if (pctx.deployAction === "destroy" && only.size === 0 && !event.destroy_all) {
@@ -181,8 +184,8 @@ export async function execute(
   // Reverse stage order for destructive actions (tear down in reverse dependency order)
   const stages =
     pctx.deployAction === "sleep" || pctx.deployAction === "destroy"
-      ? [...pipeline.stages].reverse()
-      : pipeline.stages;
+      ? [...filteredStages].reverse()
+      : filteredStages;
 
   // Initialize status tracker for live execution state
   const allProjects = stages.flatMap((s) => s.steps.map((st) => st.project));
