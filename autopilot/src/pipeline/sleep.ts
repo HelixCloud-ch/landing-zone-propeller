@@ -44,7 +44,10 @@ export async function runStageSleepWake(
   let waveNum = 0;
 
   while (completed.size + failed.size + skipped.size < dag.size) {
-    const ready = findReady(dag, completed, failed, skipped);
+    // For sleep/wake, non-participating (skipped) deps must not block
+    // participating dependents. Preset drives participation; a project not
+    // in the preset simply does not run and should not gate the graph.
+    const ready = findReady(dag, completed, failed, skipped, { treatSkippedAsMet: true });
     if (ready.length === 0) break;
 
     const branches: Array<(ctx: DurableContext) => Promise<StepResult>> = [];

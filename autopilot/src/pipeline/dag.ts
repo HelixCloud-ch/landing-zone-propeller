@@ -95,13 +95,16 @@ export function findReady(
   completed: Set<string>,
   failed: Set<string>,
   skipped: Set<string>,
+  opts: { treatSkippedAsMet?: boolean } = {},
 ): string[] {
   const done = new Set([...completed, ...failed, ...skipped]);
   const ready: string[] = [];
 
   for (const [project, deps] of dag) {
     if (done.has(project)) continue;
-    const allDepsMet = [...deps].every((d) => completed.has(d));
+    const allDepsMet = [...deps].every(
+      (d) => completed.has(d) || (opts.treatSkippedAsMet && skipped.has(d)),
+    );
     if (allDepsMet) ready.push(project);
   }
 
