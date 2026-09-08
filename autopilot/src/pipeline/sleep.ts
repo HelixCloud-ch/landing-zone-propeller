@@ -54,12 +54,27 @@ export async function runStageSleepWake(
       const mode = resolveSleepMode(step, pctx);
 
       if (!mode) {
-        // Project not in preset — does not participate
+        // Project not in preset, does not participate
         skipped.add(project);
         results.set(project, {
           status: "skipped",
           project,
           error: "not in sleep preset",
+        });
+      } else if (pctx.deployAction === "sleep" && mode === "apply-on-wake") {
+        // apply-on-wake: no CodeBuild on sleep. Record state so wake dispatches.
+        completed.add(project);
+        results.set(project, {
+          status: "succeeded",
+          project,
+          target: step.target,
+          sleep_project_state: {
+            mode,
+            ...(!step.codebuild?.default_image &&
+              pctx.codebuild?.image_repo && {
+                version: pctx.propellerVersion,
+              }),
+          },
         });
       } else {
         const capturedStep = step;
