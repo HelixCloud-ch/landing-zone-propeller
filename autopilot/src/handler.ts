@@ -57,6 +57,8 @@ export async function execute(
     supervised: event.deploy_mode === "supervised",
     sleepProjects: {},
     codebuild: pipeline.codebuild,
+    policies: pipeline.policies,
+    hasOnlyFilter: only.size > 0,
   };
 
   log.info(`▶ Pipeline: ${pctx.namespace} ${pctx.deployAction} (${pipeline.stages.reduce((n, s) => n + s.steps.length, 0)} projects, ${pctx.supervised ? "supervised" : "autopilot"}, ${pctx.propellerVersion} @ ${pctx.gitSha})`);
@@ -338,7 +340,8 @@ async function buildResult(
   pipeline: PipelineDefinition,
   sleepPreset?: string,
 ): Promise<PipelineResult> {
-  const totalFailed = allResults.filter((r) => r.status === "failed").length;
+  const totalFailed = allResults.filter((r) => r.status === "failed" && !r.soft).length;
+  const totalSoftFailed = allResults.filter((r) => r.status === "failed" && r.soft).length;
   const warnings: string[] = [];
 
   if (pctx.namespace && totalFailed === 0) {
@@ -387,6 +390,7 @@ async function buildResult(
       succeeded: allResults.filter((r) => r.status === "succeeded").length,
       failed: totalFailed,
       skipped: allResults.filter((r) => r.status === "skipped").length,
+      ...(totalSoftFailed > 0 && { soft_failed: totalSoftFailed }),
     },
     results: allResults,
     ...(warnings.length > 0 && { warnings }),

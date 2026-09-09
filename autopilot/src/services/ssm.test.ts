@@ -252,6 +252,7 @@ describe("writeOutputs", () => {
       executionId: "exec-test-123",
       supervised: false,
       sleepProjects: {},
+      hasOnlyFilter: false,
     };
 
     const written = await writeOutputs(client, step, exportedVars, "build:123", pctx);
@@ -290,6 +291,7 @@ describe("writeOutputs", () => {
       executionId: "exec-test-123",
       supervised: false,
       sleepProjects: {},
+      hasOnlyFilter: false,
     };
 
     await writeOutputs(client, step, exportedVars, "build:1", pctx);

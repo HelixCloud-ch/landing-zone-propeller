@@ -31,6 +31,7 @@ function ctx(overrides: Partial<PipelineContext> = {}): PipelineContext {
     executionId: "exec-1",
     supervised: false,
     sleepProjects: {},
+    hasOnlyFilter: false,
     ...overrides,
   };
 }
