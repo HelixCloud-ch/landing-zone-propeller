@@ -591,6 +591,8 @@ def pipeline_to_dict(pipeline: Pipeline) -> dict:
         data["sleep_presets"] = dict(pipeline.sleep_presets)
     if pipeline.codebuild:
         data["codebuild"] = dict(pipeline.codebuild)
+    if pipeline.policies:
+        data["policies"] = dict(pipeline.policies)
     for stage in pipeline.stages:
         stage_dict: dict = {
             "name": stage.name,

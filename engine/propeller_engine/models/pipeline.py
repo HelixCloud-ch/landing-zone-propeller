@@ -80,5 +80,6 @@ class Pipeline(BaseModel):
     tags: dict[str, str] = Field(default_factory=dict)
     consumer_tags: dict[str, str] = Field(default_factory=dict)
     sleep_presets: dict[str, dict[str, str]] = Field(default_factory=dict)
+    policies: dict = Field(default_factory=dict)
     # Pipeline-wide CodeBuild config (image_repo/image/compute_type/timeout).
     codebuild: dict | None = None
