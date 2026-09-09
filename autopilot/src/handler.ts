@@ -149,10 +149,16 @@ export async function execute(
     }
   }
 
-  // Prevent concurrent full-pipeline executions of the same namespace
+  // Prevent concurrent full-pipeline executions of the same namespace.
+  // Wrapped in context.step so the result is checkpointed: replays reuse
+  // the original decision, otherwise a partial started AFTER us would be
+  // seen as a conflict on replay and kill this run mid-execution.
+  // Partial (--only) runs are intentionally exempt.
   if (pctx.namespace && only.size === 0) {
     const currentArn = extractExecutionArn(context);
-    const conflict = await checkConcurrentExecution(pctx.namespace, currentArn);
+    const conflict = await context.step("concurrent-check", () =>
+      checkConcurrentExecution(pctx.namespace, currentArn),
+    );
     if (conflict) {
       log.warn("Blocked: concurrent execution", { namespace: pctx.namespace, conflict });
       return fail(
