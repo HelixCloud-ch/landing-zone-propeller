@@ -22,6 +22,7 @@ import { writeLogs } from "../services/s3.js";
 import { prepareBuildConfig, writeOutputs } from "../services/ssm.js";
 import type { BuildConfig, PipelineContext, Stage, StepConfig, StepResult } from "../types.js";
 import { buildDag, findDependents, findReady, reverseDag } from "./dag.js";
+import { isSoftFail } from "./policies.js";
 
 export async function runStage(
   stage: Stage,
@@ -60,6 +61,10 @@ export async function runStage(
     for (const r of batchArray) {
       results.set(r.project, r);
       if (r.status === "succeeded") {
+        completed.add(r.project);
+      } else if (isSoftFail(r.project, pctx.deployAction, pctx.policies, pctx.hasOnlyFilter)) {
+        // Soft-fail: don't block the pipeline, don't cascade skips.
+        r.soft = true;
         completed.add(r.project);
       } else {
         failed.add(r.project);

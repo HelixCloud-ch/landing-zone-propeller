@@ -54,6 +54,30 @@ export interface PipelineDefinition {
    * applied to every step (maxed against each step's floor).
    */
   codebuild?: PipelineCodeBuildConfig;
+  /** Pipeline-wide policies. See PipelinePolicies. */
+  policies?: PipelinePolicies;
+}
+
+/**
+ * Pipeline-wide policies. Namespaced so future kinds (retry, notify, ...)
+ * attach next to soft_fail without schema churn.
+ */
+export interface PipelinePolicies {
+  soft_fail?: SoftFailPolicy[];
+}
+
+/**
+ * Marks matching step failures as non-blocking for specific deploy actions.
+ * Soft-failed steps do not fail the pipeline, do not cascade skips, and are
+ * counted separately in the summary.
+ */
+export interface SoftFailPolicy {
+  /** Step-name glob. Supports `*` and `?`. Anchored full-match. */
+  match: string;
+  /** Deploy actions this policy applies to. */
+  actions: DeployAction[];
+  /** If true, policy also applies to --only runs. Default false (strict). */
+  on_only?: boolean;
 }
 
 /** Pipeline-level CodeBuild config. The autopilot reads only image/image_repo. */
@@ -246,6 +270,12 @@ export interface StepResult {
    * On wake: not used (wake reads sleep_projects from SSM state).
    */
   sleep_project_state?: import("./services/ssm.js").SleepProjectState;
+  /**
+   * True when the failure was matched by a soft_fail policy. Present only
+   * on `status: "failed"` results. Soft failures don't fail the pipeline
+   * and don't cascade to dependents.
+   */
+  soft?: boolean;
 }
 
 /** Final pipeline execution result returned from the handler. */
@@ -255,6 +285,8 @@ export interface PipelineResult {
     succeeded: number;
     failed: number;
     skipped: number;
+    /** Failures matched by a soft_fail policy. Not counted in `failed`. */
+    soft_failed?: number;
   };
   results: StepResult[];
   /** Human-readable error description. */
@@ -295,6 +327,10 @@ export interface PipelineContext {
   sleepProjects: Record<string, import("./services/ssm.js").SleepProjectState>;
   /** Pipeline-wide CodeBuild config (image/image_repo/compute_type/timeout). */
   codebuild?: PipelineCodeBuildConfig;
+  /** Pipeline-wide policies (soft_fail, ...). */
+  policies?: PipelinePolicies;
+  /** True when the invocation carried a non-empty `only` filter. */
+  hasOnlyFilter: boolean;
   /** Optional status tracker for live execution state (status.json in S3). */
   statusTracker?: import("./services/status.js").StatusTracker;
 }

@@ -22,6 +22,7 @@ import type {
   StepResult,
 } from "../types.js";
 import { buildDag, findDependents, findReady, reverseDag } from "./dag.js";
+import { isSoftFail } from "./policies.js";
 
 export async function runStageSleepWake(
   stage: Stage,
@@ -98,6 +99,9 @@ export async function runStageSleepWake(
     for (const r of batchArray) {
       results.set(r.project, r);
       if (r.status === "succeeded") {
+        completed.add(r.project);
+      } else if (isSoftFail(r.project, pctx.deployAction, pctx.policies, pctx.hasOnlyFilter)) {
+        r.soft = true;
         completed.add(r.project);
       } else {
         failed.add(r.project);
