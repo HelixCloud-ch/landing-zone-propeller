@@ -4,9 +4,17 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 # plugin artifacts. Not a terraform project. Runs on the Egress_Runner because
 # the build downloads pinned dependencies from the internet.
 #
-# The build is pure bash: it uses the aws CLI (aws s3api / aws s3), curl, tar,
-# unzip, zip and jq — all present on the Egress_Runner image. There is no
-# Python or AWS SDK dependency.
+# The build is pure bash: it uses the aws CLI (aws s3api), curl, tar, unzip,
+# zip and jq. There is no Python or AWS SDK dependency.
+#
+# versions.json is the committed manifest: a catalogue of vetted Debezium
+# versions per flavour, each carrying its compatibility envelope, an `enabled`
+# flag and one marked `default`. Only enabled versions are built, so cataloguing
+# a version costs nothing until someone opts into it.
+#
+# Registration is additive — every built version becomes its own MSK Connect
+# custom plugin, because a custom plugin cannot be updated in place. See
+# README.md for the rule governing removal of a version.
 
 _dir := justfile_directory()
 
@@ -14,13 +22,16 @@ _dir := justfile_directory()
 # Destination bucket is required and never hardcoded; the rest default.
 bucket     := env("PROPELLER_INPUT_bucket", "")
 key_prefix := env("PROPELLER_INPUT_key_prefix", "debezium/")
-flavours   := env("PROPELLER_INPUT_flavours", "mariadb oracle")
+flavours   := env("PROPELLER_INPUT_flavours", "")
 
-# ── Private: resolve inputs + pinned versions, print as KEY=VALUE lines ───────
-# Called by both plan and apply to avoid duplicating the resolution logic.
-# Each version defaults to its versions.env pin; an optional PROPELLER_INPUT_*
-# override is an explicit concrete version, never "latest". DEBEZIUM_DEFAULT is
-# emitted so callers can render the default-vs-override plan message.
+# ── Private: resolve manifest + inputs into one JSON document ─────────────────
+# Emits a single-line JSON object consumed by both plan and apply:
+#
+#   { bucket, key_prefix, config_providers_version, urls, defaults, builds }
+#
+# `builds` is the flavour x version cross product with the S3 key already
+# computed, so plan and apply agree by construction. All manifest validation
+# happens here, offline, before anything touches the network.
 [private]
 _resolve:
     #!/usr/bin/env bash
@@ -33,62 +44,182 @@ _resolve:
       exit 1
     fi
 
-    key_prefix="{{ key_prefix }}"
+    # versions.json is the committed source of truth. A consumer may replace the
+    # whole manifest for a one-off build; there is deliberately no per-version
+    # override, because the version set is what makes an upgrade a reviewable
+    # diff (and the S3 key encodes the version, so a partial override would
+    # write different content under an existing key).
+    if [ -n "${PROPELLER_INPUT_manifest_json:-}" ]; then
+      manifest="${PROPELLER_INPUT_manifest_json}"
+    else
+      manifest="$(cat ./versions.json)"
+    fi
 
-    # Accept space- or comma-separated flavours; normalise to space-separated.
-    flavours="$(echo "{{ flavours }}" | tr ',' ' ' | xargs)"
+    if ! jq empty <<<"$manifest" 2>/dev/null; then
+      echo "error: manifest is not valid JSON" >&2
+      exit 1
+    fi
 
-    # versions.env is the committed source of truth and the default pin.
-    set -a; . ./versions.env; set +a
-    debezium_default="${DEBEZIUM_VERSION}"
+    # Optional flavour filter: build a subset of the flavours the manifest
+    # declares, so a MariaDB-only consumer need not restate the manifest.
+    # Empty means every declared flavour.
+    filter_raw="$(echo "{{ flavours }}" | tr ',' ' ' | xargs || true)"
+    if [ -z "$filter_raw" ]; then
+      filter_json='[]'
+    else
+      filter_json="$(printf '%s' "$filter_raw" \
+        | jq -Rsc 'split(" ") | map(select(length > 0))')"
+    fi
 
-    debezium_version="${PROPELLER_INPUT_debezium_version:-$DEBEZIUM_VERSION}"
-    config_providers_version="${PROPELLER_INPUT_config_providers_version:-$CONFIG_PROVIDERS_VERSION}"
-    ojdbc_version="${PROPELLER_INPUT_ojdbc_version:-$OJDBC_VERSION}"
+    # Download base URLs default to the manifest's `urls` block. These three
+    # scalar overrides exist for an internal Maven mirror, a GitHub Enterprise
+    # host or an offline copy of the license text — a different source for the
+    # same bytes, which is why they are safe to override per build.
+    # jq validates and resolves in one pass. Its stderr is rewritten so a
+    # manifest mistake reads as a manifest mistake, not as a jq failure.
+    err="$(mktemp "${TMPDIR:-/tmp}/resolve-err-XXXXXX")"
+    trap 'rm -f "$err"' EXIT
 
-    # Download base URLs default to the versions.env pins; an optional
-    # PROPELLER_INPUT_*_url override points the build at an internal mirror.
-    maven_central_url="${PROPELLER_INPUT_maven_central_url:-$MAVEN_CENTRAL_URL}"
-    config_providers_releases_url="${PROPELLER_INPUT_config_providers_releases_url:-$CONFIG_PROVIDERS_RELEASES_URL}"
-    oracle_license_url="${PROPELLER_INPUT_oracle_license_url:-$ORACLE_LICENSE_URL}"
+    if ! resolved="$(jq -c \
+      --arg bucket "$bucket" \
+      --arg key_prefix "{{ key_prefix }}" \
+      --arg maven_central "${PROPELLER_INPUT_maven_central_url:-}" \
+      --arg config_providers_releases "${PROPELLER_INPUT_config_providers_releases_url:-}" \
+      --arg oracle_license "${PROPELLER_INPUT_oracle_license_url:-}" \
+      --argjson filter "$filter_json" '
+        . as $m
+        | ($m.flavours // { }) as $fl
+        | ($m.config_providers // { }) as $cp
+        | (if ($filter | length) == 0 then ($fl | keys) else $filter end) as $sel
+        | [
+            (if ($fl | length) == 0
+             then "declares no flavours" else empty end),
+            (if (($cp.release_tag // "") | length) == 0
+             then "config_providers.release_tag is missing" else empty end),
+            (if (($cp.asset // "") | length) == 0
+             then "config_providers.asset is missing"
+             elif (($cp.asset | test("\\.(zip|jar)$")) | not)
+             then "config_providers.asset must end in .zip or .jar (the shapes the build can unpack)"
+             else empty end),
+            ($sel[] as $f | select(($fl | has($f)) | not) | "unknown flavour \"" + $f + "\""),
+            ( $sel[] as $f | select($fl | has($f))
+              | $fl[$f] as $e
+              | ($e.supported // { }) as $sup
+              | (if ($sup | length) == 0
+                 then $f + ": supported is empty" else empty end),
+              (if (($e.default // "") | length) == 0
+               then $f + ": default is missing"
+               elif ($sup | has($e.default)) | not
+               then $f + ": default \"" + $e.default + "\" is not in supported"
+               elif ($sup[$e.default].enabled != true)
+               then $f + ": default \"" + $e.default + "\" is not enabled"
+               else empty end),
+              (if ($sup | length) > 0 and ([$sup[] | select(.enabled == true)] | length) == 0
+               then $f + ": no supported version is enabled" else empty end),
+              ( $sup | to_entries[]
+                | (if (.key | ascii_downcase | test("latest"))
+                   then $f + ": version \"" + .key + "\" must be concrete, not \"latest\"" else empty end),
+                  (if (.value | has("enabled")) and ((.value.enabled | type) == "boolean")
+                   then empty
+                   else $f + " " + .key + ": enabled must be true or false (a catalogued version needs an explicit decision)" end),
+                  (if ((.value.source // "") | length) == 0
+                   then $f + " " + .key + ": source URL is missing (cite the Debezium release series page)" else empty end),
+                  (if ((.value.release_notes // "") | length) == 0
+                   then $f + " " + .key + ": release_notes URL is missing (cite the exact patch build target for Kafka Connect; the series page states only a floor, not what the release was actually built against)" else empty end)
+              )
+            )
+          ] as $errs
+        | if ($errs | length) > 0
+          then error("manifest: " + ($errs | join("; ")))
+          else . end
+        | {
+            bucket: $bucket,
+            key_prefix: $key_prefix,
+            config_providers: {
+              release_tag: $cp.release_tag,
+              asset: $cp.asset
+            },
+            urls: {
+              maven_central: (if $maven_central == "" then $m.urls.maven_central else $maven_central end),
+              config_providers_releases: (if $config_providers_releases == "" then $m.urls.config_providers_releases else $config_providers_releases end),
+              oracle_license: (if $oracle_license == "" then $m.urls.oracle_license else $oracle_license end)
+            },
+            defaults: (reduce $sel[] as $f ( { }; . + { ($f): $fl[$f].default } )),
+            catalogue: [
+              $sel[] as $f
+              | ($fl[$f].supported | keys[]) as $v
+              | $fl[$f].supported[$v] as $meta
+              | {
+                  flavour: $f,
+                  version: $v,
+                  plugin_key: ($f + "-" + $v),
+                  file_key: ($key_prefix + "debezium-" + $f + "-" + $v + ".zip"),
+                  enabled: $meta.enabled,
+                  is_default: ($v == $fl[$f].default),
+                  java: ($meta.java // ""),
+                  min_kafka_connect: ($meta.min_kafka_connect // ""),
+                  built_against_kafka_connect: ($meta.built_against_kafka_connect // ""),
+                  tested_engine_versions: ($meta.tested_engine_versions // []),
+                  source: $meta.source,
+                  release_notes: $meta.release_notes
+                }
+            ]
+          }
+      ' <<<"$manifest" 2>"$err")"; then
+      sed -e 's/^jq: error[^)]*): /error: /' "$err" >&2
+      exit 1
+    fi
 
-    echo "bucket=$bucket"
-    echo "key_prefix=$key_prefix"
-    echo "flavours=\"$flavours\""
-    echo "DEBEZIUM_VERSION=$debezium_version"
-    echo "CONFIG_PROVIDERS_VERSION=$config_providers_version"
-    echo "OJDBC_VERSION=$ojdbc_version"
-    echo "DEBEZIUM_DEFAULT=$debezium_default"
-    echo "MAVEN_CENTRAL_URL=$maven_central_url"
-    echo "CONFIG_PROVIDERS_RELEASES_URL=$config_providers_releases_url"
-    echo "ORACLE_LICENSE_URL=$oracle_license_url"
+    printf '%s\n' "$resolved"
 
-# ── plan: report what would be built, write nothing, contact nothing ──────────
+# ── plan: validate the manifest, print the catalogue, contact nothing ─────────
 plan:
     #!/usr/bin/env bash
     set -euo pipefail
-    resolved=$(just _resolve)
-    eval "$resolved"
+    cd "{{ _dir }}"
+    resolved="$(just _resolve)"
 
-    if [ "${DEBEZIUM_VERSION}" = "${DEBEZIUM_DEFAULT}" ]; then
-      echo "plan: would build Debezium ${DEBEZIUM_VERSION} plugin artifacts (versions.env default)"
+    if [ -n "${PROPELLER_INPUT_manifest_json:-}" ]; then
+      echo "plan: manifest supplied as an input (overriding versions.json)"
     else
-      echo "plan: would build Debezium ${DEBEZIUM_VERSION} plugin artifacts (override; versions.env default ${DEBEZIUM_DEFAULT})"
+      echo "plan: manifest from versions.json"
     fi
-    echo "  destination bucket: ${bucket}"
-    echo "  flavours:"
-    for flavour in ${flavours}; do
-      echo "    - ${flavour} -> ${key_prefix}debezium-${flavour}-${DEBEZIUM_VERSION}.zip"
-    done
+    echo "  destination bucket: $(jq -r '.bucket' <<<"$resolved")"
+    echo "  msk-config-providers: $(jq -r '.config_providers.asset' <<<"$resolved")"
+    echo "  catalogue ($(jq -r '[.catalogue[] | select(.enabled)] | length' <<<"$resolved") of $(jq -r '.catalogue | length' <<<"$resolved") enabled):"
+
+    # Print the whole catalogue, disabled entries included, with each version's
+    # compatibility envelope. The envelope is what a reviewer must re-check on a
+    # bump and has no other enforcement point inside this project; showing the
+    # disabled entries is what makes the vetted-but-not-built set discoverable.
+    jq -r '
+      .catalogue[]
+      | "    " + (if .enabled then "[x]" else "[ ]" end) + " " + .plugin_key
+          + (if .is_default then "  (default)" else "" end),
+        "        key:      " + .file_key,
+        "        floor:    Java " + .java + ", Kafka Connect >= " + .min_kafka_connect,
+        "        built vs: Kafka Connect " + .built_against_kafka_connect
+          + " (MSK Connect caps at 3.7.x — treat > 3.7 as unverified on MSK Connect)",
+        "        tested:   " + (.tested_engine_versions | join(", ")),
+        "        source:   " + .source,
+        "        notes:    " + .release_notes
+    ' <<<"$resolved"
+
     echo "plan: no object written (build happens on apply)"
 
-# ── apply: build/skip/upload each flavour, then emit flavours_json ────────────
+# ── apply: build/skip/upload every enabled version, then emit the outputs ─────
 apply:
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{ _dir }}"
-    resolved=$(just _resolve)
-    eval "$resolved"
+    resolved="$(just _resolve)"
+
+    bucket="$(jq -r '.bucket' <<<"$resolved")"
+    config_providers_tag="$(jq -r '.config_providers.release_tag' <<<"$resolved")"
+    config_providers_asset="$(jq -r '.config_providers.asset' <<<"$resolved")"
+    maven_central_url="$(jq -r '.urls.maven_central' <<<"$resolved")"
+    config_providers_releases_url="$(jq -r '.urls.config_providers_releases' <<<"$resolved")"
+    oracle_license_url="$(jq -r '.urls.oracle_license' <<<"$resolved")"
 
     # download URL DEST — fail non-zero on any error (no partial artifact).
     download() {
@@ -99,19 +230,23 @@ apply:
       fi
     }
 
-    # extract ARCHIVE DEST_DIR — tar for .tar.gz, unzip for .zip.
+    # extract ARCHIVE DEST_DIR — tar for .tar.gz, unzip for .zip. A bare .jar is
+    # already the payload (msk-config-providers ships an uber jar from v0.5.0
+    # onward instead of a -with-dependencies.zip), so it is copied straight in.
     extract() {
       local archive="$1" dest="$2"
       case "$archive" in
         *.tar.gz|*.tgz) tar -xzf "$archive" -C "$dest" ;;
         *.zip)          unzip -q -o "$archive" -d "$dest" ;;
+        *.jar)          cp "$archive" "$dest"/ ;;
         *) echo "error: unsupported archive format: $archive" >&2; exit 1 ;;
       esac
     }
 
-    # Build one flavour into a plugin dir, zip it, echo the zip path.
-    build_flavour() {
-      local flavour="$1" work="$2"
+    # build_artifact FLAVOUR VERSION WORKDIR — build one flavour at one version
+    # into a plugin dir, zip it, echo the zip path.
+    build_artifact() {
+      local flavour="$1" version="$2" work="$3"
       local downloads="$work/downloads" plugin="$work/plugin"
       mkdir -p "$downloads" "$plugin"
 
@@ -123,17 +258,18 @@ apply:
       esac
 
       # Debezium connector plugin tarball (Maven Central).
-      local connector_file="${connector_artifact}-${DEBEZIUM_VERSION}-plugin.tar.gz"
+      local connector_file="${connector_artifact}-${version}-plugin.tar.gz"
       download \
-        "${MAVEN_CENTRAL_URL}/io/debezium/${connector_artifact}/${DEBEZIUM_VERSION}/${connector_file}" \
+        "${maven_central_url}/io/debezium/${connector_artifact}/${version}/${connector_file}" \
         "$downloads/$connector_file"
 
-      # msk-config-providers "with dependencies" zip. The release tag carries an
-      # r-prefix (r0.4.0); the artifact filename does not.
-      local cp_file="msk-config-providers-${CONFIG_PROVIDERS_VERSION}-with-dependencies.zip"
+      # msk-config-providers. Tag and asset name come from the manifest rather
+      # than being derived from a version: the release naming is not stable
+      # across versions (r0.4.0 ships a -with-dependencies.zip, v0.5.0 drops the
+      # r-prefix and ships an -all.jar), so deriving them would break on a bump.
       download \
-        "${CONFIG_PROVIDERS_RELEASES_URL}/r${CONFIG_PROVIDERS_VERSION}/${cp_file}" \
-        "$downloads/$cp_file"
+        "${config_providers_releases_url}/${config_providers_tag}/${config_providers_asset}" \
+        "$downloads/$config_providers_asset"
 
       # Extract every archive, then flatten every *.jar at any depth into the
       # plugin dir so Kafka Connect finds them regardless of source layout.
@@ -148,16 +284,16 @@ apply:
         # The Oracle connector tarball already bundles ojdbc8, which satisfies
         # the driver requirement. The unmodified Oracle Free Use Terms license
         # text must still travel with the artifact (Requirement 1.5).
-        download "$ORACLE_LICENSE_URL" "$plugin/LICENSE-oracle-jdbc.txt"
+        download "$oracle_license_url" "$plugin/LICENSE-oracle-jdbc.txt"
       fi
 
       # Refuse to upload an empty artifact.
       if ! find "$plugin" -name '*.jar' -print -quit | grep -q .; then
-        echo "error: no JARs collected for flavour $flavour; refusing to upload" >&2
+        echo "error: no JARs collected for ${flavour} ${version}; refusing to upload" >&2
         exit 1
       fi
 
-      local zip_path="$work/debezium-${flavour}.zip"
+      local zip_path="$work/debezium-${flavour}-${version}.zip"
       ( cd "$plugin" && zip -q -r "$zip_path" . )
       echo "$zip_path"
     }
@@ -175,42 +311,45 @@ apply:
       fi
     }
 
-    # Accumulate the flavour -> {file_key, object_version} map with jq.
-    flavours_map='{}'
+    # Accumulate the "<flavour>-<version>" -> {file_key, object_version} map.
+    plugins_map='{}'
 
-    for flavour in ${flavours}; do
-      key="${key_prefix}debezium-${flavour}-${DEBEZIUM_VERSION}.zip"
-
-      if aws s3api head-object --bucket "$bucket" --key "$key" >/dev/null 2>&1; then
+    while IFS=$'\t' read -r flavour version plugin_key file_key; do
+      if aws s3api head-object --bucket "$bucket" --key "$file_key" >/dev/null 2>&1; then
         # Idempotency skip (Requirement 1.9): do not rebuild or re-upload; emit
         # the existing object's key and version unchanged.
-        version="$(object_version "$key")"
-        echo "${flavour}: exists at ${key}, skipping build"
+        object_ver="$(object_version "$file_key")"
+        echo "${plugin_key}: exists at ${file_key}, skipping build"
       else
         work="$(mktemp -d "${TMPDIR:-/tmp}/debezium-${flavour}-XXXXXX")"
         # shellcheck disable=SC2064
         trap "rm -rf '$work'" EXIT
-        zip_path="$(build_flavour "$flavour" "$work")"
+        zip_path="$(build_artifact "$flavour" "$version" "$work")"
         aws s3api put-object \
-          --bucket "$bucket" --key "$key" --body "$zip_path" >/dev/null
-        version="$(object_version "$key")"
+          --bucket "$bucket" --key "$file_key" --body "$zip_path" >/dev/null
+        object_ver="$(object_version "$file_key")"
         rm -rf "$work"
         trap - EXIT
-        echo "${flavour}: built and uploaded ${key}"
+        echo "${plugin_key}: built and uploaded ${file_key}"
       fi
 
-      flavours_map="$(jq -c \
-        --arg flavour "$flavour" \
-        --arg file_key "$key" \
-        --arg object_version "$version" \
-        '. + {($flavour): {file_key: $file_key, object_version: $object_version}}' \
-        <<<"$flavours_map")"
-    done
+      plugins_map="$(jq -c \
+        --arg plugin_key "$plugin_key" \
+        --arg file_key "$file_key" \
+        --arg object_version "$object_ver" \
+        '. + { ($plugin_key): { file_key: $file_key, object_version: $object_version } }' \
+        <<<"$plugins_map")"
+    done < <(jq -r '.catalogue[] | select(.enabled) | [.flavour, .version, .plugin_key, .file_key] | @tsv' <<<"$resolved")
 
-    # Emit a single flavours_json field whose value is a JSON-encoded string of
-    # the map (matches what msk-connect-plugin's `flavours` input decodes).
-    jq -n --arg flavours_json "$flavours_map" \
-      '{flavours_json: $flavours_json}' > .propeller-outputs.json
+    # Two output fields, each a JSON-encoded string: one propeller input reads
+    # exactly one output field, so each map travels whole.
+    #   plugins_json          -> msk-connect-plugin's `plugins`
+    #   default_versions_json -> msk-connect-plugin's `default_versions`
+    jq -n \
+      --arg plugins_json "$plugins_map" \
+      --arg default_versions_json "$(jq -c '.defaults' <<<"$resolved")" \
+      '{ plugins_json: $plugins_json, default_versions_json: $default_versions_json }' \
+      > .propeller-outputs.json
     echo "msk-connect-plugin-artifact apply — outputs:"
     jq . .propeller-outputs.json
 

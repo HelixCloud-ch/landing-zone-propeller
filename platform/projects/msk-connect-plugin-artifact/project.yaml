@@ -1,7 +1,9 @@
 name: msk-connect-plugin-artifact
 description: >-
-  Builds the Debezium MSK Connect plugin artifacts (MariaDB, Oracle) from pinned
-  versions and uploads them to a destination S3 bucket supplied as an input.
+  Builds the Debezium MSK Connect plugin artifacts (MariaDB, Oracle) for every
+  version in the committed versions.json manifest and uploads them to a
+  destination S3 bucket supplied as an input. Emits the artifact map and the
+  per-flavour default version for msk-connect-plugin to register.
 metadata:
   cost-center: platform
   framework-required: true
