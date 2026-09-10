@@ -1,0 +1,219 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# msk-connect-plugin-artifact: builds and uploads the Debezium MSK Connect
+# plugin artifacts. Not a terraform project. Runs on the Egress_Runner because
+# the build downloads pinned dependencies from the internet.
+#
+# The build is pure bash: it uses the aws CLI (aws s3api / aws s3), curl, tar,
+# unzip, zip and jq — all present on the Egress_Runner image. There is no
+# Python or AWS SDK dependency.
+
+_dir := justfile_directory()
+
+# ── Inputs ────────────────────────────────────────────────────────────────────
+# Destination bucket is required and never hardcoded; the rest default.
+bucket     := env("PROPELLER_INPUT_bucket", "")
+key_prefix := env("PROPELLER_INPUT_key_prefix", "debezium/")
+flavours   := env("PROPELLER_INPUT_flavours", "mariadb oracle")
+
+# ── Private: resolve inputs + pinned versions, print as KEY=VALUE lines ───────
+# Called by both plan and apply to avoid duplicating the resolution logic.
+# Each version defaults to its versions.env pin; an optional PROPELLER_INPUT_*
+# override is an explicit concrete version, never "latest". DEBEZIUM_DEFAULT is
+# emitted so callers can render the default-vs-override plan message.
+[private]
+_resolve:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ _dir }}"
+
+    bucket="{{ bucket }}"
+    if [ -z "$bucket" ]; then
+      echo "PROPELLER_INPUT_bucket is required" >&2
+      exit 1
+    fi
+
+    key_prefix="{{ key_prefix }}"
+
+    # Accept space- or comma-separated flavours; normalise to space-separated.
+    flavours="$(echo "{{ flavours }}" | tr ',' ' ' | xargs)"
+
+    # versions.env is the committed source of truth and the default pin.
+    set -a; . ./versions.env; set +a
+    debezium_default="${DEBEZIUM_VERSION}"
+
+    debezium_version="${PROPELLER_INPUT_debezium_version:-$DEBEZIUM_VERSION}"
+    config_providers_version="${PROPELLER_INPUT_config_providers_version:-$CONFIG_PROVIDERS_VERSION}"
+    ojdbc_version="${PROPELLER_INPUT_ojdbc_version:-$OJDBC_VERSION}"
+
+    # Download base URLs default to the versions.env pins; an optional
+    # PROPELLER_INPUT_*_url override points the build at an internal mirror.
+    maven_central_url="${PROPELLER_INPUT_maven_central_url:-$MAVEN_CENTRAL_URL}"
+    config_providers_releases_url="${PROPELLER_INPUT_config_providers_releases_url:-$CONFIG_PROVIDERS_RELEASES_URL}"
+    oracle_license_url="${PROPELLER_INPUT_oracle_license_url:-$ORACLE_LICENSE_URL}"
+
+    echo "bucket=$bucket"
+    echo "key_prefix=$key_prefix"
+    echo "flavours=\"$flavours\""
+    echo "DEBEZIUM_VERSION=$debezium_version"
+    echo "CONFIG_PROVIDERS_VERSION=$config_providers_version"
+    echo "OJDBC_VERSION=$ojdbc_version"
+    echo "DEBEZIUM_DEFAULT=$debezium_default"
+    echo "MAVEN_CENTRAL_URL=$maven_central_url"
+    echo "CONFIG_PROVIDERS_RELEASES_URL=$config_providers_releases_url"
+    echo "ORACLE_LICENSE_URL=$oracle_license_url"
+
+# ── plan: report what would be built, write nothing, contact nothing ──────────
+plan:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    resolved=$(just _resolve)
+    eval "$resolved"
+
+    if [ "${DEBEZIUM_VERSION}" = "${DEBEZIUM_DEFAULT}" ]; then
+      echo "plan: would build Debezium ${DEBEZIUM_VERSION} plugin artifacts (versions.env default)"
+    else
+      echo "plan: would build Debezium ${DEBEZIUM_VERSION} plugin artifacts (override; versions.env default ${DEBEZIUM_DEFAULT})"
+    fi
+    echo "  destination bucket: ${bucket}"
+    echo "  flavours:"
+    for flavour in ${flavours}; do
+      echo "    - ${flavour} -> ${key_prefix}debezium-${flavour}-${DEBEZIUM_VERSION}.zip"
+    done
+    echo "plan: no object written (build happens on apply)"
+
+# ── apply: build/skip/upload each flavour, then emit flavours_json ────────────
+apply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ _dir }}"
+    resolved=$(just _resolve)
+    eval "$resolved"
+
+    # download URL DEST — fail non-zero on any error (no partial artifact).
+    download() {
+      local url="$1" dest="$2"
+      if ! curl -fsSL -o "$dest" "$url"; then
+        echo "error: failed to download $url" >&2
+        exit 1
+      fi
+    }
+
+    # extract ARCHIVE DEST_DIR — tar for .tar.gz, unzip for .zip.
+    extract() {
+      local archive="$1" dest="$2"
+      case "$archive" in
+        *.tar.gz|*.tgz) tar -xzf "$archive" -C "$dest" ;;
+        *.zip)          unzip -q -o "$archive" -d "$dest" ;;
+        *) echo "error: unsupported archive format: $archive" >&2; exit 1 ;;
+      esac
+    }
+
+    # Build one flavour into a plugin dir, zip it, echo the zip path.
+    build_flavour() {
+      local flavour="$1" work="$2"
+      local downloads="$work/downloads" plugin="$work/plugin"
+      mkdir -p "$downloads" "$plugin"
+
+      local connector_artifact
+      case "$flavour" in
+        mariadb) connector_artifact="debezium-connector-mariadb" ;;
+        oracle)  connector_artifact="debezium-connector-oracle" ;;
+        *) echo "error: unknown flavour: $flavour" >&2; exit 1 ;;
+      esac
+
+      # Debezium connector plugin tarball (Maven Central).
+      local connector_file="${connector_artifact}-${DEBEZIUM_VERSION}-plugin.tar.gz"
+      download \
+        "${MAVEN_CENTRAL_URL}/io/debezium/${connector_artifact}/${DEBEZIUM_VERSION}/${connector_file}" \
+        "$downloads/$connector_file"
+
+      # msk-config-providers "with dependencies" zip. The release tag carries an
+      # r-prefix (r0.4.0); the artifact filename does not.
+      local cp_file="msk-config-providers-${CONFIG_PROVIDERS_VERSION}-with-dependencies.zip"
+      download \
+        "${CONFIG_PROVIDERS_RELEASES_URL}/r${CONFIG_PROVIDERS_VERSION}/${cp_file}" \
+        "$downloads/$cp_file"
+
+      # Extract every archive, then flatten every *.jar at any depth into the
+      # plugin dir so Kafka Connect finds them regardless of source layout.
+      for archive in "$downloads"/*; do
+        local extracted="${archive}.extracted"
+        mkdir -p "$extracted"
+        extract "$archive" "$extracted"
+        find "$extracted" -name '*.jar' -exec cp {} "$plugin"/ \;
+      done
+
+      if [ "$flavour" = "oracle" ]; then
+        # The Oracle connector tarball already bundles ojdbc8, which satisfies
+        # the driver requirement. The unmodified Oracle Free Use Terms license
+        # text must still travel with the artifact (Requirement 1.5).
+        download "$ORACLE_LICENSE_URL" "$plugin/LICENSE-oracle-jdbc.txt"
+      fi
+
+      # Refuse to upload an empty artifact.
+      if ! find "$plugin" -name '*.jar' -print -quit | grep -q .; then
+        echo "error: no JARs collected for flavour $flavour; refusing to upload" >&2
+        exit 1
+      fi
+
+      local zip_path="$work/debezium-${flavour}.zip"
+      ( cd "$plugin" && zip -q -r "$zip_path" . )
+      echo "$zip_path"
+    }
+
+    # Read back an object's version; emit empty string if versioning is off.
+    object_version() {
+      local key="$1" version
+      version=$(aws s3api head-object \
+        --bucket "$bucket" --key "$key" \
+        --query 'VersionId' --output text 2>/dev/null || echo "None")
+      if [ "$version" = "None" ] || [ -z "$version" ]; then
+        echo ""
+      else
+        echo "$version"
+      fi
+    }
+
+    # Accumulate the flavour -> {file_key, object_version} map with jq.
+    flavours_map='{}'
+
+    for flavour in ${flavours}; do
+      key="${key_prefix}debezium-${flavour}-${DEBEZIUM_VERSION}.zip"
+
+      if aws s3api head-object --bucket "$bucket" --key "$key" >/dev/null 2>&1; then
+        # Idempotency skip (Requirement 1.9): do not rebuild or re-upload; emit
+        # the existing object's key and version unchanged.
+        version="$(object_version "$key")"
+        echo "${flavour}: exists at ${key}, skipping build"
+      else
+        work="$(mktemp -d "${TMPDIR:-/tmp}/debezium-${flavour}-XXXXXX")"
+        # shellcheck disable=SC2064
+        trap "rm -rf '$work'" EXIT
+        zip_path="$(build_flavour "$flavour" "$work")"
+        aws s3api put-object \
+          --bucket "$bucket" --key "$key" --body "$zip_path" >/dev/null
+        version="$(object_version "$key")"
+        rm -rf "$work"
+        trap - EXIT
+        echo "${flavour}: built and uploaded ${key}"
+      fi
+
+      flavours_map="$(jq -c \
+        --arg flavour "$flavour" \
+        --arg file_key "$key" \
+        --arg object_version "$version" \
+        '. + {($flavour): {file_key: $file_key, object_version: $object_version}}' \
+        <<<"$flavours_map")"
+    done
+
+    # Emit a single flavours_json field whose value is a JSON-encoded string of
+    # the map (matches what msk-connect-plugin's `flavours` input decodes).
+    jq -n --arg flavours_json "$flavours_map" \
+      '{flavours_json: $flavours_json}' > .propeller-outputs.json
+    echo "msk-connect-plugin-artifact apply — outputs:"
+    jq . .propeller-outputs.json
+
+# ── destroy: no-op. Artifact lifecycle belongs to the bucket ──────────────────
+destroy:
+    @echo "destroy: no-op (artifact lifecycle belongs to the bucket)"
