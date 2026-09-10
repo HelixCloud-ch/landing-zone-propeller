@@ -274,7 +274,7 @@ async function runAllStages(
 
     allResults.push(...groupResults);
 
-    if (groupResults.some((r) => r.status === "failed")) {
+    if (groupResults.some((r) => r.status === "failed" && !r.soft)) {
       groupFailed = true;
     }
   }
