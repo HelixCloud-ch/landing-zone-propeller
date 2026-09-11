@@ -251,7 +251,11 @@ Pure bash driven from the `justfile`: the `aws` CLI (`aws s3api`), `curl`, `tar`
 `unzip`, `zip` and `jq`. No Python, no AWS SDK. Manifest resolution and
 validation live in a private `_resolve` recipe that emits one JSON document,
 which both `plan` and `apply` query — so the two agree on the build matrix by
-construction.
+construction. The validation logic itself lives in [`resolve.jq`](resolve.jq)
+as a set of named `def`s (one per config-providers check, one per catalogued
+version, one per flavour, composed into the whole-manifest check) rather than
+inline in the recipe. `plan`'s catalogue listing is similarly factored into
+[`print_catalogue.jq`](print_catalogue.jq).
 
 ## What does NOT belong here
 

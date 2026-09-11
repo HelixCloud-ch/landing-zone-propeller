@@ -75,8 +75,12 @@ _resolve:
     # scalar overrides exist for an internal Maven mirror, a GitHub Enterprise
     # host or an offline copy of the license text — a different source for the
     # same bytes, which is why they are safe to override per build.
-    # jq validates and resolves in one pass. Its stderr is rewritten so a
-    # manifest mistake reads as a manifest mistake, not as a jq failure.
+    #
+    # Validation and resolution are one jq program, factored into named checks
+    # in resolve.jq (config_providers, one version, one flavour, the whole
+    # manifest) — read that file rather than this recipe to follow the logic.
+    # Its stderr is rewritten here so a manifest mistake reads as a manifest
+    # mistake, not as a jq failure.
     err="$(mktemp "${TMPDIR:-/tmp}/resolve-err-XXXXXX")"
     trap 'rm -f "$err"' EXIT
 
@@ -86,86 +90,9 @@ _resolve:
       --arg maven_central "${PROPELLER_INPUT_maven_central_url:-}" \
       --arg config_providers_releases "${PROPELLER_INPUT_config_providers_releases_url:-}" \
       --arg oracle_license "${PROPELLER_INPUT_oracle_license_url:-}" \
-      --argjson filter "$filter_json" '
-        . as $m
-        | ($m.flavours // { }) as $fl
-        | ($m.config_providers // { }) as $cp
-        | (if ($filter | length) == 0 then ($fl | keys) else $filter end) as $sel
-        | [
-            (if ($fl | length) == 0
-             then "declares no flavours" else empty end),
-            (if (($cp.release_tag // "") | length) == 0
-             then "config_providers.release_tag is missing" else empty end),
-            (if (($cp.asset // "") | length) == 0
-             then "config_providers.asset is missing"
-             elif (($cp.asset | test("\\.(zip|jar)$")) | not)
-             then "config_providers.asset must end in .zip or .jar (the shapes the build can unpack)"
-             else empty end),
-            ($sel[] as $f | select(($fl | has($f)) | not) | "unknown flavour \"" + $f + "\""),
-            ( $sel[] as $f | select($fl | has($f))
-              | $fl[$f] as $e
-              | ($e.supported // { }) as $sup
-              | (if ($sup | length) == 0
-                 then $f + ": supported is empty" else empty end),
-              (if (($e.default // "") | length) == 0
-               then $f + ": default is missing"
-               elif ($sup | has($e.default)) | not
-               then $f + ": default \"" + $e.default + "\" is not in supported"
-               elif ($sup[$e.default].enabled != true)
-               then $f + ": default \"" + $e.default + "\" is not enabled"
-               else empty end),
-              (if ($sup | length) > 0 and ([$sup[] | select(.enabled == true)] | length) == 0
-               then $f + ": no supported version is enabled" else empty end),
-              ( $sup | to_entries[]
-                | (if (.key | ascii_downcase | test("latest"))
-                   then $f + ": version \"" + .key + "\" must be concrete, not \"latest\"" else empty end),
-                  (if (.value | has("enabled")) and ((.value.enabled | type) == "boolean")
-                   then empty
-                   else $f + " " + .key + ": enabled must be true or false (a catalogued version needs an explicit decision)" end),
-                  (if ((.value.source // "") | length) == 0
-                   then $f + " " + .key + ": source URL is missing (cite the Debezium release series page)" else empty end),
-                  (if ((.value.release_notes // "") | length) == 0
-                   then $f + " " + .key + ": release_notes URL is missing (cite the exact patch build target for Kafka Connect; the series page states only a floor, not what the release was actually built against)" else empty end)
-              )
-            )
-          ] as $errs
-        | if ($errs | length) > 0
-          then error("manifest: " + ($errs | join("; ")))
-          else . end
-        | {
-            bucket: $bucket,
-            key_prefix: $key_prefix,
-            config_providers: {
-              release_tag: $cp.release_tag,
-              asset: $cp.asset
-            },
-            urls: {
-              maven_central: (if $maven_central == "" then $m.urls.maven_central else $maven_central end),
-              config_providers_releases: (if $config_providers_releases == "" then $m.urls.config_providers_releases else $config_providers_releases end),
-              oracle_license: (if $oracle_license == "" then $m.urls.oracle_license else $oracle_license end)
-            },
-            defaults: (reduce $sel[] as $f ( { }; . + { ($f): $fl[$f].default } )),
-            catalogue: [
-              $sel[] as $f
-              | ($fl[$f].supported | keys[]) as $v
-              | $fl[$f].supported[$v] as $meta
-              | {
-                  flavour: $f,
-                  version: $v,
-                  plugin_key: ($f + "-" + $v),
-                  file_key: ($key_prefix + "debezium-" + $f + "-" + $v + ".zip"),
-                  enabled: $meta.enabled,
-                  is_default: ($v == $fl[$f].default),
-                  java: ($meta.java // ""),
-                  min_kafka_connect: ($meta.min_kafka_connect // ""),
-                  built_against_kafka_connect: ($meta.built_against_kafka_connect // ""),
-                  tested_engine_versions: ($meta.tested_engine_versions // []),
-                  source: $meta.source,
-                  release_notes: $meta.release_notes
-                }
-            ]
-          }
-      ' <<<"$manifest" 2>"$err")"; then
+      --argjson filter "$filter_json" \
+      -f resolve.jq \
+      <<<"$manifest" 2>"$err")"; then
       sed -e 's/^jq: error[^)]*): /error: /' "$err" >&2
       exit 1
     fi
@@ -189,21 +116,11 @@ plan:
     echo "  catalogue ($(jq -r '[.catalogue[] | select(.enabled)] | length' <<<"$resolved") of $(jq -r '.catalogue | length' <<<"$resolved") enabled):"
 
     # Print the whole catalogue, disabled entries included, with each version's
-    # compatibility envelope. The envelope is what a reviewer must re-check on a
-    # bump and has no other enforcement point inside this project; showing the
-    # disabled entries is what makes the vetted-but-not-built set discoverable.
-    jq -r '
-      .catalogue[]
-      | "    " + (if .enabled then "[x]" else "[ ]" end) + " " + .plugin_key
-          + (if .is_default then "  (default)" else "" end),
-        "        key:      " + .file_key,
-        "        floor:    Java " + .java + ", Kafka Connect >= " + .min_kafka_connect,
-        "        built vs: Kafka Connect " + .built_against_kafka_connect
-          + " (MSK Connect caps at 3.7.x — treat > 3.7 as unverified on MSK Connect)",
-        "        tested:   " + (.tested_engine_versions | join(", ")),
-        "        source:   " + .source,
-        "        notes:    " + .release_notes
-    ' <<<"$resolved"
+    # compatibility envelope (see print_catalogue.jq). The envelope is what a
+    # reviewer must re-check on a bump and has no other enforcement point
+    # inside this project; showing the disabled entries is what makes the
+    # vetted-but-not-built set discoverable.
+    jq -r -f print_catalogue.jq <<<"$resolved"
 
     echo "plan: no object written (build happens on apply)"
 
