@@ -53,7 +53,7 @@ resource "aws_iam_role_policy" "lambda" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["ssm:GetParameter", "ssm:PutParameter"]
+        Action   = ["ssm:GetParameter", "ssm:PutParameter", "ssm:DeleteParameter"]
         Resource = "arn:aws:ssm:${local.region}:${local.account_id}:parameter/propeller/*"
       },
       {
