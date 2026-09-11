@@ -235,7 +235,7 @@ Three ready-made files, copyable as-is or as a starting point, all matching the
   — the superset above: schema history plus the three Kafka Connect internal
   topics, with the settings this README recommends.
 - [`topics-oracle-recommended.json.example`](topics-oracle-recommended.json.example)
-  — the same superset for the Oracle flavour (Phase 2). The schema history
+  — the same superset for the Oracle flavour. The schema history
   topic's *settings* are identical to MariaDB's — Debezium documents them as
   shared across every connector that uses a schema history topic at all
   ([Storing state of a Debezium connector](https://debezium.io/documentation/reference/stable/configuration/storage.html)
@@ -348,9 +348,9 @@ starts:
 
 - The connector must be removed **before** its source database and its Kafka
   cluster.
-- Under the framework's MSK sleep semantics (ADR-019, destroy-only), a sleeping
-  cluster loses its topics and consumer offsets. **On wake, this project must run
-  again to recreate the topics before the connector starts** — otherwise the
+- Under the framework's MSK sleep semantics (destroy-only), a sleeping cluster
+  loses its topics and consumer offsets. **On wake, this project must run again
+  to recreate the topics before the connector starts** — otherwise the
   connector has no schema history or offset topic to attach to. Debezium then
   performs a recovery snapshot.
 - A sleep outlasting the configured binary-log retention window turns a CDC gap
@@ -373,4 +373,3 @@ starts:
 - [Apache Kafka — Kafka Connect user guide (distributed mode)](https://kafka.apache.org/37/documentation/#connect_running)
 - [Storing state of a Debezium connector](https://debezium.io/documentation/reference/stable/configuration/storage.html)
 - [Default names of Kafka topics for the Oracle connector](https://docs.redhat.com/ko/documentation/red_hat_build_of_debezium/3.2.7/html/debezium_user_guide/default-names-of-kafka-topics-that-receive-debezium-oracle-change-event-records)
-- MSK sleep semantics: ADR-019 (framework knowledge base)
