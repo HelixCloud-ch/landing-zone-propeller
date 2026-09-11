@@ -19,7 +19,7 @@ import type { AWSClients } from "../services/aws.js";
 import { createCloudWatchLogsClient, createCodeBuildClient } from "../services/aws.js";
 import { fetchBuildLogs, pollBuild, startBuild } from "../services/codebuild.js";
 import { writeLogs } from "../services/s3.js";
-import { prepareBuildConfig, writeOutputs } from "../services/ssm.js";
+import { deleteOutputs, prepareBuildConfig, writeOutputs } from "../services/ssm.js";
 import type { BuildConfig, PipelineContext, Stage, StepConfig, StepResult } from "../types.js";
 import { buildDag, findDependents, findReady, reverseDag } from "./dag.js";
 import { isSoftFail } from "./policies.js";
@@ -243,6 +243,10 @@ async function executeDirectStep(
     if (pctx.deployAction === "apply") {
       await ctx.step(`outputs`, () =>
         writeOutputs(clients.ssm, step, pollResult.exportedVars, buildId, pctx),
+      );
+    } else if (pctx.deployAction === "destroy") {
+      await ctx.step(`cleanup-outputs`, () =>
+        deleteOutputs(clients.ssm, step, pctx.namespace),
       );
     }
 

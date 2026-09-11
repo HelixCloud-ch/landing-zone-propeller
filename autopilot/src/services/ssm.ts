@@ -7,7 +7,7 @@
  */
 
 import type { SSMClient } from "@aws-sdk/client-ssm";
-import { GetParameterCommand, PutParameterCommand } from "@aws-sdk/client-ssm";
+import { DeleteParameterCommand, GetParameterCommand, PutParameterCommand } from "@aws-sdk/client-ssm";
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -164,6 +164,37 @@ export async function writeOutputs(
   }
 
   return written;
+}
+
+/**
+ * Delete the SSM parameters written by a successful apply for this step:
+ * individual output params and the project blob. Idempotent: swallows
+ * ParameterNotFound so re-running destroy stays clean.
+ */
+export async function deleteOutputs(
+  client: SSMClient,
+  step: StepConfig,
+  namespace: string,
+): Promise<void> {
+  const swallow = async (name: string) => {
+    try {
+      await client.send(new DeleteParameterCommand({ Name: name }));
+    } catch (err: unknown) {
+      if ((err as { name?: string }).name === "ParameterNotFound") return;
+      throw err;
+    }
+  };
+
+  for (const def of step.outputs ?? []) {
+    // Only individual params live at def.key. Blob-field outputs share the
+    // project blob and are cleaned up when the blob itself is deleted.
+    if (!def.field) await swallow(def.key);
+  }
+
+  const blobKey = namespace
+    ? `/propeller/${namespace}/${step.project}`
+    : `/propeller/${step.project}`;
+  await swallow(blobKey);
 }
 
 export async function readProjectBlob(
