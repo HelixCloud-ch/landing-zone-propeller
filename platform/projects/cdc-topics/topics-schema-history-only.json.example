@@ -1,0 +1,11 @@
+[
+  {
+    "name": "schema-history.my-connector",
+    "partitions": 1,
+    "configs": {
+      "cleanup.policy": "delete",
+      "retention.ms": "-1",
+      "retention.bytes": "-1"
+    }
+  }
+]
