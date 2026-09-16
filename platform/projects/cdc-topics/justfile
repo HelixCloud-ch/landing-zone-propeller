@@ -1,0 +1,53 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# cdc-topics: creates the Kafka topics a Debezium connector needs.
+# Not a Terraform project; requires no state. Must run on an In_VPC_Runner
+# (see README) so it can reach the Kafka brokers. All environment-specific
+# values arrive as PROPELLER_INPUT_* env vars — nothing about the bootstrap
+# servers, topic names, security protocol, account or region is hardcoded.
+
+_dir := justfile_directory()
+
+# plan: report intent only. Reads PROPELLER_INPUT_* and echoes the bootstrap
+# servers, the security protocol, and the topics (names + configs) it would
+# create. It connects to nothing and creates nothing.
+plan:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ _dir }}"
+    echo "cdc-topics plan — intended actions (no changes made, no connection opened):"
+    echo "  bootstrap servers:  ${PROPELLER_INPUT_bootstrap_servers:-<unset>}"
+    echo "  security protocol:  ${PROPELLER_INPUT_security_protocol:-<unset>}"
+    echo "  topics to create:"
+
+    # topics vs topics_file are mutually exclusive; topics.py enforces this at
+    # apply time too. Mirrored here so plan reports the same source it will use.
+    if [ -n "${PROPELLER_INPUT_topics:-}" ] && [ -n "${PROPELLER_INPUT_topics_file:-}" ]; then
+      echo "    <error: PROPELLER_INPUT_topics and PROPELLER_INPUT_topics_file are mutually exclusive>"
+    elif [ -n "${PROPELLER_INPUT_topics_file:-}" ]; then
+      echo "  topics source:      file (${PROPELLER_INPUT_topics_file})"
+      jq -r '.[]
+        | "    - \(.name) (partitions=\(.partitions // "default"), configs=\(.configs // {} | tojson))"' \
+        "${PROPELLER_INPUT_topics_file}"
+    elif [ -n "${PROPELLER_INPUT_topics:-}" ]; then
+      echo "  topics source:      inline"
+      echo "${PROPELLER_INPUT_topics}" | jq -r '.[]
+        | "    - \(.name) (partitions=\(.partitions // "default"), configs=\(.configs // {} | tojson))"'
+    else
+      echo "    <none: neither PROPELLER_INPUT_topics nor PROPELLER_INPUT_topics_file set>"
+    fi
+
+# apply: create the topics. All work lives in topics.py.
+apply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ _dir }}"
+    python3 topics.py
+
+# destroy: deliberate NO-OP. Deleting a topic destroys the connector's schema
+# history and consumer offsets, forcing a recovery or full re-snapshot; that is
+# an operator decision, not the deployment's (Requirement 4.9).
+destroy:
+    @echo "cdc-topics destroy: no-op by design."
+    @echo "  No topic is deleted: dropping a CDC topic loses schema history and"
+    @echo "  offsets and forces a re-snapshot. Remove topics manually if required."
