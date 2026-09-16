@@ -167,6 +167,16 @@ variable "password" {
     condition     = !(var.password != null && var.master_user_secret_kms_key_id != null)
     error_message = "Pass either 'password' or 'master_user_secret_kms_key_id', not both."
   }
+
+  validation {
+    condition     = !(var.password != null && var.manage_master_user_password)
+    error_message = "Pass either 'password' or 'manage_master_user_password=true', not both."
+  }
+
+  validation {
+    condition     = var.snapshot_identifier != "" || var.password != null || var.manage_master_user_password
+    error_message = "Provide credentials: 'password' for password mode, 'manage_master_user_password=true' (with an optional 'master_user_secret_kms_key_id') for RDS-managed mode, or 'snapshot_identifier' when restoring."
+  }
 }
 
 variable "password_wo_version" {
@@ -175,9 +185,20 @@ variable "password_wo_version" {
   default     = 1
 }
 
+variable "manage_master_user_password" {
+  type        = bool
+  description = <<-EOT
+    Whether RDS manages the master password via Secrets Manager with automatic
+    rotation. When true, the AWS-managed aws/rds key encrypts the secret unless
+    'master_user_secret_kms_key_id' is set to a customer-managed key.
+    When false, provide 'password' directly.
+  EOT
+  default     = true
+}
+
 variable "master_user_secret_kms_key_id" {
   type        = string
-  description = "Customer-managed KMS key ARN for the Secrets Manager-managed master password. Leave null to use the AWS-managed aws/rds key. Mutually exclusive with 'password'."
+  description = "Customer-managed KMS key ARN for the RDS-managed master password secret. Leave null to use the AWS-managed aws/rds key. Only used when 'manage_master_user_password' is true."
   default     = null
 
   validation {

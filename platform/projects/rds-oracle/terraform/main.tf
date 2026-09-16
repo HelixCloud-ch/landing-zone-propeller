@@ -53,12 +53,13 @@ module "rds_oracle" {
   character_set_name = var.character_set_name
   username           = var.username
 
-  # Credentials. Not-ephemeral + no credential.kms_key_id → RDS-managed on the
-  # AWS-managed aws/rds key. Set credential.kms_key_id for a customer-managed
-  # key. Set one of secret_name/arn/parameter_name/arn for ephemeral mode.
+  # Credentials. Default: RDS-managed on the AWS-managed aws/rds key.
+  # Set credential.kms_key_id for a customer-managed key. Set one of
+  # secret_name/arn/parameter_name/arn for ephemeral (password) mode.
+  manage_master_user_password   = !local.use_ephemeral_credential
+  master_user_secret_kms_key_id = local.use_ephemeral_credential ? null : var.credential.kms_key_id
   password                      = local.use_ephemeral_credential ? module.credential[0].password : null
   password_wo_version           = local.use_ephemeral_credential ? module.credential[0].password_version : null
-  master_user_secret_kms_key_id = local.use_ephemeral_credential ? null : var.credential.kms_key_id
 
   # Availability
   multi_az = var.multi_az
