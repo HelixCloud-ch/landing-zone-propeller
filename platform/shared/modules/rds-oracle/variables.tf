@@ -167,11 +167,6 @@ variable "password" {
     condition     = !(var.password != null && var.master_user_secret_kms_key_id != null)
     error_message = "Pass either 'password' or 'master_user_secret_kms_key_id', not both."
   }
-
-  validation {
-    condition     = var.snapshot_identifier != "" || var.password != null || var.master_user_secret_kms_key_id != null
-    error_message = "Provide credentials: set 'master_user_secret_kms_key_id' for Secrets Manager mode, or 'password' for password mode (unless restoring from a snapshot)."
-  }
 }
 
 variable "password_wo_version" {
@@ -182,7 +177,7 @@ variable "password_wo_version" {
 
 variable "master_user_secret_kms_key_id" {
   type        = string
-  description = "KMS key for a Secrets Manager-managed master password. When set, RDS manages rotation and 'password' must not be provided."
+  description = "Customer-managed KMS key ARN for the Secrets Manager-managed master password. Leave null to use the AWS-managed aws/rds key. Mutually exclusive with 'password'."
   default     = null
 
   validation {

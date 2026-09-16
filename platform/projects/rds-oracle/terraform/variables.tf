@@ -127,10 +127,15 @@ variable "credential" {
     description      = optional(string)
   })
   description = <<-EOT
-    Credential strategy. Set one of secret_name/secret_arn/parameter_name/
-    parameter_arn to use the ephemeral-credential module. Leave all null to
-    use RDS-managed master password (manage_master_user_password=true with
-    kms_key_id for encryption).
+    Credential strategy.
+
+    - Default (empty object or aws_managed=true): RDS-managed master password
+      encrypted with the AWS-managed aws/rds key.
+    - Set kms_key_id to a customer-managed KMS key ARN for RDS-managed mode
+      with a customer-managed key.
+    - Set one of secret_name/secret_arn/parameter_name/parameter_arn to use
+      the ephemeral-credential module (a pre-existing SSM parameter or
+      Secrets Manager secret you rotate yourself).
   EOT
   default     = {}
 

@@ -3,10 +3,10 @@ locals {
   # callers may pass a full version string like "19.0.0.0.0".
   major_engine_version = split(".", var.engine_version)[0]
 
-  # Secrets Manager manages the master password when a secret KMS key is supplied,
-  # otherwise the provided password is used. The two are mutually exclusive
-  # (enforced by a validation on the password variable).
-  use_managed_password = var.master_user_secret_kms_key_id != null
+  # Secrets Manager manages the master password unless a password is provided
+  # directly or credentials will come from a snapshot. When managed and
+  # master_user_secret_kms_key_id is null, AWS uses the aws/rds default key.
+  use_managed_password = var.password == null && var.snapshot_identifier == ""
 
   # Use the caller-provided security group when set, otherwise the one created here.
   security_group_id = var.security_group_id != null ? var.security_group_id : aws_security_group.this[0].id
