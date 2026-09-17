@@ -64,3 +64,23 @@ destroy:
 
 outputs:
     @cat .propeller-outputs.json 2>/dev/null || echo '{}'
+
+# ── Sleep/Wake dispatch ────────────────────────────────────────────────────────
+# Mirrors the shared terraform.just pattern. Modes:
+#   apply-on-wake: sleep is a no-op (cluster destroy removes RBAC bindings);
+#                  wake re-runs apply to recreate the bindings.
+
+sleep:
+    #!/usr/bin/env bash
+    : "${PROPELLER_SLEEP_MODE:?PROPELLER_SLEEP_MODE required (declare an explicit mode in the sleep preset)}"
+    just sleep-${PROPELLER_SLEEP_MODE}
+
+wake:
+    #!/usr/bin/env bash
+    : "${PROPELLER_SLEEP_MODE:?PROPELLER_SLEEP_MODE required (declare an explicit mode in the sleep preset)}"
+    just wake-${PROPELLER_SLEEP_MODE}
+
+sleep-apply-on-wake:
+    @echo "sleep-apply-on-wake: no-op"
+
+wake-apply-on-wake: apply
