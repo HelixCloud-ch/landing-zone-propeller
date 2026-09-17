@@ -18,13 +18,13 @@ init:
     echo "rosa $(rosa version) ready"
     echo "rosa-rbac: will grant cluster roles on {{ cluster_name }}"
 
-plan:
+plan: init
     #!/usr/bin/env bash
     set -euo pipefail
     echo "rosa-rbac plan:"
     jq -r '.[] | "  \(.username) → \(.role)"' config.json
 
-apply:
+apply: init
     #!/usr/bin/env bash
     set -euo pipefail
 
