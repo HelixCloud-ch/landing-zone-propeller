@@ -1,0 +1,60 @@
+region     = "eu-central-2"
+identifier = "my-debezium"
+
+# ── Network (from the workload VPC project output) ─────────────────────────────
+# vpc_id     = "vpc-0123456789abcdef0"
+# subnet_ids = ["subnet-0123456789abcdef0", "subnet-0fedcba9876543210"]
+
+# ── Source database ────────────────────────────────────────────────────────────
+# db_host = "my-mariadb.abcdefghijkl.eu-central-2.rds.amazonaws.com"
+# db_port = 3306
+# db_name and pdb_name are Oracle-only (engine = "oracle"); ignored for MariaDB.
+# db_name  = "ORCLCDB"
+# pdb_name = "ORCLPDB1"
+
+# ── Kafka ──────────────────────────────────────────────────────────────────────
+# bootstrap_servers     = "b-1.mycluster.abc123.c2.kafka.eu-central-2.amazonaws.com:9098"
+# broker_port           = 9098
+# kafka_cluster_arn     = "arn:aws:kafka:eu-central-2:123456789012:cluster/mycluster/abcd-1234"
+# client_authentication = "NONE"      # or "IAM"
+# in_transit_encryption = "PLAINTEXT" # or "TLS"
+
+# ── Plugin (whole maps from the msk-connect-plugin project output) ─────────────
+# The project selects the entry by engine (+ optional plugin_version); the
+# pipeline passes the maps whole because a propeller input cannot sub-address a
+# map key. Maps are native (no JSON encoding).
+# default_plugin_arns      = { mariadb = "arn:aws:kafkaconnect:eu-central-2:123456789012:custom-plugin/debezium-mariadb-2.7.4.Final/abcd-1234" }
+# default_plugin_revisions = { mariadb = 1 }
+# plugin_arns      = { "mariadb-2.7.4.Final" = "arn:aws:kafkaconnect:eu-central-2:123456789012:custom-plugin/debezium-mariadb-2.7.4.Final/abcd-1234" }
+# plugin_revisions = { "mariadb-2.7.4.Final" = 1 }
+# plugin_version   = ""   # empty = the engine's default; set e.g. "2.7.4.Final" to pin
+
+# ── Worker configuration / topics ──────────────────────────────────────────────
+# offset_topic         = "my-debezium.offsets"
+# schema_history_topic = "my-debezium.schema-history"
+# topic_prefix         = "my-debezium"
+# server_id            = null   # null derives it deterministically from identifier
+
+# ── CDC credentials (from cdc-prepare-mariadb / cdc-prepare-oracle) ────────────
+# The two scalar SecureString parameter NAMES the prep project creates/reads.
+# The project derives each ARN itself (account/region/partition) for the
+# connector's IAM policy — you pass only the names, the same ones you gave the
+# prep step.
+# cdc_username_parameter = "/platform/myapp/cdc-username"
+# cdc_password_parameter = "/platform/myapp/cdc-password"
+# KMS key encrypting those parameters. Default alias/aws/ssm adds no kms:Decrypt;
+# a customer-managed key (alias/id/ARN) is resolved to its ARN and granted.
+# cdc_kms_key_id = "alias/aws/ssm"
+
+# ── Capture scope ──────────────────────────────────────────────────────────────
+# JSON list; "[]" (default) captures everything.
+# tables = "[\"appdb.customers\",\"appdb.orders\"]"
+
+# ── Engine ─────────────────────────────────────────────────────────────────────
+# engine = "mariadb"  # or "oracle" (Phase 2, unverified — see the module README)
+# log_mining_strategy is Oracle-only; ignored for MariaDB.
+# log_mining_strategy = "hybrid"
+
+# ── Logging & alarm ────────────────────────────────────────────────────────────
+# log_retention_in_days = 30
+# alarm_actions         = [] # e.g. ["arn:aws:sns:eu-central-2:123456789012:alerts"]

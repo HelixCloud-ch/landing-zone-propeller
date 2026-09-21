@@ -1,0 +1,13 @@
+connector.class=io.debezium.connector.mariadb.MariaDbConnector
+tasks.max=1
+database.hostname=${db_host}
+database.port=${db_port}
+database.user=$${ssm::${cdc_username_parameter}}
+database.password=$${ssm::${cdc_password_parameter}}
+database.server.id=${server_id}
+topic.prefix=${topic_prefix}
+schema.history.internal.kafka.bootstrap.servers=${bootstrap_servers}
+schema.history.internal.kafka.topic=${schema_history_topic}
+config.action.reload=none
+%{ if table_include_list != "" }table.include.list=${table_include_list}
+%{ endif }
