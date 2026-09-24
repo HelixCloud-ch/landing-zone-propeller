@@ -108,8 +108,10 @@ data "aws_network_interface" "endpoint" {
 }
 
 resource "aws_lb_target_group_attachment" "endpoint_eni" {
-  for_each          = data.aws_network_interface.endpoint
-  target_group_arn  = aws_lb_target_group.static.arn
-  target_id         = each.value.private_ip
-  availability_zone = "all"
+  for_each         = data.aws_network_interface.endpoint
+  target_group_arn = aws_lb_target_group.static.arn
+  target_id        = each.value.private_ip
+  # availability_zone is omitted: ELB derives the AZ from the private IP when
+  # the target lives inside the same VPC as the load balancer. Setting "all"
+  # is only valid for off-VPC targets.
 }
