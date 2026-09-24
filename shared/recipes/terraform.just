@@ -146,14 +146,27 @@ _propeller-vars:
     # Add PROPELLER_INPUT_* vars
     while IFS='=' read -r key value; do
       var_name="${key#PROPELLER_INPUT_}"
-      # Only decode objects/arrays as JSON (typed inputs like subnet_ids_json).
-      # Scalars stay strings so numeric-looking IDs keep leading zeros and exact
-      # form (e.g. an account id "041613842636"); terraform still coerces a
-      # string to a number/bool for a typed variable.
+      # Decode objects/arrays and JSON-encoded scalar strings.
+      #
+      # - {..} / [..]: typed inputs like subnet_ids_json — decode as JSON.
+      # - "..": JSONata scalar-string results arrive already JSON-encoded
+      #   with literal double-quotes. Unwrap to the raw string so it lands
+      #   in tfvars without escaped quotes.
+      # - anything else: leave as a bare string. Preserves numeric-looking
+      #   IDs with leading zeros (e.g. account id "041613842636"); terraform
+      #   still coerces the string to a number/bool for a typed variable.
       case "$value" in
         '{'*|'['*)
           if echo "$value" | jq -e '.' >/dev/null 2>&1; then
             RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --argjson v "$value" '. + {($k): $v}')
+          else
+            RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --arg v "$value" '. + {($k): $v}')
+          fi
+          ;;
+        '"'*)
+          if echo "$value" | jq -e 'type == "string"' >/dev/null 2>&1; then
+            UNWRAPPED=$(echo "$value" | jq -r '.')
+            RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --arg v "$UNWRAPPED" '. + {($k): $v}')
           else
             RESULT=$(echo "$RESULT" | jq --arg k "$var_name" --arg v "$value" '. + {($k): $v}')
           fi
