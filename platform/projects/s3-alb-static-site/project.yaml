@@ -1,0 +1,11 @@
+name: s3-alb-static-site
+description: >-
+  Private S3 bucket fronted by an ALB via an S3 interface VPC endpoint.
+  Bundles the bucket, its aws:SourceVpce policy, and an ip-target ALB target
+  group backed by the endpoint's ENIs.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just
