@@ -1,8 +1,9 @@
 name: s3-alb-static-site
 description: >-
   Private S3 bucket fronted by an ALB via an S3 interface VPC endpoint.
-  Bundles the bucket, its aws:SourceVpce policy, and an ip-target ALB target
-  group backed by the endpoint's ENIs.
+  Owns the bucket and its aws:SourceVpce-gated policy. The ALB target group
+  that reaches the bucket is a separate, shared resource; see the
+  s3-alb-target-group project.
 
 metadata:
   cost-center: platform

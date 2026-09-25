@@ -12,11 +12,11 @@ variable "region" {
 
 variable "name" {
   type        = string
-  description = "Base name used for the bucket and the target group. The bucket is suffixed with -<account_id>-<region>-an by the shared s3-bucket module. The target group is suffixed with -tg."
+  description = "Base bucket name. The full bucket name is suffixed with -<account_id>-<region>-an by the shared s3-bucket module to enforce account-regional naming."
 
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{0,28}$", var.name))
-    error_message = "name must be lowercase, start with a letter, contain only alphanumerics and hyphens, max 29 chars (target group name limit)."
+    condition     = can(regex("^[a-z][a-z0-9-]{0,30}$", var.name))
+    error_message = "name must be lowercase, start with a letter, contain only alphanumerics and hyphens, max 31 chars."
   }
 }
 
@@ -40,17 +40,7 @@ variable "kms_key_arn" {
   default     = null
 }
 
-# ── Pipeline inputs (from workload-vpc / workload-vpc-endpoints outputs) ──────
-
-variable "vpc_id" {
-  type        = string
-  description = "ID of the workload VPC. Sourced from the workload-vpc project output."
-
-  validation {
-    condition     = can(regex("^vpc-[0-9a-f]{8,17}$", var.vpc_id))
-    error_message = "vpc_id must be a valid VPC ID (e.g. vpc-0123456789abcdef0)."
-  }
-}
+# ── Pipeline inputs (from workload-vpc-endpoints outputs) ─────────────────────
 
 variable "interface_endpoint_id" {
   type        = string
@@ -59,16 +49,6 @@ variable "interface_endpoint_id" {
   validation {
     condition     = can(regex("^vpce-[0-9a-f]{8,17}$", var.interface_endpoint_id))
     error_message = "interface_endpoint_id must be a valid VPC endpoint ID (e.g. vpce-0123456789abcdef0)."
-  }
-}
-
-variable "interface_eni_ids" {
-  type        = list(string)
-  description = "ENI IDs of the S3 interface VPC endpoint. Resolved to private IPs and registered as ALB targets. Wire from workload-vpc-endpoints.interface_network_interface_ids using a pipeline input transform that selects the desired key."
-
-  validation {
-    condition     = length(var.interface_eni_ids) > 0 && alltrue([for eni in var.interface_eni_ids : can(regex("^eni-[0-9a-f]{8,17}$", eni))])
-    error_message = "interface_eni_ids must be a non-empty list of valid ENI IDs (e.g. eni-0123456789abcdef0)."
   }
 }
 

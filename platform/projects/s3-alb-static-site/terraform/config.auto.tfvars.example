@@ -1,5 +1,4 @@
-# vpc_id, interface_endpoint_id, and interface_eni_ids normally arrive as
-# pipeline inputs.
+# interface_endpoint_id normally arrives as a pipeline input
 
 region = "eu-central-2"
 

@@ -1,0 +1,4 @@
+# vpc_id and interface_endpoint_eni_ids normally arrive as pipeline inputs
+
+region = "eu-central-2"
+name   = "s3-static-tg"
