@@ -1,0 +1,32 @@
+# ── Central backup vault (dedicated backup account) ──────────────────────────
+# Destination of every cross-account copy. Deployed once, in the backup
+# platform, as a backup-vault instance targeting the backup account.
+
+region = "eu-central-2"
+
+# Distinct from the local defaults so the two profiles never collide.
+vault_name = "propeller-backup-central"
+
+# The role only starts copy-back jobs (central -> local vault); restores always
+# run in the source account, so the restore policy is not attached here.
+role_name       = "propeller-backup-copy-back-role"
+enable_restores = false
+
+# Governance-mode Vault Lock. backup-policies' copy_retention_days must fall
+# inside this window, or copy jobs are rejected.
+vault_lock = {
+  min_retention_days = 1
+  max_retention_days = 365
+}
+
+# organization_id is injected by the pipeline from
+# @landing-zone/workload-parameters.organization_id — do NOT set it here.
+# It lets every account in the organization copy into this vault and use its
+# key, so new workload accounts are covered without touching this instance.
+# Narrow it to specific OUs with aws:PrincipalOrgPaths patterns:
+# org_paths = ["o-xxxxxxxxxx/r-xxxx/ou-xxxx-xxxxxxxx/*"]
+
+# Leave kms_key_arn unset to create a dedicated key. Supply an existing key
+# (e.g. managed centrally) only if its policy already grants the organization
+# the usage actions and kms:CreateGrant with kms:GrantIsForAWSResource.
+# kms_key_arn = "arn:aws:kms:eu-central-2:<account_id>:key/<key_id>"
