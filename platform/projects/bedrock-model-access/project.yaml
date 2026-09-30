@@ -1,0 +1,10 @@
+name: bedrock-model-access
+description: >-
+  Enables Amazon Bedrock third-party foundation models (e.g. Anthropic) in the
+  target account and region, without invoking them. Submits the Anthropic
+  first-time use case form if none exists, then creates a model agreement for
+  each model that isn't already available. Idempotent. Not a terraform project.
+metadata:
+  cost-center: platform
+deploy:
+  type: just

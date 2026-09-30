@@ -1,0 +1,128 @@
+# bedrock-model-access: enables Bedrock third-party models in the target
+# account/region. Not a terraform project. See README.md.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Report what apply would do, without making changes.
+plan:
+    @just _run plan
+
+# Submit the use case form if missing, then create missing model agreements.
+apply:
+    @just _run apply
+
+# No-op: deleting an agreement doesn't block access (see README).
+destroy:
+    @echo "destroy: no-op (model agreements are not removed)"
+
+[private]
+_run action:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export AWS_PAGER=""
+
+    ACTION="{{ action }}"
+    REGION="${PROPELLER_INPUT_region:-${AWS_REGION:?AWS_REGION or region input required}}"
+    RAW_MODELS="${PROPELLER_INPUT_model_ids:?model_ids required (JSON list or comma-separated)}"
+
+    # Accept a JSON list or a comma-separated string.
+    # (while-read instead of mapfile, for bash 3.2 compatibility)
+    MODELS=()
+    if [[ "$RAW_MODELS" == \[* ]]; then
+      while IFS= read -r m; do MODELS+=("$m"); done < <(jq -r '.[]' <<<"$RAW_MODELS")
+    else
+      IFS=',' read -r -a MODELS <<<"$RAW_MODELS"
+    fi
+    [[ ${#MODELS[@]} -gt 0 ]] || { echo "model_ids is empty" >&2; exit 2; }
+
+    echo "bedrock-model-access: ${ACTION} in ${REGION} for ${#MODELS[@]} model(s)"
+
+    # -- 1. Use case form (Anthropic). Once per account and region for
+    #       opt-in regions such as eu-central-2. The form is write-once, so
+    #       skip whenever one already exists.
+    needs_form=false
+    for m in "${MODELS[@]}"; do
+      [[ "$m" == anthropic.* ]] && needs_form=true
+    done
+
+    if $needs_form; then
+      # Only ResourceNotFoundException means "no form". Any other error
+      # (credentials, AccessDenied) must fail, not trigger a submission.
+      if out=$(aws bedrock get-use-case-for-model-access --region "$REGION" 2>&1); then
+        form_exists=true
+      elif grep -q ResourceNotFoundException <<<"$out"; then
+        form_exists=false
+      else
+        echo "use case form: check failed: $out" >&2
+        exit 1
+      fi
+
+      if $form_exists; then
+        echo "use case form: already submitted, skipping"
+      elif [[ "$ACTION" == "plan" ]]; then
+        echo "use case form: missing, would submit"
+      else
+        FORM=$(jq -nc \
+          --arg company_name "${PROPELLER_INPUT_company_name:?company_name required}" \
+          --arg company_website "${PROPELLER_INPUT_company_website:?company_website required}" \
+          --arg intended_users "${PROPELLER_INPUT_intended_users:-0}" \
+          --arg industry_option "${PROPELLER_INPUT_industry_option:?industry_option required}" \
+          --arg other_industry_option "${PROPELLER_INPUT_other_industry_option:-}" \
+          --arg use_cases "${PROPELLER_INPUT_use_cases:?use_cases required}" \
+          '{companyName: $company_name, companyWebsite: $company_website,
+            intendedUsers: $intended_users, industryOption: $industry_option,
+            otherIndustryOption: $other_industry_option, useCases: $use_cases}')
+        # Raw JSON with an explicit binary format, independent of the
+        # runner's CLI config.
+        aws bedrock put-use-case-for-model-access \
+          --form-data "$FORM" \
+          --cli-binary-format raw-in-base64-out \
+          --region "$REGION" >/dev/null
+        echo "use case form: submitted"
+      fi
+    fi
+
+    # -- 2. Model agreements. Skip models that are already available.
+    for m in "${MODELS[@]}"; do
+      # Fails the run on any error instead of guessing a status.
+      status=$(aws bedrock get-foundation-model-availability \
+        --model-id "$m" --region "$REGION" \
+        --query 'agreementAvailability.status' --output text)
+
+      if [[ "$status" == "AVAILABLE" ]]; then
+        echo "${m}: available, skipping"
+        continue
+      fi
+      if [[ "$ACTION" == "plan" ]]; then
+        echo "${m}: ${status}, would create agreement"
+        continue
+      fi
+
+      token=$(aws bedrock list-foundation-model-agreement-offers \
+        --model-id "$m" --region "$REGION" \
+        --query 'offers[0].offerToken' --output text)
+      if [[ -z "$token" || "$token" == "None" ]]; then
+        echo "${m}: no agreement offer found (not a Marketplace model?)" >&2
+        exit 1
+      fi
+
+      # A just-submitted use case form can take a moment to propagate.
+      # Retry only on that error, up to 60s; anything else fails.
+      for i in $(seq 1 12); do
+        if out=$(aws bedrock create-foundation-model-agreement \
+            --model-id "$m" --offer-token "$token" --region "$REGION" 2>&1); then
+          break
+        fi
+        grep -q "filled out the request form" <<<"$out" || { echo "${m}: $out" >&2; exit 1; }
+        [[ $i -lt 12 ]] || { echo "${m}: use case form not propagated after 60s" >&2; exit 1; }
+        echo "${m}: waiting for use case form to propagate"
+        sleep 5
+      done
+
+      status=$(aws bedrock get-foundation-model-availability \
+        --model-id "$m" --region "$REGION" \
+        --query 'agreementAvailability.status' --output text)
+      echo "${m}: agreement created (${status})"
+    done
+
+    echo '{}' > .propeller-outputs.json
