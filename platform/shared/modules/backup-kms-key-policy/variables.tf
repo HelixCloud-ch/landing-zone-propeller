@@ -1,13 +1,3 @@
-variable "description" {
-  type        = string
-  description = "Description of the customer managed key."
-}
-
-variable "alias" {
-  type        = string
-  description = "Alias name for the key, without the 'alias/' prefix."
-}
-
 variable "cross_account_access" {
   type = object({
     account_ids     = optional(list(string), [])
@@ -35,16 +25,4 @@ variable "cross_account_access" {
     condition     = length(var.cross_account_access.org_paths) == 0 || var.cross_account_access.organization_id != null
     error_message = "cross_account_access.org_paths requires cross_account_access.organization_id."
   }
-}
-
-variable "deletion_window_in_days" {
-  type        = number
-  description = "Waiting period before the key is deleted after a destroy (7-30)."
-  default     = 30
-}
-
-variable "enable_rotation" {
-  type        = bool
-  description = "Enable automatic yearly key rotation."
-  default     = true
 }

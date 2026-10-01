@@ -2,7 +2,8 @@
 
 AWS Backup vault with:
 
-- a customer managed key, created through `backup-kms-key` unless
+- a customer managed key, created through `kms-key` with the
+  `backup-kms-key-policy` profile unless
   `kms_key_arn` is supplied (a supplied key's policy is the caller's responsibility);
 - an optional vault access policy granting only `backup:CopyIntoBackupVault`
   to `cross_account_access` (accounts and/or organization + org paths);
@@ -40,7 +41,8 @@ source vaults.
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_kms_key"></a> [kms\_key](#module\_kms\_key) | ../backup-kms-key | n/a |
+| <a name="module_kms_key"></a> [kms\_key](#module\_kms\_key) | ../kms-key | n/a |
+| <a name="module_kms_key_policy"></a> [kms\_key\_policy](#module\_kms\_key\_policy) | ../backup-kms-key-policy | n/a |
 
 ## Resources
 

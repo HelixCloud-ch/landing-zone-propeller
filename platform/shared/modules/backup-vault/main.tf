@@ -10,13 +10,20 @@ locals {
 # Created only when the caller does not bring its own key. Cross-account copy
 # needs a customer managed key: AWS managed keys have immutable key policies
 # and cannot be shared with the peer account.
-module "kms_key" {
-  source = "../backup-kms-key"
+module "kms_key_policy" {
+  source = "../backup-kms-key-policy"
   count  = local.create_kms_key ? 1 : 0
 
-  description          = "AWS Backup vault ${var.name}"
-  alias                = coalesce(var.kms_key_alias, "backup/${var.name}")
   cross_account_access = var.cross_account_access
+}
+
+module "kms_key" {
+  source = "../kms-key"
+  count  = local.create_kms_key ? 1 : 0
+
+  description = "AWS Backup vault ${var.name}"
+  alias       = coalesce(var.kms_key_alias, "backup/${var.name}")
+  policy_json = module.kms_key_policy[0].json
 }
 
 resource "aws_backup_vault" "this" {
