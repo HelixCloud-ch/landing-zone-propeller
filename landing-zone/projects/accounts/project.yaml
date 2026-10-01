@@ -1,7 +1,7 @@
 name: accounts
 description: >-
   Vends foundational accounts (e.g. a backup account) via Service Catalog
-  Account Factory into the Security or Infrastructure OU. Account IDs are
+  Account Factory into the Infrastructure OU. Account IDs are
   published to /propeller/accounts/<name>/ by the accounts-registry step.
 metadata:
   cost-center: landing-zone

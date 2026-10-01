@@ -3,7 +3,7 @@
 Runs in the **management account**, `accounts` stage. Vends foundational
 accounts that are neither workloads nor Control Tower shared accounts, for
 example the CCE backup account, through Service Catalog Account Factory into
-the Security or Infrastructure OU.
+the Infrastructure OU.
 
 ## Why a separate project
 
@@ -14,9 +14,8 @@ optional Control Tower backup accounts). Accounts vended here are enrolled at
 creation, get `AWSControlTowerExecution`, and can therefore receive a
 deploy-runner and become pipeline targets like any workload account.
 
-The project only maps the symbolic `ou` key (`security` / `infrastructure`)
-to the OU wired from the pipeline; the provisioning logic lives in the
-`ct-account` module. The two follow-up steps reuse framework projects:
+The project only passes the Infrastructure OU wired from the pipeline to the
+`ct-account` module, which holds the provisioning logic. The two follow-up steps reuse framework projects:
 
 - `accounts-deploy-runners` (`source: propeller:workload-deploy-runners`)
   provisions the deploy-runner in each account.
@@ -26,11 +25,11 @@ to the OU wired from the pipeline; the provisioning logic lives in the
 
 ## Operational notes
 
-- **Security OU placement is unverified.** Account Factory only provisions
-  into OUs with `AWSControlTowerBaseline` enabled, and the console shows the
-  Security OU baseline as "Not applicable" (its shared accounts carry
-  account-level baselines instead). If provisioning fails there, set
-  `ou = "infrastructure"`; nothing else changes.
+- **Why not the Security OU.** Account Factory only provisions into OUs
+  with `AWSControlTowerBaseline` enabled. Control Tower does not apply it to
+  the Security OU (its shared accounts carry account-level baselines), so
+  provisioning there fails with `InvalidParametersException ... is not
+  enrolled in AWS Control Tower` (observed on the test org).
 - Tags are never sent to the provisioned product (`aws.notags` provider);
   Account Factory rejects TagOptions and tag updates. See
   [account-network](../account-network/README.md) for the full rationale.
@@ -85,15 +84,13 @@ to the OU wired from the pipeline; the provisioning logic lives in the
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_accounts"></a> [accounts](#input\_accounts) | Accounts to vend, keyed by name (also the pipeline target name). `ou` is<br/>"security" or "infrastructure"; sso\_user\_email defaults to email. See README. | <pre>map(object({<br/>    email               = string<br/>    ou                  = string<br/>    sso_user_email      = optional(string)<br/>    sso_user_first_name = optional(string, "Admin")<br/>    sso_user_last_name  = optional(string, "Account")<br/>  }))</pre> | `{}` | no |
+| <a name="input_accounts"></a> [accounts](#input\_accounts) | Accounts to vend into the Infrastructure OU, keyed by name (also the<br/>pipeline target name). sso\_user\_email defaults to email. See README. | <pre>map(object({<br/>    email               = string<br/>    sso_user_email      = optional(string)<br/>    sso_user_first_name = optional(string, "Admin")<br/>    sso_user_last_name  = optional(string, "Account")<br/>  }))</pre> | `{}` | no |
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | Pipeline-wide tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_infrastructure_ou_id"></a> [infrastructure\_ou\_id](#input\_infrastructure\_ou\_id) | Infrastructure OU ID, from ou-infrastructure. | `string` | n/a | yes |
 | <a name="input_infrastructure_ou_name"></a> [infrastructure\_ou\_name](#input\_infrastructure\_ou\_name) | Infrastructure OU name, from ou-infrastructure. | `string` | n/a | yes |
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | Framework-managed tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region for the Service Catalog API call (must match the Control Tower home region). | `string` | n/a | yes |
 | <a name="input_reserved_account_names"></a> [reserved\_account\_names](#input\_reserved\_account\_names) | Names reserved by the framework for other accounts; keys of accounts must not use them. | `set(string)` | <pre>[<br/>  "management",<br/>  "operations",<br/>  "network",<br/>  "log-archive",<br/>  "audit",<br/>  "backup-admin",<br/>  "backup-central"<br/>]</pre> | no |
-| <a name="input_security_ou_id"></a> [security\_ou\_id](#input\_security\_ou\_id) | Security OU ID, from control-tower-prerequisites. | `string` | n/a | yes |
-| <a name="input_security_ou_name"></a> [security\_ou\_name](#input\_security\_ou\_name) | Security OU name, from control-tower-prerequisites. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Per-project tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
 
 ## Outputs

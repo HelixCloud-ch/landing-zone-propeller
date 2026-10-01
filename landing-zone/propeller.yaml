@@ -44,7 +44,6 @@ stages:
           - name: /accounts.backup-central.id
             var: backup_central_account_id
           - name: security_ou_id
-          - name: security_ou_name
           - name: control_tower_admin_role_arn
           - name: control_tower_cloudtrail_role_arn
           - name: control_tower_stackset_role_arn
@@ -126,10 +125,6 @@ stages:
         source: propeller:accounts
         target: management
         inputs:
-          - name: control-tower-prerequisites.security_ou_id
-            var: security_ou_id
-          - name: control-tower-prerequisites.security_ou_name
-            var: security_ou_name
           - name: ou-infrastructure.infrastructure_id
             var: infrastructure_ou_id
           - name: ou-infrastructure.infrastructure_name

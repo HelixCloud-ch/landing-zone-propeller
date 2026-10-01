@@ -188,5 +188,4 @@ No modules.
 | <a name="output_control_tower_stackset_role_arn"></a> [control\_tower\_stackset\_role\_arn](#output\_control\_tower\_stackset\_role\_arn) | ARN of the AWSControlTowerStackSetRole IAM role (empty if not created). |
 | <a name="output_log_archive_account_id"></a> [log\_archive\_account\_id](#output\_log\_archive\_account\_id) | AWS account ID of the Log Archive account (empty if not created). |
 | <a name="output_security_ou_id"></a> [security\_ou\_id](#output\_security\_ou\_id) | ID of the Security OU. |
-| <a name="output_security_ou_name"></a> [security\_ou\_name](#output\_security\_ou\_name) | Name of the Security OU. |
 <!-- END_TF_DOCS -->
