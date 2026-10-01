@@ -22,6 +22,10 @@ resource "aws_servicecatalog_provisioned_product" "this" {
   provisioning_artifact_id = var.provisioning_artifact_id
   tags                     = var.tags
 
+  lifecycle {
+    ignore_changes = [tags, tags_all]
+  }
+
   provisioning_parameters {
     key   = "ProjectName"
     value = var.cb_project_name
