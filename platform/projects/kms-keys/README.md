@@ -54,8 +54,23 @@ See `config.auto.tfvars.example`, including a key with
     - name: key_arns
 ```
 
-`key_arns` is a name → ARN map; database projects take a single
-`kms_key_id`, so they cannot consume it directly yet.
+`key_arns` is a name → ARN map. A project that takes a single key (e.g.
+`kms_key_id` on `rds-postgresql`) picks one entry with an input `expr`
+([Input Transforms](../../../docs/input-transforms.md)):
+
+```yaml
+- project: rds-app
+  source: propeller:rds-postgresql
+  target: workload-acme-prod
+  inputs:
+    - name: kms-keys.key_arns
+      var: kms_key_id
+      expr: '$exists($lookup($, "rds")) ? $lookup($, "rds") : $error("kms-keys has no key rds")'
+```
+
+Use `$lookup` rather than a bare path so names with hyphens work. Keep the
+`$error` guard: a plain `$lookup` on a missing name returns undefined, and
+the step would receive an empty or invalid value instead of failing.
 
 ## Operational notes
 
