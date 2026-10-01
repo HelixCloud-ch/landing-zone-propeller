@@ -3,6 +3,11 @@ output "security_ou_id" {
   value       = aws_organizations_organizational_unit.security.id
 }
 
+output "security_ou_name" {
+  description = "Name of the Security OU."
+  value       = aws_organizations_organizational_unit.security.name
+}
+
 output "log_archive_account_id" {
   description = "AWS account ID of the Log Archive account (empty if not created)."
   value       = length(aws_organizations_account.log_archive) > 0 ? aws_organizations_account.log_archive[0].id : ""
