@@ -1,0 +1,11 @@
+name: backup-vault
+description: >-
+  AWS Backup vault, its customer managed key (created unless supplied) and
+  the role AWS Backup runs as in that account. Deployed once in the dedicated
+  backup account as the cross-account copy destination (with Vault Lock), and
+  once in every workload account as the source vault an Organizations backup
+  policy writes to.
+metadata:
+  cost-center: platform
+deploy:
+  type: just

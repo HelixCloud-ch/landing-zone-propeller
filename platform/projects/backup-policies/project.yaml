@@ -1,0 +1,10 @@
+name: backup-policies
+description: >-
+  Organizations backup policies (one per entry of the policies map), created
+  and attached from the management account. Each selects tagged resources in
+  every account under its target OUs, backs them up to a local source vault
+  and copies each recovery point to the central backup vault.
+metadata:
+  cost-center: platform
+deploy:
+  type: just

@@ -1,0 +1,163 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# ── Inputs (pipeline literals) ────────────────────────────────────────────────
+# opt_in_overrides (JSON object of booleans, e.g. {"S3":false}) is read from
+# PROPELLER_INPUT_opt_in_overrides inside the scripts, never interpolated.
+region                  := env("AWS_REGION")
+enable_policy_type      := env("PROPELLER_INPUT_enable_backup_policy_type", "true")
+cross_account_backup    := env("PROPELLER_INPUT_cross_account_backup", "true")
+# Empty means "leave the current value untouched".
+multi_party_approval    := env("PROPELLER_INPUT_multi_party_approval", "")
+delegated_administrator := env("PROPELLER_INPUT_delegated_administrator", "")
+policy_type_timeout     := env("PROPELLER_INPUT_policy_type_timeout_seconds", "300")
+
+# ── Private helpers ───────────────────────────────────────────────────────────
+
+[private]
+_validate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pair in "enable_backup_policy_type={{ enable_policy_type }}" \
+                "cross_account_backup={{ cross_account_backup }}" \
+                "multi_party_approval={{ multi_party_approval }}" \
+                "delegated_administrator={{ delegated_administrator }}"; do
+      case "${pair#*=}" in
+        true|false|"") ;;
+        *) echo "Invalid ${pair%%=*}='${pair#*=}': expected true, false or empty." >&2; exit 1 ;;
+      esac
+    done
+    [ -n "{{ cross_account_backup }}" ] || { echo "cross_account_backup must be true or false." >&2; exit 1; }
+    jq -e 'type == "object" and all(.[]; type == "boolean")' <<< "${PROPELLER_INPUT_opt_in_overrides:-'{}'}" >/dev/null \
+      || { echo "opt_in_overrides must be a JSON object of booleans, e.g. {\"S3\":false}." >&2; exit 1; }
+
+[private]
+_root-id:
+    @aws organizations list-roots --query 'Roots[0].Id' --output text
+
+[private]
+_policy-type-status root_id:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    status=$(aws organizations list-roots \
+      --query "Roots[?Id=='{{ root_id }}'].PolicyTypes[] | [?Type=='BACKUP_POLICY'].Status | [0]" \
+      --output text)
+    [ "$status" = "None" ] && status="DISABLED"
+    echo "$status"
+
+# Desired global settings as a compact JSON object (only keys we manage).
+[private]
+_desired-global:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    jq -nc \
+      --arg xa "{{ cross_account_backup }}" \
+      --arg mpa "{{ multi_party_approval }}" \
+      --arg da "{{ delegated_administrator }}" \
+      '{isCrossAccountBackupEnabled: $xa}
+       + (if $mpa == "" then {} else {isMpaEnabled: $mpa} end)
+       + (if $da == "" then {} else {isDelegatedAdministratorEnabled: $da} end)'
+
+# Current global settings, restricted to the keys we manage.
+[private]
+_current-global:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    desired=$(just _desired-global)
+    aws backup describe-global-settings --region "{{ region }}" --query GlobalSettings --output json \
+      | jq -c --argjson d "$desired" 'with_entries(select(.key | IN($d | keys[])))'
+
+# Every resource type the Region supports opted in, then the overrides.
+# Organization backup policies inherit the management account's opt-in.
+[private]
+_desired-opt-in:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    aws backup describe-region-settings --region "{{ region }}" --query ResourceTypeOptInPreference --output json \
+      | jq -Sc --argjson o "${PROPELLER_INPUT_opt_in_overrides:-'{}'}" 'map_values(true) + $o'
+
+[private]
+_current-opt-in:
+    @aws backup describe-region-settings --region "{{ region }}" --query ResourceTypeOptInPreference --output json | jq -Sc .
+
+# ── Recipes ───────────────────────────────────────────────────────────────────
+
+init:
+    @echo "backup-org-settings: region={{ region }}"
+
+plan: _validate
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root_id=$(just _root-id)
+    status=$(just _policy-type-status "$root_id")
+    echo "backup-org-settings plan (management account, root $root_id):"
+    if [ "{{ enable_policy_type }}" = "true" ] && [ "$status" != "ENABLED" ]; then
+      echo "  ~ BACKUP_POLICY policy type: $status -> ENABLED"
+    else
+      echo "  = BACKUP_POLICY policy type: $status"
+    fi
+    current=$(just _current-global); desired=$(just _desired-global)
+    if [ "$(jq -Sc . <<< "$current")" != "$(jq -Sc . <<< "$desired")" ]; then
+      echo "  ~ global settings: $current -> $desired"
+    else
+      echo "  = global settings: $current"
+    fi
+    current=$(just _current-opt-in); desired=$(just _desired-opt-in)
+    changes=$(jq -rn --argjson c "$current" --argjson d "$desired" \
+      '$d | to_entries[] | select($c[.key] != .value) | "    \(.key): \($c[.key]) -> \(.value)"')
+    if [ -n "$changes" ]; then
+      echo "  ~ resource-type opt-in:"; echo "$changes"
+    else
+      echo "  = resource-type opt-in: unchanged"
+    fi
+
+apply: _validate
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root_id=$(just _root-id)
+
+    # enable-policy-type fails on an already-enabled type, and the enable is
+    # asynchronous: check first, then wait for ENABLED so backup-policies can
+    # create policies right after this step.
+    status=$(just _policy-type-status "$root_id")
+    if [ "{{ enable_policy_type }}" = "true" ] && [ "$status" != "ENABLED" ]; then
+      if [ "$status" != "PENDING_ENABLE" ]; then
+        aws organizations enable-policy-type --root-id "$root_id" --policy-type BACKUP_POLICY >/dev/null
+        echo "BACKUP_POLICY enable requested on $root_id"
+      fi
+      deadline=$(( $(date +%s) + {{ policy_type_timeout }} ))
+      until [ "$(just _policy-type-status "$root_id")" = "ENABLED" ]; do
+        [ "$(date +%s)" -lt "$deadline" ] || { echo "BACKUP_POLICY not ENABLED after {{ policy_type_timeout }}s" >&2; exit 1; }
+        sleep 5
+      done
+      status=ENABLED
+    fi
+    echo "BACKUP_POLICY: $status"
+
+    current=$(just _current-global); desired=$(just _desired-global)
+    if [ "$(jq -Sc . <<< "$current")" != "$(jq -Sc . <<< "$desired")" ]; then
+      aws backup update-global-settings --region "{{ region }}" \
+        --global-settings "$(jq -r 'to_entries | map("\(.key)=\(.value)") | join(",")' <<< "$desired")"
+      echo "global settings updated: $desired"
+    else
+      echo "global settings unchanged: $current"
+    fi
+
+    current=$(just _current-opt-in); desired=$(just _desired-opt-in)
+    if [ "$current" != "$desired" ]; then
+      aws backup update-region-settings --region "{{ region }}" --resource-type-opt-in-preference "$desired"
+      echo "resource-type opt-in updated"
+    else
+      echo "resource-type opt-in unchanged"
+    fi
+
+    jq -n --arg root_id "$root_id" --arg status "$status" --argjson opt_in "$desired" \
+      '{root_id: $root_id, backup_policy_type_status: $status, resource_type_opt_in_preference: $opt_in}' \
+      > .propeller-outputs.json
+    jq . .propeller-outputs.json
+
+# No-op by design: disabling BACKUP_POLICY would detach every backup policy.
+destroy:
+    @echo "backup-org-settings: nothing destroyed (org-level settings are left in place, see README)"
+
+outputs:
+    @cat .propeller-outputs.json 2>/dev/null || echo '{}'
