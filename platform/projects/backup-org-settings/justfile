@@ -27,7 +27,7 @@ _validate:
       esac
     done
     [ -n "{{ cross_account_backup }}" ] || { echo "cross_account_backup must be true or false." >&2; exit 1; }
-    jq -e 'type == "object" and all(.[]; type == "boolean")' <<< "${PROPELLER_INPUT_opt_in_overrides:-'{}'}" >/dev/null \
+    jq -e 'type == "object" and all(.[]; type == "boolean")' <<< "${PROPELLER_INPUT_opt_in_overrides:-"{}"}" >/dev/null \
       || { echo "opt_in_overrides must be a JSON object of booleans, e.g. {\"S3\":false}." >&2; exit 1; }
 
 [private]
@@ -73,7 +73,7 @@ _desired-opt-in:
     #!/usr/bin/env bash
     set -euo pipefail
     aws backup describe-region-settings --region "{{ region }}" --query ResourceTypeOptInPreference --output json \
-      | jq -Sc --argjson o "${PROPELLER_INPUT_opt_in_overrides:-'{}'}" 'map_values(true) + $o'
+      | jq -Sc --argjson o "${PROPELLER_INPUT_opt_in_overrides:-"{}"}" 'map_values(true) + $o'
 
 [private]
 _current-opt-in:
