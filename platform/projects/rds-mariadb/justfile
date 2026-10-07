@@ -70,4 +70,7 @@ wake-snapshot: tf-init
       -var "snapshot_identifier={{ _sleep_snapshot_id }}"
     DB_ID=$(terraform output -raw db_instance_identifier)
     aws rds wait db-instance-available --db-instance-identifier "$DB_ID" --region "$AWS_REGION"
+    # The instance was recreated: republish outputs (wake keeps the previous
+    # ones otherwise).
+    just _propeller-outputs
     aws rds delete-db-snapshot --db-snapshot-identifier "{{ _sleep_snapshot_id }}" --region "$AWS_REGION" 2>/dev/null || true
