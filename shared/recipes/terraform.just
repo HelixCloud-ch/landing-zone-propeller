@@ -153,7 +153,7 @@ _propeller-vars:
       #   with literal double-quotes. Unwrap to the raw string so it lands
       #   in tfvars without escaped quotes.
       # - anything else: leave as a bare string. Preserves numeric-looking
-      #   IDs with leading zeros (e.g. account id "041613842636"); terraform
+      #   IDs with leading zeros (e.g. account id "012345678901"); terraform
       #   still coerces the string to a number/bool for a typed variable.
       case "$value" in
         '{'*|'['*)

@@ -55,6 +55,10 @@ test-autopilot: (section "autopilot: vitest + tsc")
     "${pm[@]}" test
     "${pm[@]}" run typecheck
 
+# Shell-side value flow: aggregator outputs and _propeller-vars tfvars encoding
+test-recipes: (section "recipes: value flow")
+    @./shared/recipes/tests/value-flow.sh
+
 # Build and verify the deploy-runner image. Heavy (docker + buildx + egress,
 # ~minutes), so it's not part of `test`; run it explicitly or via `test-all`.
 test-image: (section "deploy-runner image: build + offline verify")
@@ -83,7 +87,7 @@ check-versions-sync:
     @./platform/projects/deploy-runner-image/tests/check_versions_sync.sh
 
 # Fast tests: pipeline resolve/validate + engine + autopilot (no docker)
-test: resolve validate test-engine test-autopilot check-versions-sync
+test: resolve validate test-engine test-autopilot test-recipes check-versions-sync
     @printf '\n{{ _ok }}  %-60s  {{ _reset }}\n' 'PASS: all checks passed'
 
 # Everything, including the heavy image build/verify

@@ -16,10 +16,13 @@ plan:
 apply:
     #!/usr/bin/env bash
     set -euo pipefail
-    # Build JSON from all PROPELLER_INPUT_* vars
+    # Build JSON from all PROPELLER_INPUT_* vars. Values are passed through
+    # verbatim as strings: decoding them would turn account IDs into numbers
+    # (dropping leading zeros) and maps into objects. Consumers decode JSON
+    # maps/lists in _propeller-vars.
     jq -n 'env | to_entries
       | map(select(.key | startswith("PROPELLER_INPUT_")))
-      | map({key: (.key | ltrimstr("PROPELLER_INPUT_")), value: (.value | . as $v | try (fromjson) catch $v)})
+      | map({key: (.key | ltrimstr("PROPELLER_INPUT_")), value})
       | from_entries' > .propeller-outputs.json
     echo "workload-parameters apply — outputs:"
     jq . .propeller-outputs.json
