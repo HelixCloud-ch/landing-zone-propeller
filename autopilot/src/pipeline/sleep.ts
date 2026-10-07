@@ -124,6 +124,22 @@ export async function runStageSleepWake(
 }
 
 /**
+ * True when the build exported a non-empty PROPELLER_OUTPUTS_JSON object.
+ * Unparseable JSON counts as published, so writeOutputs reports the error
+ * instead of it being silently dropped.
+ */
+function hasPublishedOutputs(exportedVars: Array<{ name: string; value: string }>): boolean {
+  const raw = exportedVars.find((v) => v.name === "PROPELLER_OUTPUTS_JSON")?.value;
+  if (!raw) return false;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null && Object.keys(parsed).length > 0;
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Resolve the sleep mode for a project.
  * Returns the mode string if the project participates, or null if it doesn't.
  *
@@ -210,8 +226,18 @@ async function executeSleepStep(
         };
       }
 
-      // Write outputs if the sleep/wake recipe produced any (e.g. snapshot ID)
-      if (pollResult.exportedVars.length > 0) {
+      // The project blob describes the project as it runs, and apps read it
+      // on wake (e.g. a DB address). PROPELLER_OUTPUTS_JSON is always exported
+      // ("{}" when the recipe wrote nothing), so writing unconditionally would
+      // wipe the blob on every stop/start.
+      // - Sleep never publishes: no sleep recipe produces outputs, and the
+      //   blob must survive until wake. (After sleep-destroy it keeps pointing
+      //   at destroyed resources; nothing reads it while asleep, and the wake
+      //   tf-apply republishes it.)
+      // - Wake publishes only what the recipe produced (tf-apply based modes,
+      //   wake-snapshot). An empty result leaves the last outputs in place,
+      //   which is correct for stop/start.
+      if (pctx.deployAction === "wake" && hasPublishedOutputs(pollResult.exportedVars)) {
         await childCtx.step(`outputs`, () =>
           writeOutputs(clients.ssm, step, pollResult.exportedVars, buildId, pctx),
         );
