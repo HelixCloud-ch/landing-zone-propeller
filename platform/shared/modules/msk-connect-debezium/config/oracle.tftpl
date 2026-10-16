@@ -1,0 +1,15 @@
+connector.class=io.debezium.connector.oracle.OracleConnector
+tasks.max=1
+database.hostname=${db_host}
+database.port=${db_port}
+database.user=$${ssm::${cdc_username_parameter}}
+database.password=$${ssm::${cdc_password_parameter}}
+database.dbname=${db_name}
+%{ if pdb_name != "" }database.pdb.name=${pdb_name}
+%{ endif }topic.prefix=${topic_prefix}
+schema.history.internal.kafka.bootstrap.servers=${bootstrap_servers}
+schema.history.internal.kafka.topic=${schema_history_topic}
+log.mining.strategy=${log_mining_strategy}
+config.action.reload=none
+%{ if table_include_list != "" }table.include.list=${table_include_list}
+%{ endif }

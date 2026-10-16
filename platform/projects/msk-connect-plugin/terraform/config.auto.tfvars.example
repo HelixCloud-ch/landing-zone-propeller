@@ -1,0 +1,28 @@
+region = "eu-central-2"
+
+# ── Artifact source ───────────────────────────────────────────────────────────
+# ARN of the S3 bucket holding the connector artifacts.
+# artifact_bucket_arn = "arn:aws:s3:::my-msk-connect-artifacts"
+
+# ── Name prefix (optional) ────────────────────────────────────────────────────
+# Bare prefix, no trailing hyphen; the full plugin name is <name_prefix>-<key>.
+# name_prefix = "debezium"
+
+# ── Plugins (from pipeline input) ─────────────────────────────────────────────
+# Normally wired from the artifact project's `plugins_json` output, keyed by
+# "<flavour>-<version>". A version bump ADDS a new key (old and new coexist);
+# remove a key only after no connector references it. object_version is
+# omitted when the destination bucket is not versioned. Example shape:
+# plugins = {
+#   "mariadb-2.7.4.Final" = {
+#     file_key       = "debezium/debezium-mariadb-2.7.4.Final.zip"
+#     object_version = "abcdef0123456789abcdef0123456789"
+#   }
+# }
+
+# ── Default versions (from pipeline input) ────────────────────────────────────
+# Normally wired from the artifact project's `default_versions_json` output.
+# Every value must resolve to a key already present in `plugins`. Example:
+# default_versions = {
+#   mariadb = "2.7.4.Final"
+# }

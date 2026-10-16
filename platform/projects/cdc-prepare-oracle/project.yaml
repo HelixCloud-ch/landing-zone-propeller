@@ -1,0 +1,16 @@
+name: cdc-prepare-oracle
+description: >-
+  Prepares an Oracle source database for Debezium CDC via LogMiner: verifies
+  archive-log and supplemental-logging preconditions, creates a least-privilege
+  CDC user with the LogMiner grants, and resolves its credential from two named
+  scalar SecureString parameters, one for the username and one for the password
+  (each a source of truth if present, created if absent; no rotation).
+  Justfile-only, no Terraform state.
+  Phase 2 — unverified against real infrastructure; see README and
+  docs/cdc-deployment-verification.md before any production use.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just

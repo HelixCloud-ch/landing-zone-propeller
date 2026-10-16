@@ -1,0 +1,12 @@
+name: cdc-topics
+description: >-
+  Creates the Kafka topics a Debezium connector needs (schema history, offset,
+  and any others supplied as input) with per-topic partitions and configuration.
+  Leaves existing topics untouched and never modifies cluster-wide configuration.
+  Justfile-only, no Terraform state.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just

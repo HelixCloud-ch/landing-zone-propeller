@@ -1,0 +1,41 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# cdc-prepare-mariadb: prepares a MariaDB source database for Debezium CDC.
+# Not a Terraform project; requires no state. Must run on an In_VPC_Runner
+# (see README) so it can reach the database and Parameter Store. All
+# environment-specific values arrive as PROPELLER_INPUT_* env vars — nothing
+# about the host, user, parameter names, account or region is hardcoded.
+
+_dir := justfile_directory()
+
+# plan: report intent only. Reads PROPELLER_INPUT_* and echoes the host, the
+# CDC user it would create, and the parameter NAMES it would read and write.
+# It contacts nothing and modifies nothing. Credential VALUES are never echoed —
+# only names and paths.
+plan:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "cdc-prepare-mariadb plan — intended actions (no changes made):"
+    echo "  database host:            ${PROPELLER_INPUT_db_host:-<unset>}"
+    echo "  database port:            ${PROPELLER_INPUT_db_port:-3306}"
+    echo "  admin credential param:   ${PROPELLER_INPUT_admin_credential_parameter:-<unset>} (read)"
+    echo "  CDC user to create:       ${PROPELLER_INPUT_cdc_username:-<unset>}"
+    echo "  CDC username param:       ${PROPELLER_INPUT_cdc_username_parameter:-<unset>} (read if present; created if absent)"
+    echo "  CDC password param:       ${PROPELLER_INPUT_cdc_password_parameter:-<unset>} (read if present; created if absent)"
+    echo "  binlog retention hours:   ${PROPELLER_INPUT_binlog_retention_hours:-<unset>}"
+    echo "  KMS key id:               ${PROPELLER_INPUT_kms_key_id:-alias/aws/ssm}"
+    echo "  preconditions to verify:  log_bin, binlog_format=ROW, binlog_row_image=FULL, log_bin_compress=OFF"
+
+# apply: run the preparation logic. All work lives in prepare.py.
+apply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ _dir }}"
+    python3 prepare.py
+
+# destroy: deliberate NO-OP. Dropping the CDC_User is irreversible and is not
+# the deployment's decision to make (Requirements 3.14, 3.15).
+destroy:
+    @echo "cdc-prepare-mariadb destroy: no-op by design."
+    @echo "  The CDC user is NOT dropped: dropping it is irreversible and is an"
+    @echo "  operator decision, not the deployment's. Remove it manually if required."
