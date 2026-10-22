@@ -3,8 +3,9 @@
 Configure GitHub Actions to run plans and applies from the consumer repo. Once
 in place, the pipeline can be triggered through the workflow UI.
 
-The CI user only needs permissions to upload the bundle to S3 and invoke the
-Autopilot Lambda.
+The CI user needs permissions to upload the bundle to S3 and invoke the
+Autopilot Lambda, plus read access to executions for
+[waiting on completion](#waiting-for-completion).
 
 ## 1. Create the CI user
 
@@ -47,8 +48,19 @@ aws iam put-user-policy --user-name propeller-ci --policy-name propeller-deploy 
     },
     {
       "Effect": "Allow",
-      "Action": "lambda:InvokeFunction",
+      "Action": [
+        "lambda:InvokeFunction",
+        "lambda:GetDurableExecution"
+      ],
       "Resource": "${LAMBDA_ARN}:*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "lambda:ListDurableExecutionsByFunction",
+      "Resource": [
+        "${LAMBDA_ARN}",
+        "${LAMBDA_ARN}:*"
+      ]
     }
   ]
 }
@@ -148,6 +160,24 @@ Destroy workflows add safety gates:
 The resolve step produces `pipeline.lock.md` (Mermaid graph). The workflow
 writes it to the GitHub Actions job summary before invoking the Lambda.
 
+### Waiting for completion
+
+By default the job exits once the Lambda is invoked. Set `PROPELLER_WAIT=true`
+to block until the execution finishes, so later jobs can depend on it. The job
+fails if the execution fails, times out or is stopped, or if the pipeline
+result is `failed`.
+
+`just wait <pipeline>` does the same for the last triggered execution, e.g. to
+re-attach after a cancelled job. Cancelling the job does not stop the
+execution.
+
+Waiting needs `lambda:GetDurableExecution` and
+`lambda:ListDurableExecutionsByFunction` (see the policy above). CI users
+created without them keep working as long as `PROPELLER_WAIT` is unset.
+
+Supervised runs block while waiting for approval, so keep the CI job timeout
+above the expected approval time.
+
 ## 5. First deploy
 
 Go to **Actions > Landing Zone - Deploy > Run workflow**. Start with `plan` to
@@ -165,6 +195,8 @@ graph.
 | `ONLY` | Comma-separated project names to target |
 | `SLEEP_PRESET` | Preset name for sleep action |
 | `DESTROY_ALL` | Set to `true` for full-pipeline destroy (safety gate) |
+| `PROPELLER_WAIT` | Set to `true` to wait for the execution to finish |
+| `PROPELLER_WAIT_INTERVAL` | Seconds between status checks while waiting (default `30`) |
 
 ## What's next
 
