@@ -55,9 +55,10 @@ test-autopilot: (section "autopilot: vitest + tsc")
     "${pm[@]}" test
     "${pm[@]}" run typecheck
 
-# Shell-side value flow: aggregator outputs and _propeller-vars tfvars encoding
-test-recipes: (section "recipes: value flow")
+# Shell recipes: value flow (aggregator, _propeller-vars) and consumer `wait`
+test-recipes: (section "recipes: value flow + wait")
     @./shared/recipes/tests/value-flow.sh
+    @./consumer/tests/wait.sh
 
 # Build and verify the deploy-runner image. Heavy (docker + buildx + egress,
 # ~minutes), so it's not part of `test`; run it explicitly or via `test-all`.
