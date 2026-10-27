@@ -1,0 +1,11 @@
+name: dns-record
+description: >-
+  Publishes one or more DNS records into a single existing Route 53 hosted
+  zone. Fans out over the dns-record shared module. Deployed with target set
+  to the zone's account (e.g. networking), so records and zone live together
+  and no cross-account role is needed. Record values are wired from the
+  resources' own project outputs.
+metadata:
+  cost-center: platform
+deploy:
+  type: just
