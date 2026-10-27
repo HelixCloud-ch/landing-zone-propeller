@@ -1,4 +1,4 @@
-# dns-record — publish one record into an existing Route 53 zone.
+# dns-record — publish one or more records into an existing Route 53 zone.
 # Copy to config.auto.tfvars (or supply via an overlay) and fill in.
 
 region = "eu-central-2"
@@ -7,15 +7,29 @@ region = "eu-central-2"
 # private zone for the environment.
 zone_id = "Z0123456789ABCDEFGHIJ"
 
-# ── CNAME to a service endpoint (RDS, ElastiCache) ──────────────────────────
-name    = "oracle"
-type    = "CNAME"
-records = ["my-db.abc123.eu-central-2.rds.amazonaws.com"]
+# Records keyed by a stable id (used as the terraform state address).
+records = {
+  # CNAME to a service endpoint (RDS, ElastiCache).
+  oracle = {
+    name    = "oracle"
+    type    = "CNAME"
+    records = ["my-db.abc123.eu-central-2.rds.amazonaws.com"]
+  }
 
-# ── Alias to a load balancer (uncomment instead of records) ─────────────────
-# name = "app"
-# type = "A"
-# alias = {
-#   name    = "internal-rosa-xxxx.eu-central-2.elb.amazonaws.com"
-#   zone_id = "Z3F0SRJ5LGBH90"
-# }
+  # Alias to a load balancer.
+  app = {
+    name = "app"
+    type = "A"
+    alias = {
+      name    = "internal-rosa-xxxx.eu-central-2.elb.amazonaws.com"
+      zone_id = "Z3F0SRJ5LGBH90"
+    }
+  }
+}
+
+# A value wired from the pipeline lands in an entry's one-element records list
+# via a JSONata transform in pipeline.yaml:
+#   inputs:
+#     - name: rds-oracle-1.endpoint
+#       var: records
+#       expr: '{ "oracle": { "name": "oracle", "records": [$] } }'

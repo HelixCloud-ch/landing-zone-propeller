@@ -7,43 +7,40 @@ variable "region" {
   }
 }
 
-# ── Record ────────────────────────────────────────────────────────────────────
+# ── Zone ──────────────────────────────────────────────────────────────────────
 variable "zone_id" {
   type        = string
-  description = "ID of the Route 53 hosted zone that receives the record. The zone must exist in the deployment (target) account."
+  description = "ID of the Route 53 hosted zone that receives the records. The zone must exist in the deployment (target) account."
 }
 
-variable "name" {
-  type        = string
-  description = "Record name, relative to the zone (e.g. 'redis') or fully qualified."
-}
-
-variable "type" {
-  type        = string
-  description = "Record type: A, AAAA, CNAME or TXT. Alias records require A or AAAA."
-  default     = "CNAME"
-}
-
-variable "ttl" {
-  type        = number
-  description = "TTL in seconds for non-alias records. Ignored for alias records."
-  default     = 300
-}
-
+# ── Records ─────────────────────────────────────────────────────────────────--
 variable "records" {
-  type        = list(string)
-  description = "Record values for a non-alias record (e.g. an RDS or ElastiCache endpoint). A CNAME takes one value. Set this or alias, not both."
-  default     = []
-}
+  type = map(object({
+    name    = string
+    type    = optional(string, "CNAME")
+    ttl     = optional(number, 300)
+    records = optional(list(string), [])
+    alias = optional(object({
+      name                   = string
+      zone_id                = string
+      evaluate_target_health = optional(bool, false)
+    }))
+  }))
+  description = <<-EOT
+    Records to publish in the zone, keyed by an arbitrary stable id (the
+    terraform state address, not the DNS name). Each entry sets `name` plus
+    exactly one of `records` (non-alias, e.g. a CNAME to a service endpoint)
+    or `alias` (A/AAAA to a load balancer); the module enforces that.
 
-variable "alias" {
-  type = object({
-    name                   = string
-    zone_id                = string
-    evaluate_target_health = optional(bool, false)
-  })
-  description = "Alias target (e.g. a load balancer's dns_name and zone_id), for A/AAAA records. Set this or records, not both."
-  default     = null
+    To wire a single value from the pipeline into an entry's one-element
+    `records` list, use a JSONata input transform: `expr: '[$]'`.
+  EOT
+  default     = {}
+
+  validation {
+    condition     = alltrue([for r in var.records : (r.alias == null) != (length(r.records) == 0)])
+    error_message = "Each record must set exactly one of records or alias."
+  }
 }
 
 # ── Tags ──────────────────────────────────────────────────────────────────────
