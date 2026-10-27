@@ -1,0 +1,21 @@
+# dns-record — publish one record into an existing Route 53 zone.
+# Copy to config.auto.tfvars (or supply via an overlay) and fill in.
+
+region = "eu-central-2"
+
+# Zone in the deployment (target) account — e.g. the networking account's
+# private zone for the environment.
+zone_id = "Z0123456789ABCDEFGHIJ"
+
+# ── CNAME to a service endpoint (RDS, ElastiCache) ──────────────────────────
+name    = "oracle"
+type    = "CNAME"
+records = ["my-db.abc123.eu-central-2.rds.amazonaws.com"]
+
+# ── Alias to a load balancer (uncomment instead of records) ─────────────────
+# name = "app"
+# type = "A"
+# alias = {
+#   name    = "internal-rosa-xxxx.eu-central-2.elb.amazonaws.com"
+#   zone_id = "Z3F0SRJ5LGBH90"
+# }
