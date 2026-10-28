@@ -1,0 +1,10 @@
+name: kms-keys
+description: >-
+  Customer managed KMS keys for one account, one per entry of the keys map,
+  each with an alias and a key policy profile. Keys can be shared with other
+  accounts by name (resolved against the landing-zone account maps) so AWS
+  services such as AWS Backup can use them across accounts.
+metadata:
+  cost-center: platform
+deploy:
+  type: just

@@ -1,0 +1,21 @@
+# accounts — Foundational accounts in the Infrastructure OU
+# Copy this file to config.auto.tfvars and fill in your values.
+
+# AWS region (must match the Control Tower home region).
+region = "eu-central-2"
+
+# Keys become pipeline target names (e.g. target: backup) and SSM paths
+# (/propeller/accounts/<name>/id).
+accounts = {
+  backup = { email = "aws+backup@example.com" }
+}
+
+# Per-account SSO override example:
+# accounts = {
+#   backup = {
+#     email               = "aws+backup@example.com"
+#     sso_user_email      = "backup-admin@example.com"
+#     sso_user_first_name = "Backup"
+#     sso_user_last_name  = "Admin"
+#   }
+# }

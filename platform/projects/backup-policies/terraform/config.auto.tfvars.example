@@ -1,0 +1,38 @@
+# ── Organizations backup policies (management account) ───────────────────────
+# One policy per entry, keyed by policy name (also the backup plan name).
+
+region = "eu-central-2"
+
+# ou_ids and copy_vault_arn are injected by the pipeline from
+# @landing-zone/workload-parameters.ou_ids and the central backup-vault
+# instance's vault_arn — do NOT set them here.
+
+policies = {
+  # Daily backup of every resource tagged backup=default in the production
+  # OUs. Recovery points stay 1 day in the local vault (cost) and 35 days in
+  # the central vault; 35 must fall inside the central vault's lock window.
+  "propeller-backup-daily" = {
+    target_ou_paths     = ["Workloads/Prod"]
+    copy_retention_days = 35
+  }
+
+  # Critical tier: resources tagged backup=critical, every 6 hours, with a
+  # longer local retention for faster restores. Distinct tag values keep each
+  # resource in exactly one plan.
+  "propeller-backup-critical" = {
+    target_ou_paths       = ["Workloads/Prod"]
+    schedule_expression   = "cron(0 */6 ? * * *)"
+    start_window_minutes  = 60
+    source_retention_days = 3
+    copy_retention_days   = 90
+    selection_tag_values  = ["critical"]
+  }
+
+  # Local-only tier for test accounts: no cross-account copy.
+  # "propeller-backup-test" = {
+  #   target_ou_paths       = ["Workloads/Test"]
+  #   copy_to_vault         = false
+  #   source_retention_days = 7
+  #   selection_tag_values  = ["test"]
+  # }
+}

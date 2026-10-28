@@ -1,0 +1,24 @@
+# ── Local backup vault (workload account) ────────────────────────────────────
+# Source vault an Organizations backup policy writes to first; the policy's
+# copy action then ships each recovery point to the central vault. Deployed
+# once per workload account, in that account's platform.
+
+region = "eu-central-2"
+
+# vault_name, role_name and enable_restores keep their defaults
+# (propeller-backup / propeller-backup-role / true): they are the contract
+# with backup-policies' source_vault_name and iam_role_name. Change them only
+# together with the matching policy fields.
+
+# No Vault Lock: recovery points here are short-lived (source_retention_days
+# in backup-policies).
+
+# peer_account_id is injected by the pipeline from the central instance
+# (@backup/backup-central-vault.account_id) — do NOT set it here. It grants the
+# backup account copy-into on this vault (copy-back) and use of the key.
+
+# The key created here is also the one to encrypt backed-up resources with
+# (e.g. rds-*.kms_key_id from this project's kms_key_arn output): resources on
+# AWS managed keys cannot be copied cross-account. Supply an existing key only
+# if its policy already grants the backup account the same permissions.
+# kms_key_arn = "arn:aws:kms:eu-central-2:<account_id>:key/<key_id>"

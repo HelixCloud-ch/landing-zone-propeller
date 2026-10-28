@@ -5,6 +5,11 @@ import type { PipelineEvent } from "./types.js";
 
 // --- SDK Mocks ---
 
+// PROPELLER_OUTPUTS_JSON exported by every mocked build. Tests can override it
+// (e.g. "{}" for a recipe that wrote no outputs); reset in beforeEach.
+const DEFAULT_BUILD_OUTPUTS = JSON.stringify({ vpc_id: "vpc-mock", vpc_cidr: "10.0.0.0/16" });
+const mockBuild = vi.hoisted(() => ({ outputsJson: "" }));
+
 vi.mock("@aws-sdk/client-codebuild", () => ({
   StartBuildCommand: vi.fn(function (this: any, input: any) {
     this._type = "StartBuild";
@@ -27,7 +32,7 @@ vi.mock("@aws-sdk/client-codebuild", () => ({
               exportedEnvironmentVariables: [
                 {
                   name: "PROPELLER_OUTPUTS_JSON",
-                  value: JSON.stringify({ vpc_id: "vpc-mock", vpc_cidr: "10.0.0.0/16" }),
+                  value: mockBuild.outputsJson,
                 },
               ],
               logs: { groupName: "/aws/codebuild/test", streamName: "abc123" },
@@ -206,6 +211,7 @@ describe("execute", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockBuild.outputsJson = DEFAULT_BUILD_OUTPUTS;
     ssmParams = {
       "/propeller/accounts/account-alpha/id": "111111111111",
       "/propeller/accounts/account-alpha/region": "eu-central-2",
@@ -823,5 +829,96 @@ describe("execute", () => {
     // rds participates (in preset), vpc is skipped (not in preset)
     expect(result.results.find((r) => r.project === "rds")?.status).toBe("succeeded");
     expect(result.results.find((r) => r.project === "vpc")?.status).toBe("skipped");
+  });
+
+  // ── Sleep/wake must not wipe project outputs ──
+  // Apps read e.g. a DB address from the project blob after wake. A stop/start
+  // recipe writes no outputs, but PROPELLER_OUTPUTS_JSON is still exported as
+  // "{}", which used to overwrite the blob with empty outputs.
+
+  describe("sleep/wake project outputs", () => {
+    const BLOB_KEY = "/propeller/test-platform/rds";
+    const AWAKE_BLOB = JSON.stringify({
+      outputs: { address: "db.internal", port: "3306" },
+      meta: { build_id: "apply-build" },
+    });
+
+    function sleepWakeEvent(action: "sleep" | "wake"): PipelineEvent {
+      return {
+        pipeline: {
+          version: "1",
+          namespace: "test-platform",
+          propeller_version: "0.14.0",
+          consumer_tags: {},
+          stages: [
+            {
+              name: "data",
+              steps: [
+                {
+                  project: "rds",
+                  target: "account-alpha",
+                  inputs: [],
+                  outputs: [
+                    { key: BLOB_KEY, ref: "address", field: "address" },
+                    { key: BLOB_KEY, ref: "port", field: "port" },
+                  ],
+                },
+              ],
+            },
+          ],
+          sleep_presets: { deep: { rds: "stop" } },
+        },
+        bundle_s3_uri: "s3://b/k.zip",
+        deploy_action: action,
+        ...(action === "sleep" && { sleep_preset: "deep" }),
+        git_sha: "sha",
+      };
+    }
+
+    async function run(action: "sleep" | "wake") {
+      return execute(sleepWakeEvent(action), createMockDurableContext(), {
+        ssm: createMockSSMClient(ssmParams) as any,
+        sts: createMockSTSClient() as any,
+      });
+    }
+
+    beforeEach(() => {
+      ssmParams[BLOB_KEY] = AWAKE_BLOB;
+    });
+
+    it.each([
+      ["no outputs", "{}"],
+      ["outputs", JSON.stringify({ address: "other" })],
+    ])("sleep never writes the blob (recipe produced %s)", async (_label, outputsJson) => {
+      mockBuild.outputsJson = outputsJson;
+      const result = await run("sleep");
+      expect(result.status).toBe("succeeded");
+      expect(ssmParams[BLOB_KEY]).toBe(AWAKE_BLOB);
+    });
+
+    it("wake that produced no outputs (stop/start) keeps the blob", async () => {
+      ssmParams["/propeller/test-platform/state"] = JSON.stringify({
+        state: "sleeping",
+        sleep_projects: { rds: { mode: "stop" } },
+      });
+      mockBuild.outputsJson = "{}";
+      const result = await run("wake");
+      expect(result.status).toBe("succeeded");
+      expect(ssmParams[BLOB_KEY]).toBe(AWAKE_BLOB);
+    });
+
+    it("wake that produced outputs (e.g. wake-snapshot) republishes them", async () => {
+      ssmParams["/propeller/test-platform/state"] = JSON.stringify({
+        state: "sleeping",
+        sleep_projects: { rds: { mode: "snapshot" } },
+      });
+      mockBuild.outputsJson = JSON.stringify({ address: "db-restored.internal", port: "3306" });
+      const result = await run("wake");
+      expect(result.status).toBe("succeeded");
+      expect(JSON.parse(ssmParams[BLOB_KEY]!).outputs).toEqual({
+        address: "db-restored.internal",
+        port: "3306",
+      });
+    });
   });
 });

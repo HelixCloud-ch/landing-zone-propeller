@@ -1,0 +1,12 @@
+name: backup-org-settings
+description: >-
+  Organization-level prerequisites for AWS Backup policies, run in the
+  management account with the AWS CLI (no Terraform state): enables the
+  BACKUP_POLICY policy type on the root, turns on cross-account backup, and
+  opts the Region's resource types in (backup policies inherit the management
+  account's opt-in). Trusted access for backup.amazonaws.com is enabled by the
+  landing zone's org-trusted-access.
+metadata:
+  cost-center: platform
+deploy:
+  type: just

@@ -1,0 +1,37 @@
+# kms-keys — Customer managed keys for this account
+# Copy this file to config.auto.tfvars and fill in your values.
+#
+# workload_account_ids, landing_zone_account_ids and organization_id are
+# pipeline inputs (see README), not set here.
+
+keys = {
+  # Storage key for RDS / Aurora, shared with the backup account so AWS
+  # Backup can copy recovery points there.
+  rds = {
+    alias       = "cce/rds"
+    description = "RDS and Aurora storage"
+    shared_with = ["backup"]
+  }
+
+  # Same profile, DocumentDB, with a custom rotation period.
+  docdb = {
+    alias                   = "cce/documentdb"
+    shared_with             = ["backup"]
+    rotation_period_in_days = 180
+  }
+
+  # No automatic rotation: AWS KMS cannot rotate keys with imported key
+  # material or keys in a custom key store (CloudHSM, XKS).
+  legacy-app = {
+    description     = "Key without automatic rotation"
+    enable_rotation = false
+  }
+
+  # Org-wide sharing narrowed to an OU path, plus an account outside the
+  # landing-zone maps.
+  # shared-services = {
+  #   share_with_organization = true
+  #   org_paths               = ["o-xxxxxxxxxx/r-xxxx/ou-xxxx-xxxxxxxx/*"]
+  #   account_ids             = ["111111111111"]
+  # }
+}

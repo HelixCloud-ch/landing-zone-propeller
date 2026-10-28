@@ -2,6 +2,7 @@ import type { SSMClient } from "@aws-sdk/client-ssm";
 import { describe, expect, it, vi } from "vitest";
 import type { PipelineContext, StepConfig } from "../types.js";
 import {
+  deleteOutputs,
   getParameter,
   getParameterOptional,
   prepareBuildConfig,
@@ -14,9 +15,20 @@ import {
 function createMockSSMClient(params: Record<string, string>) {
   const sendFn = vi.fn(async (command: any) => {
     const name = command.input?.Name as string;
+    const cmd = command.constructor.name;
+
+    if (cmd === "DeleteParameterCommand") {
+      if (name in params) {
+        delete params[name];
+        return {};
+      }
+      const err = new Error(`Parameter not found: ${name}`);
+      err.name = "ParameterNotFound";
+      throw err;
+    }
 
     if (
-      command.constructor.name === "GetParameterCommand" ||
+      cmd === "GetParameterCommand" ||
       (command.input?.Name !== undefined && !command.input?.Value)
     ) {
       if (name in params) {
@@ -356,5 +368,51 @@ describe("writePipelineState", () => {
         "eks-cluster-1": { mode: "destroy" },
       },
     });
+  });
+});
+
+describe("deleteOutputs", () => {
+  it("deletes individual params and the project blob", async () => {
+    const params: Record<string, string> = {
+      "/propeller/ns/proj/vpc_id": "vpc-1",
+      "/propeller/ns/proj": JSON.stringify({ outputs: { cidr: "10/8" }, meta: {} }),
+      "/propeller/ns/other": "kept",
+    };
+    const client = createMockSSMClient(params);
+    const step: StepConfig = {
+      project: "proj",
+      inputs: [],
+      outputs: [
+        { key: "/propeller/ns/proj/vpc_id", ref: "vpc_id" },
+        { key: "/propeller/ns/proj", ref: "cidr", field: "cidr" },
+      ],
+    };
+
+    await deleteOutputs(client, step, "ns");
+
+    expect(params["/propeller/ns/proj/vpc_id"]).toBeUndefined();
+    expect(params["/propeller/ns/proj"]).toBeUndefined();
+    expect(params["/propeller/ns/other"]).toBe("kept");
+  });
+
+  it("is idempotent (swallows ParameterNotFound)", async () => {
+    const params: Record<string, string> = {};
+    const client = createMockSSMClient(params);
+    const step: StepConfig = {
+      project: "proj",
+      inputs: [],
+      outputs: [{ key: "/propeller/ns/proj/vpc_id", ref: "vpc_id" }],
+    };
+    await expect(deleteOutputs(client, step, "ns")).resolves.toBeUndefined();
+  });
+
+  it("handles a step with no declared outputs", async () => {
+    const params: Record<string, string> = {
+      "/propeller/ns/proj": "{}",
+    };
+    const client = createMockSSMClient(params);
+    const step: StepConfig = { project: "proj", inputs: [] };
+    await deleteOutputs(client, step, "ns");
+    expect(params["/propeller/ns/proj"]).toBeUndefined();
   });
 });

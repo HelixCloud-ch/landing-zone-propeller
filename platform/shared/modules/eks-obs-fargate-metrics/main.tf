@@ -94,7 +94,15 @@ resource "helm_release" "adot_collector" {
   namespace  = var.namespace
 
   create_namespace = true
-  cleanup_on_fail  = true
+
+  # Retry-friendly: adopt existing releases on create (upgrade --install
+  # semantics), roll back and delete on failure so the next apply is a
+  # clean slate.
+  upgrade_install = true
+  atomic          = true
+  cleanup_on_fail = true
+  wait            = true
+  timeout         = 600
 
   # image.repository is required since chart 0.89.0. We use the contrib distro
   # because otelcol-k8s does not include the awsemf exporter (AWS-specific).

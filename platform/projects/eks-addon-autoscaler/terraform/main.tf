@@ -100,7 +100,16 @@ resource "helm_release" "this" {
   chart      = "cluster-autoscaler"
   version    = var.chart_version
   namespace  = var.namespace
-  replace    = true
+
+  # Retry-friendly: adopt existing releases on create (upgrade --install
+  # semantics), roll back and delete on failure so the next apply is a
+  # clean slate.
+  upgrade_install = true
+  atomic          = true
+  cleanup_on_fail = true
+  wait            = true
+  timeout         = 600
+  replace         = true
 
   set = concat(
     [

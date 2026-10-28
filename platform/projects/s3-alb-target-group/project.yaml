@@ -1,0 +1,11 @@
+name: s3-alb-target-group
+description: >-
+  Shared ALB target group backed by an S3 interface VPC endpoint's ENIs.
+  Consumed by any number of Ingress rules that route to different S3 buckets
+  via host-header-rewrite. One instance per platform.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just

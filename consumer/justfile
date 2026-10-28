@@ -153,9 +153,9 @@ _trigger pipeline:
     BUNDLE_URI="s3://{{ bundle_s3_bucket }}/bundles/{{ pipeline }}/${GIT_SHA}.zip"
     TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
     EXEC_NAME="{{ pipeline }}__${DEPLOY_ACTION}__${GIT_SHA}__${TIMESTAMP}"
-    # Persist the execution name so callers (CI, buildspec) can poll
-    # executions/<name>/status.json without parsing stdout.
+    # Persist the execution name so callers (CI, buildspec) can poll without parsing stdout.
     echo -n "${EXEC_NAME}" > "dist/{{ pipeline }}/execution-name"
+    rm -f "dist/{{ pipeline }}/execution-arn"
     ONLY_ARGS=""
     if [[ -n "${ONLY:-}" ]]; then
         ONLY_ARGS=$(jq -n --arg only "$ONLY" '{only: ($only | split(",") | map(gsub("^\\s+|\\s+$"; "")))}')
@@ -185,15 +185,54 @@ _trigger pipeline:
         > "$PAYLOAD_FILE"
     echo "Invoking ${FUNCTION_ARN} ({{ pipeline }}, ${DEPLOY_ACTION})${ONLY:+ [only: $ONLY]}..."
     echo "Execution: ${EXEC_NAME}"
-    aws lambda invoke \
+    RESP=$(aws lambda invoke \
         --function-name "$FUNCTION_ARN" \
         --invocation-type Event \
         --durable-execution-name "$EXEC_NAME" \
         --payload "file://$PAYLOAD_FILE" \
         --cli-binary-format raw-in-base64-out \
-        /dev/null
+        /dev/null)
     rm -f "$PAYLOAD_FILE"
+    jq -j '.DurableExecutionArn // empty' <<<"$RESP" > "dist/{{ pipeline }}/execution-arn"
     echo "Triggered"
+    if [[ "${PROPELLER_WAIT:-}" == "true" ]]; then
+        just wait "{{ pipeline }}"
+    fi
+
+# Wait for the last triggered execution; fails unless it and the pipeline succeeded
+wait pipeline:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    NAME=$(cat "dist/{{ pipeline }}/execution-name")
+    ARN=$(cat "dist/{{ pipeline }}/execution-arn" 2>/dev/null || true)
+    for _ in 1 2 3 4 5 6; do
+        [[ -n "$ARN" && "$ARN" != "None" ]] && break
+        sleep 5
+        ARN=$(aws lambda list-durable-executions-by-function \
+            --function-name "{{ lambda_function }}" \
+            --query "DurableExecutions[?DurableExecutionName=='${NAME}'].DurableExecutionArn | [0]" \
+            --output text)
+    done
+    [[ -n "$ARN" && "$ARN" != "None" ]] || { echo "Execution ${NAME} not found"; exit 1; }
+    echo "Waiting for ${NAME}..."
+    while [[ $(aws lambda get-durable-execution --durable-execution-arn "$ARN" \
+        --no-include-execution-data --query Status --output text) == "RUNNING" ]]; do
+        sleep "${PROPELLER_WAIT_INTERVAL:-30}"
+    done
+    RESP=$(aws lambda get-durable-execution --durable-execution-arn "$ARN")
+    STATUS=$(jq -r '.Status' <<<"$RESP")
+    if [[ "$STATUS" != "SUCCEEDED" ]]; then
+        echo "Execution ${STATUS}: $(jq -r '.Error.ErrorMessage // "no error message"' <<<"$RESP")"
+        exit 1
+    fi
+    RESULT=$(jq -r '.Result' <<<"$RESP")
+    jq -r '"Pipeline \(.status): \(.summary.succeeded) succeeded, \(.summary.failed) failed, \(.summary.soft_failed // 0) soft-failed, \(.summary.skipped) skipped"' <<<"$RESULT"
+    # Soft failures don't fail the run, but list them so they aren't missed.
+    jq -r '.results[]? | select(.status == "failed" and .soft == true) | "  (soft) \(.project): \(.error // "failed")"' <<<"$RESULT"
+    if [[ $(jq -r '.status' <<<"$RESULT") != "succeeded" ]]; then
+        jq -r '(.error // empty), (.results[]? | select(.status == "failed" and .soft != true) | "  \(.project): \(.error // "failed")")' <<<"$RESULT"
+        exit 1
+    fi
 
 # Remove generated files
 clean:

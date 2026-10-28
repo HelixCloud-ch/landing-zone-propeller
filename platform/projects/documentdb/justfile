@@ -93,6 +93,9 @@ wake-snapshot: tf-init
       -var "snapshot_identifier={{ _sleep_snapshot_id }}"
     CLUSTER_ID=$(terraform output -raw cluster_identifier)
     just _wait-cluster-available "$CLUSTER_ID"
+    # The cluster was recreated: republish outputs (wake keeps the previous
+    # ones otherwise).
+    just _propeller-outputs
     aws docdb delete-db-cluster-snapshot --db-cluster-snapshot-identifier "{{ _sleep_snapshot_id }}" --region "$AWS_REGION" 2>/dev/null || true
 
 # ── Polling helpers ───────────────────────────────────────────────────────────

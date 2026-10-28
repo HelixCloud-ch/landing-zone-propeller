@@ -1,0 +1,7 @@
+# interface_endpoint_id normally arrives as a pipeline input
+
+region = "eu-central-2"
+
+# Base name only. The project uses the account-regional S3 namespace, so the
+# final bucket name is <name>-<account_id>-<region>-an.
+name = "static-site-bucket"

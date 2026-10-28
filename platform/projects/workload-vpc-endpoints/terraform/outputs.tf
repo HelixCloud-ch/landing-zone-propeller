@@ -8,6 +8,11 @@ output "gateway_prefix_list_ids" {
   value       = module.vpc_endpoints.gateway_prefix_list_ids
 }
 
+output "interface_network_interface_ids" {
+  description = "Map of Interface endpoint key to its list of ENI IDs, one per Availability Zone."
+  value       = module.vpc_endpoints.interface_network_interface_ids
+}
+
 # todo: too big to fit into a propeller output, commented out for now
 # output "interface_dns_entries" {
 #   description = "Map of Interface endpoint key to its list of {dns_name, hosted_zone_id} objects. Useful when private_dns_enabled is false and a caller must wire its own Route 53 record."
