@@ -12,7 +12,7 @@ variable "identifier" {
 
 variable "region" {
   type        = string
-  description = "AWS region as a literal, used for the SSM Config_Provider in the worker configuration. Passed by the project from its own region variable."
+  description = "AWS region as a literal, used for the ssm config provider in the created worker configuration."
 }
 
 variable "tags" {
@@ -23,13 +23,46 @@ variable "tags" {
 
 # ── Network ───────────────────────────────────────────────────────────────────
 
-variable "vpc_id" {
-  type        = string
-  description = "VPC ID where the connector security group is created."
+variable "create_security_group" {
+  type        = bool
+  description = "Create the connector security group (with database and broker egress rules)."
+  default     = true
+  nullable    = false
+}
+
+variable "security_group_ids" {
+  type        = list(string)
+  description = <<-EOT
+    Existing security groups for the connector ENIs, added to the created one
+    (if any). At least one SG overall. Changing the set replaces the connector.
+  EOT
+  default     = []
+  nullable    = false
 
   validation {
-    condition     = can(regex("^vpc-[0-9a-f]{8,17}$", var.vpc_id))
+    condition     = alltrue([for s in var.security_group_ids : can(regex("^sg-[0-9a-f]{8,17}$", s))])
+    error_message = "All security_group_ids must be valid security group IDs (e.g. sg-0123456789abcdef0)."
+  }
+
+  validation {
+    condition     = var.create_security_group || length(var.security_group_ids) > 0
+    error_message = "With create_security_group = false, security_group_ids must name at least one security group."
+  }
+}
+
+variable "vpc_id" {
+  type        = string
+  description = "VPC ID for the created security group. Required only when create_security_group is true."
+  default     = null
+
+  validation {
+    condition     = var.vpc_id == null || can(regex("^vpc-[0-9a-f]{8,17}$", var.vpc_id))
     error_message = "vpc_id must be a valid VPC ID (e.g. vpc-0123456789abcdef0)."
+  }
+
+  validation {
+    condition     = !var.create_security_group || var.vpc_id != null
+    error_message = "vpc_id is required when create_security_group is true."
   }
 }
 
@@ -55,7 +88,7 @@ variable "db_host" {
 
 variable "db_port" {
   type        = number
-  description = "Port of the source database. Opened as an egress rule on the connector security group."
+  description = "Port of the source database. Opened as egress on the created security group."
   default     = 3306
 
   validation {
@@ -66,19 +99,25 @@ variable "db_port" {
 
 variable "db_name" {
   type        = string
-  description = "Oracle service name / SID (database.dbname). Ignored by the mariadb template. On a CDB instance this is the container database's service; see pdb_name to target a pluggable database instead."
+  description = <<-EOT
+    Oracle service name / SID (database.dbname). Ignored for mariadb.
+    On a CDB source this is the container's service; see pdb_name.
+  EOT
   default     = ""
 }
 
 variable "pdb_name" {
   type        = string
-  description = "Oracle pluggable database name (database.pdb.name), for a multitenant (CDB) source. Empty (default) omits the property entirely — a non-CDB instance has no PDB to name. Ignored by the mariadb template."
+  description = <<-EOT
+    Oracle pluggable database (database.pdb.name) for a CDB source.
+    Empty (default) omits the property. Ignored for mariadb.
+  EOT
   default     = ""
 }
 
 variable "broker_port" {
   type        = number
-  description = "Kafka broker port the connector connects to. Opened as an egress rule on the connector security group."
+  description = "Kafka broker port. Opened as egress on the created security group."
   default     = 9098
 
   validation {
@@ -90,6 +129,38 @@ variable "broker_port" {
 variable "bootstrap_servers" {
   type        = string
   description = "Kafka bootstrap servers string the connector and the schema-history writer connect to."
+}
+
+variable "additional_egress_rules" {
+  type = map(object({
+    from_port                    = number
+    to_port                      = optional(number)
+    ip_protocol                  = optional(string, "tcp")
+    cidr_ipv4                    = optional(string)
+    cidr_ipv6                    = optional(string)
+    prefix_list_id               = optional(string)
+    referenced_security_group_id = optional(string)
+    description                  = optional(string)
+  }))
+  description = <<-EOT
+    Extra egress rules on the created security group, keyed by a stable name.
+    Each sets exactly one destination; to_port defaults to from_port.
+  EOT
+  default     = {}
+  nullable    = false
+
+  validation {
+    condition = alltrue([
+      for r in values(var.additional_egress_rules) :
+      length([for d in [r.cidr_ipv4, r.cidr_ipv6, r.prefix_list_id, r.referenced_security_group_id] : d if d != null]) == 1
+    ])
+    error_message = "Each additional_egress_rules entry must set exactly one of cidr_ipv4, cidr_ipv6, prefix_list_id, referenced_security_group_id."
+  }
+
+  validation {
+    condition     = var.create_security_group || length(var.additional_egress_rules) == 0
+    error_message = "additional_egress_rules apply only to the module-created security group; they have no effect with create_security_group = false."
+  }
 }
 
 # ── Plugin ────────────────────────────────────────────────────────────────────
@@ -112,9 +183,40 @@ variable "custom_plugin_revision" {
 
 # ── Worker configuration / topics ─────────────────────────────────────────────
 
+variable "worker_configuration_arn" {
+  type        = string
+  description = "Existing MSK Connect worker configuration to use instead of creating one. See README."
+  default     = null
+
+  validation {
+    condition     = var.worker_configuration_arn == null || can(regex("^arn:aws[a-z-]*:kafkaconnect:", var.worker_configuration_arn))
+    error_message = "worker_configuration_arn must be an MSK Connect worker configuration ARN (arn:aws:kafkaconnect:...)."
+  }
+}
+
+variable "worker_configuration_revision" {
+  type        = number
+  description = "Revision of worker_configuration_arn. Set both or neither."
+  default     = null
+
+  validation {
+    condition     = (var.worker_configuration_revision == null) == (var.worker_configuration_arn == null)
+    error_message = "worker_configuration_arn and worker_configuration_revision must be set together."
+  }
+}
+
 variable "offset_topic" {
   type        = string
-  description = "Kafka topic where the connector stores source offsets. Declared in the worker configuration."
+  description = <<-EOT
+    Kafka topic for source offsets, declared in the created worker
+    configuration. Required unless worker_configuration_arn is set.
+  EOT
+  default     = null
+
+  validation {
+    condition     = var.offset_topic != null || var.worker_configuration_arn != null
+    error_message = "offset_topic is required when the module creates the worker configuration (worker_configuration_arn unset)."
+  }
 }
 
 variable "schema_history_topic" {
@@ -136,43 +238,62 @@ variable "server_id" {
 
 variable "cdc_username_parameter" {
   type        = string
-  description = "Name of the SSM parameter holding the CDC user name. Referenced literally in the connector config via the SSM Config_Provider."
+  description = <<-EOT
+    SSM parameter holding the CDC user name, referenced via the ssm config
+    provider. Null (with the password) derives no credentials. See README.
+  EOT
+  default     = null
+
+  validation {
+    condition     = (var.cdc_username_parameter == null) == (var.cdc_password_parameter == null)
+    error_message = "cdc_username_parameter and cdc_password_parameter must be set together or both left null."
+  }
 }
 
 variable "cdc_password_parameter" {
   type        = string
-  description = "Name of the SSM parameter holding the CDC user password. Referenced literally in the connector config via the SSM Config_Provider."
+  description = "SSM parameter holding the CDC user password. Set or null together with the username."
+  default     = null
 }
 
 variable "cdc_username_parameter_arn" {
   type        = string
-  description = "ARN of the CDC username SSM parameter. The service execution role is granted ssm:GetParameter on exactly this ARN."
+  description = "ARN of cdc_username_parameter; scopes ssm:GetParameter. Set exactly when the name is set."
+  default     = null
 
   validation {
-    condition     = can(regex("^arn:aws:ssm:", var.cdc_username_parameter_arn))
+    condition     = var.cdc_username_parameter_arn == null || can(regex("^arn:aws[a-z-]*:ssm:", var.cdc_username_parameter_arn))
     error_message = "cdc_username_parameter_arn must be a valid SSM parameter ARN (arn:aws:ssm:...)."
+  }
+
+  validation {
+    condition     = (var.cdc_username_parameter_arn == null) == (var.cdc_username_parameter == null)
+    error_message = "cdc_username_parameter_arn must be set exactly when cdc_username_parameter is set."
   }
 }
 
 variable "cdc_password_parameter_arn" {
   type        = string
-  description = "ARN of the CDC password SSM parameter. The service execution role is granted ssm:GetParameter on exactly this ARN."
+  description = "ARN of cdc_password_parameter; scopes ssm:GetParameter. Set exactly when the name is set."
+  default     = null
 
   validation {
-    condition     = can(regex("^arn:aws:ssm:", var.cdc_password_parameter_arn))
+    condition     = var.cdc_password_parameter_arn == null || can(regex("^arn:aws[a-z-]*:ssm:", var.cdc_password_parameter_arn))
     error_message = "cdc_password_parameter_arn must be a valid SSM parameter ARN (arn:aws:ssm:...)."
+  }
+
+  validation {
+    condition     = (var.cdc_password_parameter_arn == null) == (var.cdc_password_parameter == null)
+    error_message = "cdc_password_parameter_arn must be set exactly when cdc_password_parameter is set."
   }
 }
 
 variable "cdc_kms_key_id" {
   type        = string
   description = <<-EOT
-    KMS key that encrypts the two CDC SecureString parameters, as an alias
-    name, key id, or key ARN. Determines whether the service execution role
-    needs kms:Decrypt: the default AWS-managed key (alias/aws/ssm) grants
-    decrypt implicitly and cannot be named in an IAM Resource, so no statement
-    is added; any other (customer-managed) key is resolved to its real key ARN
-    and granted kms:Decrypt. See README.
+    KMS key (alias, id or ARN) encrypting the CDC SecureString parameters.
+    alias/aws/ssm (default) adds no kms:Decrypt. Ignored when credentials are
+    null. See README.
   EOT
   default     = "alias/aws/ssm"
 }
@@ -181,11 +302,20 @@ variable "cdc_kms_key_id" {
 
 variable "kafka_cluster_arn" {
   type        = string
-  description = "ARN of the target MSK cluster. Scopes the kafka-cluster:* grants when client_authentication is IAM."
+  description = <<-EOT
+    ARN of the target MSK cluster; scopes the kafka-cluster:* grants. Required
+    only for IAM auth when the module creates the role.
+  EOT
+  default     = null
 
   validation {
-    condition     = can(regex("^arn:aws:kafka:", var.kafka_cluster_arn))
+    condition     = var.kafka_cluster_arn == null || can(regex("^arn:aws[a-z-]*:kafka:", var.kafka_cluster_arn))
     error_message = "kafka_cluster_arn must be a valid MSK cluster ARN (arn:aws:kafka:...)."
+  }
+
+  validation {
+    condition     = var.kafka_cluster_arn != null || var.client_authentication != "IAM" || var.service_execution_role_arn != null
+    error_message = "kafka_cluster_arn is required when client_authentication is IAM and the module creates the service execution role."
   }
 }
 
@@ -215,7 +345,7 @@ variable "in_transit_encryption" {
 
 variable "table_include_list" {
   type        = string
-  description = "Comma-separated Debezium table.include.list. Empty string captures everything: the template omits the property entirely rather than emitting a wildcard."
+  description = "Comma-separated table.include.list. Empty (default) omits the property and captures everything."
   default     = ""
 }
 
@@ -223,7 +353,7 @@ variable "table_include_list" {
 
 variable "engine" {
   type        = string
-  description = "Source engine. Selects the connector config template config/<engine>.tftpl."
+  description = "Source engine. Selects the connector class and the per-engine defaults."
   default     = "mariadb"
 
   validation {
@@ -235,14 +365,8 @@ variable "engine" {
 variable "log_mining_strategy" {
   type        = string
   description = <<-EOT
-    Oracle LogMiner's log.mining.strategy. Ignored by the mariadb template.
-    'hybrid' (default) tracks DDL changes without the extra archive-log
-    volume 'redo_log_catalog' generates, and is the currently-recommended
-    replacement for 'redo_log_catalog', which is deprecated and scheduled
-    for removal in a future Debezium release. 'online_catalog' mines faster
-    but cannot track DDL changes against captured tables — choose it only
-    when the captured tables' schema changes infrequently or never. See the
-    module README for the full tradeoff.
+    Oracle log.mining.strategy, set in the defaults layer (overridable).
+    Ignored for mariadb. See README for hybrid vs online_catalog.
   EOT
   default     = "hybrid"
 
@@ -258,11 +382,154 @@ variable "kafkaconnect_version" {
   default     = "3.7.x"
 }
 
+# ── Connector configuration ───────────────────────────────────────────────────
+
+variable "connector_config_overrides" {
+  type        = map(string)
+  description = <<-EOT
+    Connector properties merged last, over the module defaults and the
+    derived values; a null value removes the key. Unrestricted: see README.
+  EOT
+  default     = {}
+  nullable    = false
+}
+
+variable "worker_config_overrides" {
+  type        = map(string)
+  description = "Worker properties merged over the module defaults; null removes a key. See README."
+  default     = {}
+  nullable    = false
+
+  validation {
+    condition     = var.worker_configuration_arn == null || length(var.worker_config_overrides) == 0
+    error_message = "worker_config_overrides has no effect with an external worker_configuration_arn; configure that worker configuration directly."
+  }
+}
+
+# ── Capacity ──────────────────────────────────────────────────────────────────
+
+variable "mcu_count" {
+  type        = number
+  description = "MCUs per worker (1, 2, 4 or 8). worker_count stays 1: Debezium runs a single task."
+  default     = 1
+
+  validation {
+    condition     = contains([1, 2, 4, 8], var.mcu_count)
+    error_message = "mcu_count must be 1, 2, 4 or 8."
+  }
+}
+
+# ── IAM ───────────────────────────────────────────────────────────────────────
+
+variable "service_execution_role_arn" {
+  type        = string
+  description = <<-EOT
+    Existing service execution role for the connector. When set, the module
+    creates no role or policies; apply required_policy_json to it. See README.
+  EOT
+  default     = null
+
+  validation {
+    condition     = var.service_execution_role_arn == null || can(regex("^arn:aws[a-z-]*:iam::[0-9]{12}:role/", var.service_execution_role_arn))
+    error_message = "service_execution_role_arn must be an IAM role ARN (arn:aws:iam::<account-id>:role/...)."
+  }
+}
+
+variable "additional_policy_json" {
+  type        = string
+  description = <<-EOT
+    Extra IAM policy document (JSON) attached inline to the created role, for
+    resources that overrides reference. Not allowed with an external role.
+  EOT
+  default     = null
+
+  validation {
+    condition     = var.additional_policy_json == null || can(jsondecode(var.additional_policy_json))
+    error_message = "additional_policy_json must be a valid JSON policy document."
+  }
+
+  validation {
+    condition     = var.additional_policy_json == null || var.service_execution_role_arn == null
+    error_message = "additional_policy_json cannot be used with service_execution_role_arn; grant the permissions on the external role instead."
+  }
+}
+
+variable "additional_policy_arns" {
+  type        = list(string)
+  description = "Managed policy ARNs (known at plan time) for the created role. Not allowed with an external role."
+  default     = []
+  nullable    = false
+
+  validation {
+    condition     = alltrue([for a in var.additional_policy_arns : can(regex("^arn:aws[a-z-]*:iam::", a))])
+    error_message = "additional_policy_arns must be IAM policy ARNs (arn:aws:iam::...)."
+  }
+
+  validation {
+    condition     = length(var.additional_policy_arns) == 0 || var.service_execution_role_arn == null
+    error_message = "additional_policy_arns cannot be used with service_execution_role_arn; attach the policies to the external role instead."
+  }
+}
+
 # ── Logging ───────────────────────────────────────────────────────────────────
+
+variable "create_log_group" {
+  type        = bool
+  description = <<-EOT
+    Create the /aws/mskconnect/<identifier> log group and deliver to it.
+    Requires log_delivery.cloudwatch_logs without log_group. See README.
+  EOT
+  default     = false
+  nullable    = false
+
+  validation {
+    condition = !var.create_log_group || (
+      try(var.log_delivery.cloudwatch_logs, null) != null &&
+      try(var.log_delivery.cloudwatch_logs.log_group, null) == null
+    )
+    error_message = "create_log_group = true requires log_delivery.cloudwatch_logs = {} (log_group unset: the created group is used)."
+  }
+
+  validation {
+    condition = (
+      var.create_log_group ||
+      try(var.log_delivery.cloudwatch_logs, null) == null ||
+      try(var.log_delivery.cloudwatch_logs.log_group, null) != null
+    )
+    error_message = "log_delivery.cloudwatch_logs needs log_group, or create_log_group = true to use the module-created group."
+  }
+}
+
+variable "log_delivery" {
+  type = object({
+    cloudwatch_logs = optional(object({
+      log_group = optional(string)
+    }))
+    s3 = optional(object({
+      bucket = string
+      prefix = optional(string)
+    }))
+    firehose = optional(object({
+      delivery_stream = string
+    }))
+  })
+  description = <<-EOT
+    Worker log destinations (cloudwatch_logs, s3, firehose). Null (default)
+    delivers no logs, which makes failures very hard to debug. See README.
+  EOT
+  default     = null
+
+  validation {
+    condition = var.log_delivery == null || anytrue([
+      for d in ["cloudwatch_logs", "s3", "firehose"] : try(var.log_delivery[d], null) != null
+    ])
+    error_message = "log_delivery must set at least one of cloudwatch_logs, s3, firehose (or be null)."
+  }
+}
 
 variable "log_retention_in_days" {
   type        = number
-  description = "Retention for the connector log group. Finite by default, overridable by the consumer."
+  description = "Retention for the created log group (used only with create_log_group)."
   default     = 30
 
   validation {
@@ -273,8 +540,21 @@ variable "log_retention_in_days" {
 
 # ── Alarm ─────────────────────────────────────────────────────────────────────
 
+variable "create_alarm" {
+  type        = bool
+  description = "Create the connector not-running CloudWatch alarm."
+  default     = false
+  nullable    = false
+}
+
 variable "alarm_actions" {
   type        = list(string)
-  description = "Actions for the not-running alarm (e.g. SNS topic ARNs). Defaults to empty: the framework has no notification-target convention yet."
+  description = "Actions for the not-running alarm (e.g. SNS topic ARNs). Only with create_alarm."
   default     = []
+  nullable    = false
+
+  validation {
+    condition     = var.create_alarm || length(var.alarm_actions) == 0
+    error_message = "alarm_actions has no effect with create_alarm = false."
+  }
 }
