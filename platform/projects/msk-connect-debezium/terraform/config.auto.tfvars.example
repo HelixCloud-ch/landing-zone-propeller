@@ -1,0 +1,112 @@
+region     = "eu-central-2"
+identifier = "my-debezium"
+
+# ── Network (from the workload VPC project output) ─────────────────────────────
+# subnet_ids = ["subnet-0123456789abcdef0", "subnet-0fedcba9876543210"]
+# create_security_group = true # false = bring your own, via security_group_ids
+# vpc_id                = "vpc-0123456789abcdef0" # only when the module creates the SG
+# security_group_ids    = [] # existing SGs, added to the created one (if any)
+
+# ── Source database ────────────────────────────────────────────────────────────
+# db_host = "my-mariadb.abcdefghijkl.eu-central-2.rds.amazonaws.com"
+# db_port = 3306
+# db_name and pdb_name are Oracle-only (engine = "oracle"); ignored for MariaDB.
+# db_name  = "ORCLCDB"
+# pdb_name = "ORCLPDB1"
+
+# ── Kafka ──────────────────────────────────────────────────────────────────────
+# bootstrap_servers     = "b-1.mycluster.abc123.c2.kafka.eu-central-2.amazonaws.com:9098"
+# broker_port           = 9098
+# kafka_cluster_arn     = "arn:aws:kafka:eu-central-2:123456789012:cluster/mycluster/abcd-1234" # only for IAM auth with a module-created role
+# client_authentication = "NONE"      # or "IAM"
+# in_transit_encryption = "PLAINTEXT" # or "TLS"
+
+# ── Plugin (whole maps from the msk-connect-plugin project output) ─────────────
+# The project selects the entry by engine (+ optional plugin_version); the
+# pipeline passes the maps whole because a propeller input cannot sub-address a
+# map key. Maps are native (no JSON encoding).
+# default_plugin_arns      = { mariadb = "arn:aws:kafkaconnect:eu-central-2:123456789012:custom-plugin/debezium-mariadb-2.7.4.Final/abcd-1234" }
+# default_plugin_revisions = { mariadb = 1 }
+# plugin_arns      = { "mariadb-2.7.4.Final" = "arn:aws:kafkaconnect:eu-central-2:123456789012:custom-plugin/debezium-mariadb-2.7.4.Final/abcd-1234" }
+# plugin_revisions = { "mariadb-2.7.4.Final" = 1 }
+# plugin_version   = ""   # empty = the engine's default; set e.g. "2.7.4.Final" to pin
+
+# ── Worker configuration / topics ──────────────────────────────────────────────
+# offset_topic         = "my-debezium.offsets" # not needed with worker_configuration_arn
+# schema_history_topic = "my-debezium.schema-history"
+# topic_prefix         = "my-debezium"
+# server_id            = null   # null derives it deterministically from identifier
+
+# ── CDC credentials (from cdc-prepare-mariadb / cdc-prepare-oracle) ────────────
+# Optional. The two scalar SecureString parameter NAMES the prep project
+# creates; the project derives each ARN itself. Leave both unset to supply
+# database.user / database.password yourself in the connector configuration.
+# cdc_username_parameter = "/platform/myapp/cdc-username"
+# cdc_password_parameter = "/platform/myapp/cdc-password"
+# KMS key encrypting those parameters. Default alias/aws/ssm adds no kms:Decrypt;
+# a customer-managed key (alias/id/ARN) is resolved to its ARN and granted.
+# cdc_kms_key_id = "alias/aws/ssm"
+
+# ── Capture scope ──────────────────────────────────────────────────────────────
+# Empty list (default) captures everything.
+# tables = ["appdb.customers", "appdb.orders"]
+
+# ── Engine ─────────────────────────────────────────────────────────────────────
+# engine = "mariadb"  # or "oracle" (unverified against real infrastructure, see the module README)
+# log_mining_strategy is Oracle-only; ignored for MariaDB.
+# log_mining_strategy = "hybrid"
+
+# ── Bring your own resources ───────────────────────────────────────────────────
+# Existing service execution role: the module creates no IAM. Apply the
+# required_policy_json output to it (see the module README for the trust policy).
+# service_execution_role_arn = "arn:aws:iam::123456789012:role/my-debezium-connector"
+# Existing worker configuration (worker_config_file/_overrides are then rejected).
+# worker_configuration_arn      = "arn:aws:kafkaconnect:eu-central-2:123456789012:worker-configuration/my-worker/abcd-1234"
+# worker_configuration_revision = 1
+
+# ── Logging & alarm ────────────────────────────────────────────────────────────
+# Without log delivery a failing connector is very hard to debug. Enabling it
+# needs log-delivery permissions on the deploy role (see the module README).
+# create_log_group = false
+# log_delivery     = null
+# log_delivery = { cloudwatch_logs = {} }       # with create_log_group = true
+# log_delivery = { cloudwatch_logs = { log_group = "/my/existing/group" } }
+# log_delivery = { s3 = { bucket = "my-log-bucket", prefix = "mskconnect/my-debezium" } }
+# log_delivery = { firehose = { delivery_stream = "my-delivery-stream" } }
+# log_retention_in_days = 30 # only with create_log_group
+# create_alarm  = false
+# alarm_actions = [] # only with create_alarm, e.g. ["arn:aws:sns:eu-central-2:123456789012:alerts"]
+
+# ── Capacity ───────────────────────────────────────────────────────────────────
+# mcu_count = 1 # 1, 2, 4 or 8
+
+# ── Connector configuration ────────────────────────────────────────────────────
+# ##########################################################################
+# # Use ONE source: either connector_config_file OR                        #
+# # connector_config_overrides (and worker_config_file OR                  #
+# # worker_config_overrides). Both are merged (file first, inline wins on  #
+# # overlapping keys) and the plan shows a warning.                        #
+# ##########################################################################
+# Option A: a YAML/JSON file relative to the project directory (overlay).
+# connector_config_file = "connector-config.yaml"
+# worker_config_file    = "worker-config.yaml"
+#
+# Option B: inline maps. Merged last over module defaults and derived values;
+# null removes a key. In HCL, escape Kafka Connect placeholders as $${...}.
+# connector_config_overrides = {
+#   "snapshot.mode"                             = "recovery"
+#   "include.schema.changes"                    = null
+#   "transforms"                                = "outbox"
+#   "transforms.outbox.type"                    = "io.debezium.transforms.outbox.EventRouter"
+#   "transforms.outbox.route.topic.replacement" = "<prefix>.v1.$${routedByValue}"
+# }
+# worker_config_overrides = {}
+
+# ── Extra network (module-created SG only) ─────────────────────────────────────
+# additional_egress_rules = {
+#   https-vpc-endpoints = { from_port = 443, cidr_ipv4 = "10.0.0.0/16", description = "VPC endpoints" }
+# }
+
+# ── Additional IAM (module-created role only) ──────────────────────────────────
+# additional_policy = "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"ssm:GetParameter\",\"Resource\":\"arn:aws:ssm:eu-central-2:123456789012:parameter/platform/myapp/other\"}]}"
+# additional_policy_arns = []

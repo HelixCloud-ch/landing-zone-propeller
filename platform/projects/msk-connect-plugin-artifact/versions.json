@@ -1,0 +1,77 @@
+{
+  "config_providers": {
+    "release_tag": "r0.4.0",
+    "asset": "msk-config-providers-0.4.0-with-dependencies.zip"
+  },
+  "urls": {
+    "maven_central": "https://repo1.maven.org/maven2",
+    "config_providers_releases": "https://github.com/aws-samples/msk-config-providers/releases/download",
+    "oracle_license": "https://www.oracle.com/downloads/licenses/oracle-free-license.html"
+  },
+  "flavours": {
+    "mariadb": {
+      "default": "2.7.4.Final",
+      "supported": {
+        "2.7.4.Final": {
+          "enabled": true,
+          "java": "11+",
+          "min_kafka_connect": "2.7.1",
+          "built_against_kafka_connect": "3.7.0",
+          "tested_engine_versions": ["11.4"],
+          "source": "https://debezium.io/releases/2.7/",
+          "release_notes": "https://debezium.io/releases/2.7/release-notes"
+        },
+        "3.5.2.Final": {
+          "enabled": false,
+          "java": "17+",
+          "min_kafka_connect": "3.1",
+          "built_against_kafka_connect": "4.1.2",
+          "tested_engine_versions": ["11.4", "11.7"],
+          "source": "https://debezium.io/releases/3.5/",
+          "release_notes": "https://debezium.io/releases/3.5/release-notes"
+        },
+        "3.6.2.Final": {
+          "enabled": false,
+          "java": "17+",
+          "min_kafka_connect": "3.1",
+          "built_against_kafka_connect": "4.3.0",
+          "tested_engine_versions": ["11.4", "11.7"],
+          "source": "https://debezium.io/releases/3.6/",
+          "release_notes": "https://debezium.io/releases/3.6/release-notes"
+        }
+      }
+    },
+    "oracle": {
+      "default": "2.7.4.Final",
+      "supported": {
+        "2.7.4.Final": {
+          "enabled": true,
+          "java": "11+",
+          "min_kafka_connect": "2.7.1",
+          "built_against_kafka_connect": "3.7.0",
+          "tested_engine_versions": ["12c", "19c", "21c"],
+          "source": "https://debezium.io/releases/2.7/",
+          "release_notes": "https://debezium.io/releases/2.7/release-notes"
+        },
+        "3.5.2.Final": {
+          "enabled": false,
+          "java": "17+",
+          "min_kafka_connect": "3.1",
+          "built_against_kafka_connect": "4.1.2",
+          "tested_engine_versions": ["19c", "21c", "23ai", "26ai"],
+          "source": "https://debezium.io/releases/3.5/",
+          "release_notes": "https://debezium.io/releases/3.5/release-notes"
+        },
+        "3.6.2.Final": {
+          "enabled": false,
+          "java": "17+",
+          "min_kafka_connect": "3.1",
+          "built_against_kafka_connect": "4.3.0",
+          "tested_engine_versions": ["19c", "21c", "23ai", "26ai"],
+          "source": "https://debezium.io/releases/3.6/",
+          "release_notes": "https://debezium.io/releases/3.6/release-notes"
+        }
+      }
+    }
+  }
+}
