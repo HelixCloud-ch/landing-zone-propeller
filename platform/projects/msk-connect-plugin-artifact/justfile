@@ -200,7 +200,7 @@ apply:
       if [ "$flavour" = "oracle" ]; then
         # The Oracle connector tarball already bundles ojdbc8, which satisfies
         # the driver requirement. The unmodified Oracle Free Use Terms license
-        # text must still travel with the artifact (Requirement 1.5).
+        # text must still travel with the artifact.
         download "$oracle_license_url" "$plugin/LICENSE-oracle-jdbc.txt"
       fi
 
@@ -233,7 +233,7 @@ apply:
 
     while IFS=$'\t' read -r flavour version plugin_key file_key; do
       if aws s3api head-object --bucket "$bucket" --key "$file_key" >/dev/null 2>&1; then
-        # Idempotency skip (Requirement 1.9): do not rebuild or re-upload; emit
+        # Idempotency skip: do not rebuild or re-upload; emit
         # the existing object's key and version unchanged.
         object_ver="$(object_version "$file_key")"
         echo "${plugin_key}: exists at ${file_key}, skipping build"

@@ -106,11 +106,8 @@ custom lifecycle logic.
 
 The `for_each` key is `<flavour>-<version>` specifically so that old and new
 plugins coexist across a version bump: a bump maps to a brand-new key rather
-than mutating the `name` of an existing instance. A consumer that had already
-deployed a *flavour*-keyed version (the previous shape) would need `moved`
-blocks to carry existing state addresses to the new keys; because these CDC
-projects are pre-first-release / greenfield, there is no existing state to
-migrate and no `moved` blocks are shipped.
+than mutating the `name` of an existing instance, which a custom plugin cannot
+survive (plugins are immutable and replace-on-change).
 
 ## Sleep/wake and teardown
 

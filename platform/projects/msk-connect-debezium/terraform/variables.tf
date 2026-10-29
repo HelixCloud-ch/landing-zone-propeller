@@ -19,12 +19,43 @@ variable "identifier" {
 
 variable "vpc_id" {
   type        = string
-  description = "VPC ID where the connector security group is created (from VPC project output)."
+  description = "VPC ID for the connector security group. Required only when create_security_group is true."
+  default     = null
 }
 
 variable "subnet_ids" {
   type        = list(string)
   description = "Subnet IDs for the connector ENIs. Must reach the database and the Kafka brokers (from VPC project output)."
+}
+
+variable "create_security_group" {
+  type        = bool
+  description = "Create the connector security group. Set false to use only security_group_ids."
+  default     = true
+  nullable    = false
+}
+
+variable "security_group_ids" {
+  type        = list(string)
+  description = "Existing security groups for the connector ENIs, added to the created one (if any)."
+  default     = []
+  nullable    = false
+}
+
+variable "additional_egress_rules" {
+  type = map(object({
+    from_port                    = number
+    to_port                      = optional(number)
+    ip_protocol                  = optional(string, "tcp")
+    cidr_ipv4                    = optional(string)
+    cidr_ipv6                    = optional(string)
+    prefix_list_id               = optional(string)
+    referenced_security_group_id = optional(string)
+    description                  = optional(string)
+  }))
+  description = "Extra egress rules on the created security group, keyed by a stable name."
+  default     = {}
+  nullable    = false
 }
 
 # ── Source database ────────────────────────────────────────────────────────────
@@ -67,7 +98,8 @@ variable "broker_port" {
 
 variable "kafka_cluster_arn" {
   type        = string
-  description = "ARN of the target MSK cluster. Scopes the kafka-cluster:* grants when client_authentication is IAM."
+  description = "ARN of the target MSK cluster. Required for IAM auth when the module creates the role."
+  default     = null
 }
 
 variable "client_authentication" {
@@ -140,7 +172,20 @@ variable "plugin_version" {
 
 variable "offset_topic" {
   type        = string
-  description = "Kafka topic where the connector stores source offsets."
+  description = "Kafka topic for source offsets. Required unless worker_configuration_arn is set."
+  default     = null
+}
+
+variable "worker_configuration_arn" {
+  type        = string
+  description = "Existing MSK Connect worker configuration to use instead of creating one."
+  default     = null
+}
+
+variable "worker_configuration_revision" {
+  type        = number
+  description = "Revision of worker_configuration_arn. Set both or neither."
+  default     = null
 }
 
 variable "schema_history_topic" {
@@ -167,36 +212,46 @@ variable "server_id" {
 
 variable "cdc_username_parameter" {
   type        = string
-  description = "Name of the SSM parameter holding the CDC username (created by cdc-prepare-*). The project derives its ARN for the connector's IAM policy; the module reads the value at connector-start via the SSM Config Provider."
+  description = <<-EOT
+    Name of the SSM parameter holding the CDC username (from cdc-prepare-*).
+    Null (both) = no derived credentials; supply them via the connector
+    config. See README.
+  EOT
+  default     = null
 }
 
 variable "cdc_password_parameter" {
   type        = string
-  description = "Name of the SSM parameter holding the CDC password (created by cdc-prepare-*). The project derives its ARN for the connector's IAM policy; the module reads the value at connector-start via the SSM Config Provider."
+  description = "Name of the SSM parameter holding the CDC password. Set or null together with the username."
+  default     = null
 }
 
 variable "cdc_kms_key_id" {
   type        = string
-  description = "KMS key encrypting the CDC SecureString parameters (alias/id/ARN). Default alias/aws/ssm adds no kms:Decrypt; a customer-managed key is resolved to its ARN and granted. See module README."
+  description = <<-EOT
+    KMS key encrypting the CDC SecureString parameters (alias/id/ARN). Default
+    alias/aws/ssm adds no kms:Decrypt. See module README.
+  EOT
   default     = "alias/aws/ssm"
 }
 
 # ── Capture scope ──────────────────────────────────────────────────────────────
 
 variable "tables" {
-  type        = string
+  type        = list(string)
   description = <<-EOT
-    JSON list of fully-qualified tables to capture. Locals join it into the
-    module's table_include_list; an empty list ("[]") captures everything.
+    Fully-qualified tables to capture, joined into table.include.list.
+    Empty (default) captures everything.
   EOT
-  default     = "[]"
+  default     = []
+  nullable    = false
 }
 
 # ── Engine ─────────────────────────────────────────────────────────────────────
 
 variable "engine" {
   type        = string
-  description = "Source engine selecting the module's config template."
+  description = "Source engine (mariadb or oracle)."
   default     = "mariadb"
 
   validation {
@@ -216,18 +271,152 @@ variable "log_mining_strategy" {
   }
 }
 
+# ── Connector configuration (passthrough) ──────────────────────────────────────
+
+variable "connector_config_file" {
+  type        = string
+  description = <<-EOT
+    YAML or JSON file of connector properties, relative to the project
+    directory (deliver it with an overlay). Use this OR
+    connector_config_overrides, not both. See README.
+  EOT
+  default     = null
+
+  validation {
+    condition = (
+      var.connector_config_file == null || var.connector_config_file == "" ||
+      try(alltrue([
+        for v in values(yamldecode(file("${path.module}/../${var.connector_config_file}"))) : v == null || can(tostring(v))
+      ]), false)
+    )
+    error_message = "connector_config_file must name a readable YAML or JSON file, relative to the project directory, that decodes to a flat map of scalar values (use {} for an empty file)."
+  }
+}
+
+variable "connector_config_overrides" {
+  type        = map(string)
+  description = <<-EOT
+    Connector properties merged last; null removes a key. Use this OR
+    connector_config_file, not both. In HCL write $$${...}. See README.
+  EOT
+  default     = {}
+  nullable    = false
+}
+
+variable "worker_config_file" {
+  type        = string
+  description = <<-EOT
+    YAML or JSON file of worker properties, relative to the project directory.
+    Use this OR worker_config_overrides, not both. See README.
+  EOT
+  default     = null
+
+  validation {
+    condition = (
+      var.worker_config_file == null || var.worker_config_file == "" ||
+      try(alltrue([
+        for v in values(yamldecode(file("${path.module}/../${var.worker_config_file}"))) : v == null || can(tostring(v))
+      ]), false)
+    )
+    error_message = "worker_config_file must name a readable YAML or JSON file, relative to the project directory, that decodes to a flat map of scalar values (use {} for an empty file)."
+  }
+
+  validation {
+    condition     = var.worker_config_file == null || var.worker_config_file == "" || var.worker_configuration_arn == null
+    error_message = "worker_config_file has no effect with an external worker_configuration_arn; configure that worker configuration directly."
+  }
+}
+
+variable "worker_config_overrides" {
+  type        = map(string)
+  description = <<-EOT
+    Worker properties merged over the module defaults; null removes a key.
+    Use this OR worker_config_file, not both. See README.
+  EOT
+  default     = {}
+  nullable    = false
+}
+
+variable "mcu_count" {
+  type        = number
+  description = "MCUs per connector worker: 1, 2, 4 or 8."
+  default     = 1
+}
+
+# ── Additional IAM ─────────────────────────────────────────────────────────────
+
+variable "service_execution_role_arn" {
+  type        = string
+  description = <<-EOT
+    Existing service execution role. When set, no IAM is created; apply the
+    required_policy_json output to it. See module README.
+  EOT
+  default     = null
+}
+
+variable "additional_policy" {
+  type        = any
+  description = <<-EOT
+    Extra IAM policy for the connector role: a JSON string, or the native
+    object a {...} pipeline literal decodes to. See README.
+  EOT
+  default     = null
+}
+
+variable "additional_policy_arns" {
+  type        = list(string)
+  description = "Managed policy ARNs attached to the connector role."
+  default     = []
+  nullable    = false
+}
+
 # ── Logging & alarm (passthrough) ──────────────────────────────────────────────
+
+variable "create_log_group" {
+  type        = bool
+  description = "Create the connector log group; requires log_delivery.cloudwatch_logs = {}."
+  default     = false
+  nullable    = false
+}
+
+variable "log_delivery" {
+  type = object({
+    cloudwatch_logs = optional(object({
+      log_group = optional(string)
+    }))
+    s3 = optional(object({
+      bucket = string
+      prefix = optional(string)
+    }))
+    firehose = optional(object({
+      delivery_stream = string
+    }))
+  })
+  description = <<-EOT
+    Worker log destinations. Null (default) delivers no logs: failures are very
+    hard to debug. Needs log-delivery permissions on the deploy role. See README.
+  EOT
+  default     = null
+}
 
 variable "log_retention_in_days" {
   type        = number
-  description = "Retention for the connector log group. Passed through to the module."
+  description = "Retention for the created log group (only with create_log_group)."
   default     = 30
+}
+
+variable "create_alarm" {
+  type        = bool
+  description = "Create the connector not-running CloudWatch alarm."
+  default     = false
+  nullable    = false
 }
 
 variable "alarm_actions" {
   type        = list(string)
-  description = "Actions for the connector not-running alarm (e.g. SNS topic ARNs). Empty by default."
+  description = "Actions for the not-running alarm (e.g. SNS topic ARNs). Only with create_alarm."
   default     = []
+  nullable    = false
 }
 
 # ── Tags (propeller-injected) ──────────────────────────────────────────────────

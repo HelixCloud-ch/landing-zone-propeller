@@ -2,8 +2,8 @@ name: msk-connect-debezium
 description: >-
   Deploys a Debezium MSK Connect connector as a thin propeller adapter over the
   shared msk-connect-debezium module. Decodes the propeller credential-parameter
-  and tables inputs and passes plain AWS data to the module, which owns all
-  resource logic.
+  and tables inputs, reads the optional connector/worker configuration files,
+  and passes plain AWS data to the module, which owns all resource logic.
 
 metadata:
   cost-center: platform
