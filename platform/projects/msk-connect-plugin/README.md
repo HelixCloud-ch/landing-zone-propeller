@@ -10,7 +10,8 @@ resources the connector can reference.
 
 One custom plugin per entry in `var.plugins`, keyed by full plugin identity
 `<flavour>-<version>` (e.g. `mariadb-2.7.4.Final`), named
-`debezium-<flavour>-<version>` and pinned to a specific S3 object version. The
+`debezium-<flavour>-<version>` with the version's dots turned into hyphens
+(`debezium-mariadb-2-7-4-Final`), and pinned to a specific S3 object version. The
 version is part of the `for_each` key on purpose: a version bump is a *new key*,
 so the new plugin is created alongside the old one rather than replacing it (see
 [Idempotency and destroy](#idempotency-and-destroy)). This coexistence is what
@@ -46,10 +47,13 @@ hardcoded.
   referenced by `plugins`.
 - **`name_prefix`** — optional, defaults to `debezium` (bare, no trailing
   hyphen). The full plugin name is hyphen-joined as `<name_prefix>-<plugin-key>`
-  (the key already carries `<flavour>-<version>`). The composed name is
-  validated at plan time to stay within the 128-character MSK Connect custom
-  plugin name limit; a `name_prefix` long enough to push any plugin's name past
-  128 characters is rejected.
+  (the key already carries `<flavour>-<version>`). `CreateCustomPlugin`
+  rejects `.` and `_` in names, so the key's dots (and any other character
+  that is not a letter, digit or hyphen) become hyphens in the name only; map
+  keys and outputs keep the original `mariadb-2.7.4.Final` form. Plan-time
+  validations reject a `name_prefix` with invalid characters, a composed name
+  over the 128-character limit, and two keys that would collapse to the same
+  name.
 
 A standalone `terraform apply` without the pipeline supplies the same values as
 tfvars; see [`terraform/config.auto.tfvars.example`](terraform/config.auto.tfvars.example)
@@ -173,7 +177,7 @@ No modules.
 | <a name="input_artifact_bucket_arn"></a> [artifact\_bucket\_arn](#input\_artifact\_bucket\_arn) | ARN of the S3 bucket holding the connector artifacts referenced by `plugins`. | `string` | n/a | yes |
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | n/a | `map(string)` | `{}` | no |
 | <a name="input_default_versions"></a> [default\_versions](#input\_default\_versions) | Default version per flavour, e.g. { mariadb = "2.7.4.Final" }. Decoded from<br/>the artifact project's `default_versions_json` output. Selects which<br/>plugin\_arns / plugin\_revisions entry default\_plugin\_arns /<br/>default\_plugin\_revisions expose for a consumer that always wants "the<br/>current one" rather than naming a version. | `map(string)` | n/a | yes |
-| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for each custom plugin name; the full name is hyphen-joined as <name\_prefix>-<plugin-key>. Defaults to "debezium". | `string` | `"debezium"` | no |
+| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for each custom plugin name: <name\_prefix>-<plugin-key>, with the<br/>key's dots turned into hyphens (e.g. debezium-mariadb-2-7-4-Final). | `string` | `"debezium"` | no |
 | <a name="input_plugins"></a> [plugins](#input\_plugins) | Custom plugins to register, keyed by full plugin identity<br/>"<flavour>-<version>" (e.g. "mariadb-2.7.4.Final"). Each entry gives the<br/>artifact's S3 file key and, when the bucket is versioned, its object<br/>version. Decoded from the artifact project's single `plugins_json` output.<br/>A version bump ADDS a new key (old and new plugins coexist); remove a key<br/>only after no connector references it — see README.md. | <pre>map(object({<br/>    file_key       = string<br/>    object_version = optional(string)<br/>  }))</pre> | n/a | yes |
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | n/a | `map(string)` | `{}` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region. | `string` | n/a | yes |

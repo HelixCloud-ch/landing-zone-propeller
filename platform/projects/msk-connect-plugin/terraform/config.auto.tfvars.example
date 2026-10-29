@@ -5,7 +5,8 @@ region = "eu-central-2"
 # artifact_bucket_arn = "arn:aws:s3:::my-msk-connect-artifacts"
 
 # ── Name prefix (optional) ────────────────────────────────────────────────────
-# Bare prefix, no trailing hyphen; the full plugin name is <name_prefix>-<key>.
+# Bare prefix, no trailing hyphen, letters/digits/hyphens only; the full plugin
+# name is <name_prefix>-<key> with dots as hyphens (debezium-mariadb-2-7-4-Final).
 # name_prefix = "debezium"
 
 # ── Plugins (from pipeline input) ─────────────────────────────────────────────

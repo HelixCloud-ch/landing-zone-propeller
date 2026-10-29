@@ -18,6 +18,13 @@ variable "plugins" {
     A version bump ADDS a new key (old and new plugins coexist); remove a key
     only after no connector references it — see README.md.
   EOT
+
+  validation {
+    condition = length(distinct([
+      for k in keys(var.plugins) : replace(k, "/[^0-9A-Za-z-]/", "-")
+    ])) == length(var.plugins)
+    error_message = "Two plugin keys map to the same custom plugin name once dots and other invalid characters become hyphens (e.g. \"mariadb-2.7.4\" and \"mariadb-2-7-4\"); rename one."
+  }
 }
 
 variable "default_versions" {
@@ -47,12 +54,22 @@ variable "artifact_bucket_arn" {
 variable "name_prefix" {
   type        = string
   default     = "debezium"
-  description = "Prefix for each custom plugin name; the full name is hyphen-joined as <name_prefix>-<plugin-key>. Defaults to \"debezium\"."
+  description = <<-EOT
+    Prefix for each custom plugin name: <name_prefix>-<plugin-key>, with the
+    key's dots turned into hyphens (e.g. debezium-mariadb-2-7-4-Final).
+  EOT
 
+  validation {
+    condition     = can(regex("^[A-Za-z][0-9A-Za-z-]*$", var.name_prefix))
+    error_message = "name_prefix must start with a letter and contain only letters, digits and hyphens: CreateCustomPlugin rejects \".\" and \"_\" in names."
+  }
+
+  # The composed names are inlined here (not read from local.plugin_names):
+  # a validation cannot go through a local that depends on its own variable.
   validation {
     condition = alltrue([
       for k in keys(var.plugins) :
-      length(join("-", [var.name_prefix, k])) <= 128
+      length("${var.name_prefix}-${replace(k, "/[^0-9A-Za-z-]/", "-")}") <= 128
     ])
     error_message = "The composed custom plugin name <name_prefix>-<plugin-key> must be at most 128 characters (AWS MSK Connect CreateCustomPlugin name limit); shorten name_prefix or the plugin key."
   }

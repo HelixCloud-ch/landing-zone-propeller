@@ -1,7 +1,7 @@
 resource "aws_mskconnect_custom_plugin" "this" {
   for_each = var.plugins
 
-  name         = join("-", [var.name_prefix, each.key])
+  name         = local.plugin_names[each.key]
   content_type = "ZIP"
 
   location {
