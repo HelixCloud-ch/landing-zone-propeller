@@ -257,9 +257,10 @@ def _assert_rerun_preserves_credential(username, credential_param, hours, kms):
     token.assert_not_called()
     # Neither credential parameter is written on a re-run — no rotation.
     ssm.put_parameter.assert_not_called()
-    # Retention is set only on first creation; a re-run must not silently
-    # override a value an operator may have since tuned.
-    assert not any("SET_CONFIGURATION" in s.upper() for s in db.executed)
+    # Retention is re-applied on every run, with the input's value.
+    retention = [s for s in db.executed if "SET_CONFIGURATION" in s.upper()]
+    assert len(retention) == 1
+    assert f"'{hours}'" in retention[0]
 
 
 if HAVE_HYPOTHESIS:

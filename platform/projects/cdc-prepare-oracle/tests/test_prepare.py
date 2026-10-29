@@ -392,8 +392,8 @@ def test_create_cdc_user_first_run_creates_grants_and_retention():
 
 def test_create_cdc_user_rerun_is_idempotent_and_does_not_touch_credential():
     """Re-run: credential param already exists AND db account already exists
-    -> no CREATE USER, no password generated, credential param NOT written,
-    no retention CALL — but grants still converge."""
+    -> no CREATE USER, no password generated, credential param NOT written —
+    but grants and the retention window still converge."""
     db = FakeDB(responses={"FROM ALL_USERS": [(1,)]})
     ssm = _ssm_credential_params(
         username_value="CDC_USER", password_value="existing-pw"
@@ -407,9 +407,10 @@ def test_create_cdc_user_rerun_is_idempotent_and_does_not_touch_credential():
 
     assert not any(s.startswith("CREATE USER") for s in statements)
     assert token.call_count == 0
-    # Retention is set only on first creation — a re-run must not silently
-    # override a value an operator may have since tuned.
-    assert not any("set_configuration" in s for s in statements)
+    # Retention is re-applied on every run, from the input.
+    retention = [s for s in statements if "set_configuration" in s]
+    assert len(retention) == 1
+    assert "'24'" in retention[0]
 
     # The credential parameter is NOT written — it is the source of truth.
     ssm.put_parameter.assert_not_called()
@@ -480,6 +481,7 @@ _REQUIRED_ENV = {
     "PROPELLER_INPUT_cdc_username": "CDC_USER",
     "PROPELLER_INPUT_cdc_username_parameter": "/cdc/username",
     "PROPELLER_INPUT_cdc_password_parameter": "/cdc/password",
+    "PROPELLER_INPUT_archivelog_retention_hours": "72",
 }
 
 
@@ -504,16 +506,23 @@ def test_read_inputs_missing_required_raises(clean_env):
 def test_read_inputs_applies_defaults(clean_env):
     for key, value in _REQUIRED_ENV.items():
         clean_env.setenv(key, value)
-    # db_port, pdb_name, archivelog_retention_hours, kms_key_id all unset.
+    # db_port, pdb_name, kms_key_id all unset.
     inputs = prepare.read_inputs()
     assert inputs.db_port == prepare.DEFAULT_DB_PORT == 1521
     assert inputs.pdb_name == ""
-    assert (
-        inputs.archivelog_retention_hours
-        == prepare.DEFAULT_ARCHIVELOG_RETENTION_HOURS
-        == 24
-    )
+    assert inputs.archivelog_retention_hours == 72
     assert inputs.kms_key_id == prepare.DEFAULT_KMS_KEY_ID == "alias/aws/ssm"
+
+
+def test_read_inputs_requires_archivelog_retention_hours(clean_env):
+    """No default: the value is re-applied on every run, so a default would
+    silently reset a retention window raised for a sleep."""
+    for key, value in _REQUIRED_ENV.items():
+        if key != "PROPELLER_INPUT_archivelog_retention_hours":
+            clean_env.setenv(key, value)
+    with pytest.raises(prepare.InputError) as exc:
+        prepare.read_inputs()
+    assert "archivelog_retention_hours" in str(exc.value)
 
 
 def test_read_inputs_reads_supplied_values(clean_env):

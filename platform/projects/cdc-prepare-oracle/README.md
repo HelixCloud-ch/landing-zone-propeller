@@ -44,9 +44,9 @@ On `apply`, `prepare.py` runs the following ordered, idempotent flow:
    has no `IF NOT EXISTS` form, so this step is skipped entirely when the
    account already exists) and grants it the privileges Debezium's LogMiner
    adapter requires (see [The grant list](#the-grant-list)).
-5. On first creation of the database account only, sets the archive-log
-   retention window via `rdsadmin.rdsadmin_util.set_configuration
-   ('archivelog retention hours', ...)`.
+5. Sets the archive-log retention window via
+   `rdsadmin.rdsadmin_util.set_configuration('archivelog retention hours', ...)`
+   on every run, from the `archivelog_retention_hours` input.
 
 ## The grant list
 
@@ -166,7 +166,7 @@ Inputs arrive as `PROPELLER_INPUT_*` environment variables.
 | `PROPELLER_INPUT_cdc_username` | yes | Bare Oracle identifier of the CDC user to create (`[A-Za-z][A-Za-z0-9_#$]{0,29}`, Oracle's unquoted-identifier grammar). Used only when `cdc_username_parameter` does not yet exist — see [Credential handling](#credential-handling). |
 | `PROPELLER_INPUT_cdc_username_parameter` | yes | **Name** of the SSM parameter holding the CDC user's username. Source of truth if it already exists; created (from `cdc_username`) if it does not. See [Credential handling](#credential-handling). |
 | `PROPELLER_INPUT_cdc_password_parameter` | yes | **Name** of the SSM parameter holding the CDC user's password. Source of truth if it already exists; created (freshly generated) if it does not. See [Credential handling](#credential-handling). |
-| `PROPELLER_INPUT_archivelog_retention_hours` | no | Hours to retain archived redo logs, set via `rdsadmin.rdsadmin_util.set_configuration` **on first creation of the database account only**. Default `24`. |
+| `PROPELLER_INPUT_archivelog_retention_hours` | yes | Hours to retain archived redo logs, set via `rdsadmin.rdsadmin_util.set_configuration` **on every run**. No default. Size it for the longest connector outage, including any sleep window. |
 | `PROPELLER_INPUT_kms_key_id` | no | KMS key encrypting the parameter, if this project creates it. Default `alias/aws/ssm` (the AWS-managed SSM key). |
 
 ## Admin credential forms
@@ -242,11 +242,13 @@ Re-running is safe:
   partially-prepared account. A plain `GRANT` of an already-held privilege is
   a no-op; AWS documents that re-calling `grant_sys_object` for an
   already-granted privilege succeeds.
-- **The archive-log retention window is set only on first creation of the
-  database account.** Unlike the grants, this is deliberately *not*
-  re-applied on every run — a re-run must not silently override a retention
-  value an operator has since tuned to a different number for reasons this
-  project has no visibility into.
+- **The archive-log retention window is re-applied on every run**, like
+  `cdc-prepare-mariadb`'s binary-log retention. The pipeline input is the
+  source of truth: change it there, not by hand, because the next run
+  overwrites a manual change. It is required with no default for the same
+  reason: a default would silently reset a window raised for a sleep.
+  Lowering it lets RDS purge older archived logs, which a lagging or
+  sleeping connector may still need.
 - **`destroy` is a deliberate no-op.** It does **not** drop the CDC user, for
   the same reason as `cdc-prepare-mariadb`: dropping the user is irreversible
   and is an operator decision, not the deployment's.
@@ -332,7 +334,7 @@ export PROPELLER_INPUT_admin_credential_parameter=/rds/admin       # required (N
 export PROPELLER_INPUT_cdc_username=CDC_USER                       # required (used only if the username param below is absent)
 export PROPELLER_INPUT_cdc_username_parameter=/cdc/username        # required (NAME; source of truth if present)
 export PROPELLER_INPUT_cdc_password_parameter=/cdc/password        # required (NAME; source of truth if present)
-export PROPELLER_INPUT_archivelog_retention_hours=24               # optional (default)
+export PROPELLER_INPUT_archivelog_retention_hours=72               # required (applied on every run)
 export PROPELLER_INPUT_kms_key_id=alias/aws/ssm                    # optional (default)
 
 just plan     # report intent only; contacts nothing, modifies nothing

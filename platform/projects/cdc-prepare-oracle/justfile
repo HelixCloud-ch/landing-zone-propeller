@@ -28,7 +28,7 @@ plan:
     echo "  CDC user to create:       ${PROPELLER_INPUT_cdc_username:-<unset>}"
     echo "  CDC username param:       ${PROPELLER_INPUT_cdc_username_parameter:-<unset>} (read if present; created if absent)"
     echo "  CDC password param:       ${PROPELLER_INPUT_cdc_password_parameter:-<unset>} (read if present; created if absent)"
-    echo "  archivelog retention hrs: ${PROPELLER_INPUT_archivelog_retention_hours:-24}"
+    echo "  archivelog retention hrs: ${PROPELLER_INPUT_archivelog_retention_hours:-<unset>} (applied on every run)"
     echo "  KMS key id:               ${PROPELLER_INPUT_kms_key_id:-alias/aws/ssm}"
     echo "  preconditions to verify:  LOG_MODE=ARCHIVELOG, SUPPLEMENTAL_LOG_DATA_MIN, SUPPLEMENTAL_LOG_DATA_PK"
 

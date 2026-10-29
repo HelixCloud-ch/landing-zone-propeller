@@ -12,9 +12,9 @@ Idempotent, re-runnable preparation of one Oracle instance (RDS for Oracle):
    adapter documents as required, resolve its credential from TWO separate,
    named SSM ``SecureString`` parameters — one for the username, one for the
    password (each a source of truth if present, created if absent — no
-   rotation, see ``resolve_cdc_credential``), and — on first creation only —
-   set the archive-log retention window via
-   ``rdsadmin.rdsadmin_util.set_configuration``.
+   rotation, see ``resolve_cdc_credential``), and set the archive-log
+   retention window via ``rdsadmin.rdsadmin_util.set_configuration`` on every
+   run, so the pipeline input is the source of truth.
 
    Two SCALAR parameters (not one JSON document) are used deliberately: the
    downstream ``msk-connect-debezium`` connector reads each with the SSM
@@ -90,9 +90,6 @@ INPUT_PREFIX = "PROPELLER_INPUT_"
 # Default Oracle listener port used when the db_port input is not supplied.
 DEFAULT_DB_PORT = 1521
 
-# Default archive-log retention window (hours) used when the input is not
-# supplied. 24h mirrors the AWS documentation examples for this procedure.
-DEFAULT_ARCHIVELOG_RETENTION_HOURS = 24
 
 # ── The LogMiner grant list ────────────────────────────────────────────────────
 #
@@ -307,8 +304,9 @@ def read_inputs() -> Inputs:
     """Read and validate the declared inputs from the environment.
 
     ``db_port`` defaults to :data:`DEFAULT_DB_PORT` (1521); ``kms_key_id``
-    defaults to :data:`DEFAULT_KMS_KEY_ID`; ``archivelog_retention_hours``
-    defaults to :data:`DEFAULT_ARCHIVELOG_RETENTION_HOURS`. ``pdb_name`` is
+    defaults to :data:`DEFAULT_KMS_KEY_ID`. ``archivelog_retention_hours`` is
+    required: it is applied on every run, so a default would silently reset
+    a value raised for a sleep window. ``pdb_name`` is
     optional and empty by default — a non-CDB RDS for Oracle instance has no
     pluggable database to name. A missing required input raises
     :class:`InputError`, which :func:`main` renders to stderr with a non-zero
@@ -330,9 +328,7 @@ def read_inputs() -> Inputs:
         cdc_username=_required("cdc_username"),
         cdc_username_parameter=_required("cdc_username_parameter"),
         cdc_password_parameter=_required("cdc_password_parameter"),
-        archivelog_retention_hours=_optional_int(
-            "archivelog_retention_hours", DEFAULT_ARCHIVELOG_RETENTION_HOURS
-        ),
+        archivelog_retention_hours=_required_int("archivelog_retention_hours"),
         kms_key_id=_optional("kms_key_id", DEFAULT_KMS_KEY_ID),
     )
 
@@ -635,14 +631,12 @@ def create_cdc_user(clients: Clients, inputs: Inputs) -> None:
        ``rdsadmin.rdsadmin_util.grant_sys_object`` — also idempotent per the
        AWS documentation ("if you use the grant_sys_object procedure to
        re-grant access, the procedure call succeeds").
-    f. On first creation of the DATABASE ACCOUNT only, set the archive-log
-       retention window via ``rdsadmin.rdsadmin_util.set_configuration
-       ('archivelog retention hours', ...)`` followed by the commit AWS's
-       documentation states is required. This mirrors cdc-prepare-mariadb's
-       binlog-retention step, except it is deliberately gated to
-       first-creation: a re-run must not silently change a retention window
-       an operator may have since tuned (unlike the grants, which converge to
-       the same fixed target every time).
+    f. Set the archive-log retention window via
+       ``rdsadmin.rdsadmin_util.set_configuration('archivelog retention
+       hours', ...)`` followed by the commit AWS's documentation states is
+       required. Like cdc-prepare-mariadb's binlog-retention step, this runs
+       on every invocation: the input is the source of truth, so changing it
+       in the pipeline takes effect on the next run.
 
     A credential VALUE is never printed, logged, or placed in an error
     message.
@@ -701,18 +695,16 @@ def create_cdc_user(clients: Clients, inputs: Inputs) -> None:
             f"p_privilege => {_quoted_literal(privilege)}); END;",
         )
 
-    # (f) Set the archive-log retention window, but ONLY on first creation of
-    #     the database account — a re-run must not silently override a value
-    #     an operator has since tuned. The AWS documentation for this
-    #     procedure states a commit is required for the change to take
-    #     effect; run_ddl always commits.
-    if not user_exists:
-        run_ddl(
-            db,
-            "BEGIN rdsadmin.rdsadmin_util.set_configuration("
-            "name => 'archivelog retention hours', "
-            f"value => {_quoted_literal(str(inputs.archivelog_retention_hours))}); END;",
-        )
+    # (f) Set the archive-log retention window on every run: the input is the
+    #     source of truth. The AWS documentation for this procedure states a
+    #     commit is required for the change to take effect; run_ddl always
+    #     commits.
+    run_ddl(
+        db,
+        "BEGIN rdsadmin.rdsadmin_util.set_configuration("
+        "name => 'archivelog retention hours', "
+        f"value => {_quoted_literal(str(inputs.archivelog_retention_hours))}); END;",
+    )
 
 
 def main() -> int:
@@ -737,7 +729,7 @@ def main() -> int:
         verify_preconditions(clients.db)
 
         # Create the CDC user, grant it, resolve its credential, set
-        # retention on first creation. Idempotent and safe to re-run.
+        # retention. Idempotent and safe to re-run.
         create_cdc_user(clients, inputs)
 
         # Non-secret success summary: the user name and the parameter name
