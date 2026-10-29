@@ -244,7 +244,7 @@ Three ready-made files, copyable as-is or as a starting point, all matching the
   changes is only the *name*: Oracle's own topic-naming convention is
   `<topicPrefix>.<schemaName>.<tableName>` for change-event topics, and
   Debezium "applies similar naming conventions" to the schema history topic
-  ([Default names of Kafka topics for the Oracle connector](https://docs.redhat.com/ko/documentation/red_hat_build_of_debezium/3.2.7/html/debezium_user_guide/default-names-of-kafka-topics-that-receive-debezium-oracle-change-event-records)).
+  ([Debezium Oracle connector — topic names (2.7)](https://debezium.io/documentation/reference/2.7/connectors/oracle.html#oracle-topic-names)).
   The example uses `ORCLPDB1`, Oracle's own default pluggable database name in
   its tutorials, in place of a schema name — replace it with the consumer's
   actual PDB or schema.
@@ -372,4 +372,4 @@ starts:
 - [Auto-creating Debezium Change Data Topics](https://debezium.io/blog/2020/09/15/debezium-auto-create-topics/)
 - [Apache Kafka — Kafka Connect user guide (distributed mode)](https://kafka.apache.org/37/documentation/#connect_running)
 - [Storing state of a Debezium connector](https://debezium.io/documentation/reference/stable/configuration/storage.html)
-- [Default names of Kafka topics for the Oracle connector](https://docs.redhat.com/ko/documentation/red_hat_build_of_debezium/3.2.7/html/debezium_user_guide/default-names-of-kafka-topics-that-receive-debezium-oracle-change-event-records)
+- [Debezium Oracle connector — topic names (2.7)](https://debezium.io/documentation/reference/2.7/connectors/oracle.html#oracle-topic-names)

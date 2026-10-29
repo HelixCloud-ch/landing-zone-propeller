@@ -22,13 +22,13 @@ Idempotent, re-runnable preparation of one Oracle instance (RDS for Oracle):
    parameter's whole value and cannot extract a key out of a JSON document.
    See the module README and the project README's "Credential handling".
 
-Phase 2 / unverified against real infrastructure (see the spec's tasks.md and
+Unverified against real infrastructure (see the project README and
 `docs/cdc-deployment-verification.md`). The grant list below is sourced from
-two primary references, not from the DMS-derived approximation that was
-sitting in the research notes and is explicitly NOT to be trusted (task 2.1):
+two primary references. AWS DMS's Oracle privilege list is deliberately not
+used: DMS is a different product with a different privilege surface.
 
-- Debezium's own "Configuration of the connector's Oracle user account"
-  (https://docs.redhat.com/ko/documentation/red_hat_build_of_debezium/3.2.7/html/debezium_user_guide/configuration-of-the-connectors-oracle-user-account)
+- Debezium's Oracle connector documentation, "Creating users for the connector"
+  (https://debezium.io/documentation/reference/2.7/connectors/oracle.html#oracle-create-users-logminer)
   — the *what*: which privileges LogMiner needs and why.
 - AWS's RDS documentation for `grant_sys_object`
   (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.CommonDBATasks.TransferPrivileges.html)
@@ -47,7 +47,7 @@ A credential VALUE is never written to stdout, stderr, or any output.
 
 Implementation note: the AWS (boto3 SSM) and database (python-oracledb thin
 mode) clients are constructed in exactly one place — :func:`build_clients` —
-so that tests can mock at the client boundary (design.md, Testing Strategy).
+so that tests can mock at the client boundary.
 The rest of the module receives already-constructed clients and never imports
 boto3 or oracledb at call sites. This mirrors cdc-prepare-mariadb/prepare.py's
 structure deliberately, so the two projects read the same way.
@@ -259,8 +259,8 @@ def build_clients(inputs: Inputs, admin_username: str, admin_password: str) -> C
 
     This is the ONLY place ``oracledb`` is instantiated. python-oracledb runs
     in **thin mode by default** — no Oracle Instant Client, no OTN-licensed
-    component — which is exactly why it was chosen for the deploy-runner image
-    (Requirement 6.2). Thin mode is the default connection mode; no
+    component — which is exactly why it was chosen for the deploy-runner image.
+    Thin mode is the default connection mode; no
     ``oracledb.init_oracle_client()`` call is made anywhere in this project, so
     thick mode is never activated.
 

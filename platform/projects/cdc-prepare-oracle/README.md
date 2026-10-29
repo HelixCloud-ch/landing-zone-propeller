@@ -50,16 +50,15 @@ On `apply`, `prepare.py` runs the following ordered, idempotent flow:
 
 ## The grant list
 
-The exact grant list was **never verified during the original research** for
-this framework, and an earlier draft based on AWS DMS's Oracle privilege
-requirements was explicitly flagged as not to be trusted as authoritative — it
-approximates what DMS's Binary Reader/LogMiner needs, not what Debezium's own
-LogMiner adapter needs, and the two are different products with different
-privilege surfaces. This project's grant list instead comes from two primary
-sources, cross-referenced against each other:
+The grant list has not been verified against a live RDS for Oracle instance.
+It is deliberately **not** derived from AWS DMS's Oracle privilege list: that
+list covers what DMS's Binary Reader/LogMiner needs, not Debezium's LogMiner
+adapter, and the two are different products with different privilege
+surfaces. The list comes from two primary sources, cross-referenced against
+each other:
 
-- **What to grant** — Debezium's own
-  [Configuration of the connector's Oracle user account](https://docs.redhat.com/ko/documentation/red_hat_build_of_debezium/3.2.7/html/debezium_user_guide/configuration-of-the-connectors-oracle-user-account)
+- **What to grant** — Debezium's
+  [Creating users for the connector (LogMiner)](https://debezium.io/documentation/reference/2.7/connectors/oracle.html#oracle-create-users-logminer)
   — the LogMiner adapter's documented privilege list, with the reason for
   each grant.
 - **How to grant it on RDS** — AWS's
@@ -284,10 +283,10 @@ perform — see [What does NOT belong here](#what-does-not-belong-here).
 
 This project prepares the *database*; the LogMiner *mining strategy*
 (`log.mining.strategy`) is a connector-configuration property set by the
-shared `msk-connect-debezium` module's `config/oracle.tftpl`, not by anything
+shared `msk-connect-debezium` module's connector defaults, not by anything
 here. It is called out in this README because the strategy choice interacts
-with what this project's preconditions verify: `hybrid` (the strategy the
-module template uses) needs no extra archive-log volume beyond ordinary
+with what this project's preconditions verify: `hybrid` (the module's default
+strategy) needs no extra archive-log volume beyond ordinary
 `ARCHIVELOG` mode, whereas the deprecated `redo_log_catalog` strategy would
 additionally write the data dictionary into the online redo logs, generating
 materially more archive log volume than this project's precondition check
@@ -366,7 +365,7 @@ wherever an operator starts:
 ## References
 
 - [Debezium connector for Oracle](https://debezium.io/documentation/reference/stable/connectors/oracle.html)
-- [Configuration of the connector's Oracle user account](https://docs.redhat.com/ko/documentation/red_hat_build_of_debezium/3.2.7/html/debezium_user_guide/configuration-of-the-connectors-oracle-user-account)
+- [Debezium Oracle connector — creating users for the connector (LogMiner, 2.7)](https://debezium.io/documentation/reference/2.7/connectors/oracle.html#oracle-create-users-logminer)
 - [Granting SELECT or EXECUTE privileges to SYS objects (RDS)](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.CommonDBATasks.TransferPrivileges.html)
 - [Retaining archived redo logs (RDS)](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.CommonDBATasks.RetainRedoLogs.html)
 - [Using an Oracle database as a source for AWS DMS](https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Source.Oracle.html) — supplemental-logging setup steps, cited for the `rdsadmin_util.alter_supplemental_logging` calls; DMS's own *privilege list* is a different product's requirements and is not the source for this project's grants (see [The grant list](#the-grant-list)).

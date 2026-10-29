@@ -46,7 +46,7 @@ apply:
 
 # destroy: deliberate NO-OP. Deleting a topic destroys the connector's schema
 # history and consumer offsets, forcing a recovery or full re-snapshot; that is
-# an operator decision, not the deployment's (Requirement 4.9).
+# an operator decision, not the deployment's.
 destroy:
     @echo "cdc-topics destroy: no-op by design."
     @echo "  No topic is deleted: dropping a CDC topic loses schema history and"

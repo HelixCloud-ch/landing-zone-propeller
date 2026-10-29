@@ -1,19 +1,16 @@
-"""Thorough offline verification of cdc-prepare-mariadb/prepare.py (task 1.28).
+"""Thorough offline verification of cdc-prepare-mariadb/prepare.py.
 
 This is the PRIMARY functional verification of ``prepare.py``: no AWS, no live
-database. It EXTENDS the first-pass tests in ``test_prepare.py`` (task 1.14) by
+database. It EXTENDS the first-pass tests in ``test_prepare.py`` by
 importing and building on the reusable ``FakeCursor`` / ``FakeDB`` fakes and the
 ``_variables`` / ``_base_inputs`` helpers defined there, rather than duplicating
 them.
 
-It implements the two Correctness Properties from design.md as property-based
-tests, each a single property with a minimum of 100 examples, tagged in the
-docstring as required by the design's Testing Strategy:
+It implements two correctness properties as property-based tests, each a single
+property with a minimum of 100 examples, named in the test docstring:
 
-* **Feature: debezium, Property 1: Prepare idempotency preserves the existing
-  credential** (Requirement 3.8).
-* **Feature: debezium, Property 2: Precondition failures make no modification**
-  (Requirements 3.9-3.12).
+* **Property 1 — Prepare idempotency preserves the existing credential.**
+* **Property 2 — Precondition failures make no modification.**
 
 Hypothesis is available in this environment (see the ``HAVE_HYPOTHESIS`` probe
 below), so both properties are written as Hypothesis ``@given`` tests with
@@ -22,8 +19,7 @@ fallback is provided for an environment without Hypothesis, tagged identically
 and running the same >=100-iteration contract, so the properties are always
 verified regardless of what is installed.
 
-Also covered, per Requirement 8.6 and the design Testing Strategy bullet list
-for ``prepare.py``:
+Also covered:
 
 * SQL parameterisation — input-derived VALUES are bound query parameters, not
   interpolated into statement text; the only thing composed into text is the
@@ -59,7 +55,7 @@ for _p in (str(_PROJECT_DIR), str(_TESTS_DIR)):
 
 import prepare  # noqa: E402  (path set up above)
 
-# Build on task 1.14's reusable fakes and helpers rather than redefining them.
+# Build on test_prepare.py's reusable fakes and helpers rather than redefining them.
 from test_prepare import (  # noqa: E402
     FakeDB,
     _base_inputs,
@@ -80,7 +76,7 @@ try:
 except ImportError:  # pragma: no cover - exercised only without hypothesis
     HAVE_HYPOTHESIS = False
 
-# Minimum iteration count mandated by the design Testing Strategy.
+# Minimum iteration count for every property-based test.
 PROPERTY_ITERATIONS = 100
 
 # Usernames are drawn from a small allowlist-valid set (see CDC_USERNAME_PATTERN
@@ -138,9 +134,9 @@ def _run_rerun(inputs, ssm):
 
 
 # =========================================================================== #
-# PROPERTY 2 — Precondition failures make no modification (Req 3.9-3.12).      #
+# PROPERTY 2 — Precondition failures make no modification.      #
 #                                                                             #
-# Feature: debezium, Property 2: For any combination of binary logging        #
+# For any combination of binary logging        #
 # disabled, a non-ROW binlog_format, a non-FULL binlog_row_image, or          #
 # log_bin_compress enabled, prepare.py aborts with the documented error,      #
 # exits non-zero, and performs NO database modification.                      #
@@ -187,7 +183,7 @@ def _assert_precondition_makes_no_modification(log_bin_v, fmt_v, image_v, compre
       * no put_parameter was called on ssm.
 
     Asserting the invariant (nothing was modified), not merely that an error was
-    raised, is the point of Property 2 (design.md Correctness Properties).
+    raised, is the point of Property 2.
     """
     overrides = _bad_variable_overrides(log_bin_v, fmt_v, image_v, compress_v)
     db = FakeDB(responses=_variables(**overrides))
@@ -240,13 +236,13 @@ if HAVE_HYPOTHESIS:
     def test_property2_precondition_failures_make_no_modification(
         log_bin_v, fmt_v, image_v, compress_v
     ):
-        """Feature: debezium, Property 2: Precondition failures make no modification.
+        """Precondition failures make no modification.
 
         For any combination of {log_bin off, binlog_format != ROW,
         binlog_row_image != FULL, log_bin_compress ON} with at least one failing
         setting, verify_preconditions raises PreconditionError and performs no
         modification (no CREATE USER, no GRANT, no rds_set_configuration CALL, no
-        put_parameter). Requirements 3.9-3.12. >=100 Hypothesis examples over a
+        put_parameter). >=100 Hypothesis examples over a
         space of varied violating values per setting.
         """
         # Discard the all-good combination — Property 2 is about failing states.
@@ -257,11 +253,11 @@ if HAVE_HYPOTHESIS:
 else:  # pragma: no cover - exercised only without hypothesis
 
     def test_property2_precondition_failures_make_no_modification():
-        """Feature: debezium, Property 2: Precondition failures make no modification.
+        """Precondition failures make no modification.
 
         Seeded-loop fallback (Hypothesis unavailable): >=100 generated failing
         combinations of the four preconditions, each asserting the
-        no-modification invariant. Requirements 3.9-3.12.
+        no-modification invariant.
         """
         rng = random.Random(20240628)
         count = 0
@@ -279,7 +275,7 @@ else:  # pragma: no cover - exercised only without hypothesis
 def test_property2_all_failing_combinations_exhaustive():
     """Exhaustive companion: every one of the 15 failing subsets makes no change.
 
-    Feature: debezium, Property 2 (Requirements 3.9-3.12). Complements the
+    Complements the
     generated property run by covering the whole combination space once.
     """
     for combo in _FAILING_COMBINATIONS:
@@ -287,9 +283,9 @@ def test_property2_all_failing_combinations_exhaustive():
 
 
 # =========================================================================== #
-# PROPERTY 1 — Prepare idempotency preserves the existing credential (3.8).    #
+# PROPERTY 1 — Prepare idempotency preserves the existing credential.          #
 #                                                                             #
-# Feature: debezium, Property 1: For any already-prepared state (CDC_User      #
+# For any already-prepared state (CDC_User      #
 # exists), re-running create_cdc_user issues no CREATE USER and does not       #
 # overwrite/rotate the password parameter.                                     #
 # =========================================================================== #
@@ -326,7 +322,7 @@ def _assert_rerun_preserves_credential(username, credential_param, hours, kms):
     statements = [s for s, _ in db.executed]
     assert not any("CREATE USER" in s for s in statements)
     token.assert_not_called()
-    # Neither credential parameter is written on a re-run — no rotation (3.8).
+    # Neither credential parameter is written on a re-run — no rotation.
     ssm.put_parameter.assert_not_called()
 
 
@@ -350,13 +346,13 @@ if HAVE_HYPOTHESIS:
     def test_property1_idempotency_preserves_credential(
         username, credential_param, hours, kms
     ):
-        """Feature: debezium, Property 1: Prepare idempotency preserves the existing credential.
+        """Prepare idempotency preserves the existing credential.
 
         For any already-prepared state (user exists AND the credential
         parameter already holds a value), varying usernames (from the
         allowlist), the parameter name, retention hours and KMS key ids, a
         re-run issues no CREATE USER, generates no new password, and never
-        writes to the credential parameter. Requirement 3.8. >=100
+        writes to the credential parameter. >=100
         Hypothesis examples.
         """
         _assert_rerun_preserves_credential(username, credential_param, hours, kms)
@@ -364,11 +360,10 @@ if HAVE_HYPOTHESIS:
 else:  # pragma: no cover - exercised only without hypothesis
 
     def test_property1_idempotency_preserves_credential():
-        """Feature: debezium, Property 1: Prepare idempotency preserves the existing credential.
+        """Prepare idempotency preserves the existing credential.
 
         Seeded-loop fallback (Hypothesis unavailable): >=100 generated
         already-prepared input sets, each asserting the no-rotation invariant.
-        Requirement 3.8.
         """
         rng = random.Random(20240628)
         kms_choices = [
@@ -388,7 +383,7 @@ else:  # pragma: no cover - exercised only without hypothesis
 
 
 # =========================================================================== #
-# SQL parameterisation (Requirement 3.14 / design "SQL construction").        #
+# SQL parameterisation.                                                       #
 # =========================================================================== #
 
 
@@ -454,7 +449,7 @@ def test_sql_only_username_identifier_is_composed_into_text():
 
 
 # =========================================================================== #
-# No credential in output (Requirement 3.13 / design "secrecy").              #
+# No credential in output.                                                    #
 # =========================================================================== #
 
 
@@ -557,8 +552,7 @@ def test_main_precondition_failure_exits_nonzero_names_setting_no_change(
     """Each precondition failure through main() names the setting, exits non-zero,
     and performs no modification.
 
-    Feature: debezium, Property 2 driven end-to-end through main() (Requirements
-    3.9-3.12). The error message (rendered to stderr) names the offending
+    driven end-to-end through main(). The error message (rendered to stderr) names the offending
     setting; the return code is non-zero; and the db never committed nor issued
     any modifying statement.
     """

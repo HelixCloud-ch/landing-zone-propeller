@@ -1,15 +1,15 @@
-"""First-pass unit tests for cdc-prepare-mariadb/prepare.py (task 1.14).
+"""First-pass unit tests for cdc-prepare-mariadb/prepare.py.
 
-These cover the precondition and idempotency logic (Requirement 8.5) without a
+These cover the precondition and idempotency logic without a
 live database and without any library installs: boto3 and PyMySQL are imported
 lazily inside build_clients/build_ssm_client, so read_inputs,
 read_admin_credential, verify_preconditions and create_cdc_user are exercised
 here with a MagicMock ``ssm`` and a hand-rolled fake db/cursor.
 
 The more thorough offline verification (SQL parameterisation, no-credential-in-
-output, every precondition path in full) is task 1.28; these tests are written
-to be extended by that task rather than duplicated. Shared fakes live in module
-scope (FakeCursor / FakeDB) so 1.28 can import and build on them.
+output, every precondition path in full) lives in test_prepare_properties.py,
+which extends these tests rather than duplicating them. Shared fakes live in
+module scope (FakeCursor / FakeDB) so it can import and build on them.
 
 Runner: pytest (bare-assert, function-style — matches engine/tests/). Falls
 back to `python3 -m unittest` cleanly because every test is a plain function
@@ -202,7 +202,7 @@ def _ssm_credential_params(
 
 
 # --------------------------------------------------------------------------- #
-# 1. verify_preconditions — precondition logic (Requirement 3.9-3.12, 8.5)    #
+# 1. verify_preconditions — precondition logic    #
 # --------------------------------------------------------------------------- #
 
 
@@ -216,7 +216,7 @@ def test_preconditions_perform_no_modification():
     """verify_preconditions runs first and must not write anything.
 
     Assert it issues only SHOW VARIABLES reads and never commits — there is
-    nothing to undo because it precedes every modification (Requirement 3.9).
+    nothing to undo because it precedes every modification.
     """
     db = FakeDB(responses=_variables())
     prepare.verify_preconditions(db)
@@ -232,7 +232,7 @@ def test_precondition_log_bin_off_names_backup_retention():
         prepare.verify_preconditions(db)
     msg = str(exc.value)
     assert "log_bin" in msg
-    # Names the RDS control that governs it (Requirement 3.10).
+    # Names the RDS control that governs it.
     assert "backup_retention_period" in msg
     assert db.commits == 0
 
@@ -360,7 +360,7 @@ def test_resolve_cdc_credential_creates_only_the_missing_parameter():
 
 
 # --------------------------------------------------------------------------- #
-# 3. create_cdc_user — idempotency (Requirement 3.5-3.8, 8.5)                 #
+# 3. create_cdc_user — idempotency                 #
 # --------------------------------------------------------------------------- #
 
 
@@ -496,7 +496,7 @@ def test_create_cdc_user_does_not_leak_password_to_output():
 
 
 # --------------------------------------------------------------------------- #
-# 3. read_inputs — required-missing, defaults (Requirement 3.2-3.4, 3.17)     #
+# 3. read_inputs — required-missing, defaults     #
 # --------------------------------------------------------------------------- #
 
 

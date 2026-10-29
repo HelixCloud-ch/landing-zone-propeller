@@ -1,4 +1,4 @@
-"""Offline unit tests for cdc-topics/topics.py (task 1.29, Requirement 8.6).
+"""Offline unit tests for cdc-topics/topics.py.
 
 topics.py imports ``from kafka.admin import KafkaAdminClient, NewTopic`` and
 ``from kafka.errors import KafkaError, TopicAlreadyExistsError`` at module top
@@ -18,8 +18,7 @@ untouched.
 Runner: pytest (bare-assert, function-style — matches
 cdc-prepare-mariadb/tests/test_prepare.py).
 
-Property-based test: Hypothesis is used when installed (Property 3, min 100
-iterations); otherwise a seeded >=100-iteration loop is used. The active
+Property-based test: Hypothesis is used when installed (min 100 iterations); otherwise a seeded >=100-iteration loop is used. The active
 strategy is recorded on the test via a module-level flag and in its docstring.
 """
 
@@ -143,7 +142,7 @@ class RecordingAdmin:
 
     ``existing`` is the set of topic names the cluster already holds. Any
     alter/config-mutating API access is recorded in ``forbidden_calls`` via
-    ``__getattr__`` so a test can assert none was ever invoked (Property 3).
+    ``__getattr__`` so a test can assert none was ever invoked.
     """
 
     # Any of these being accessed/called would mean configuration was touched.
@@ -184,12 +183,11 @@ class RecordingAdmin:
 
 
 # --------------------------------------------------------------------------- #
-# 1. Property 3 — topic idempotency leaves existing configuration untouched.   #
-#    Validates: Requirements 4.6                                               #
+# 1. Property — topic idempotency leaves existing configuration untouched.     #
 # --------------------------------------------------------------------------- #
 
-_PROPERTY_3_TAG = (
-    "Feature: debezium, Property 3: Topic idempotency leaves existing "
+_IDEMPOTENCY_PROPERTY_TAG = (
+    "Topic idempotency leaves existing "
     "configuration untouched"
 )
 
@@ -206,7 +204,7 @@ def _check_idempotency(topic_list, existing_names):
     present = {n for n in existing_names if n in requested}
     admin = RecordingAdmin(existing=present)
 
-    # Must not raise: an already-existing topic is success (Req 4.6).
+    # Must not raise: an already-existing topic is success.
     topics.create_topics(admin, topic_list)
 
     # No configuration was altered on any pre-existing (or new) topic.
@@ -244,9 +242,9 @@ if HAVE_HYPOTHESIS:
         topic_list=st.lists(_topic_st, min_size=0, max_size=8, unique_by=lambda t: t["name"]),
         existing_ratio=st.floats(min_value=0.0, max_value=1.0),
     )
-    def test_property_3_topic_idempotency_untouched(topic_list, existing_ratio):
-        """Feature: debezium, Property 3: Topic idempotency leaves existing
-        configuration untouched (Req 4.6). Hypothesis, min 100 examples.
+    def test_property_topic_idempotency_untouched(topic_list, existing_ratio):
+        """Topic idempotency leaves existing
+        configuration untouched. Hypothesis, min 100 examples.
 
         For any topic list and any cluster already holding a topic of the same
         name, create_topics treats the existing topic as success and alters no
@@ -257,13 +255,13 @@ if HAVE_HYPOTHESIS:
         existing = set(names[:cut])
         _check_idempotency(topic_list, existing)
 
-    PROPERTY_3_STRATEGY = "hypothesis"
+    IDEMPOTENCY_PROPERTY_STRATEGY = "hypothesis"
 
 else:  # pragma: no cover - only when Hypothesis is absent
 
-    def test_property_3_topic_idempotency_untouched():
-        """Feature: debezium, Property 3: Topic idempotency leaves existing
-        configuration untouched (Req 4.6). Seeded loop, 100 iterations."""
+    def test_property_topic_idempotency_untouched():
+        """Topic idempotency leaves existing
+        configuration untouched. Seeded loop, 100 iterations."""
         import random
 
         rng = random.Random(20240611)
@@ -294,11 +292,11 @@ else:  # pragma: no cover - only when Hypothesis is absent
             existing = set(names[:cut])
             _check_idempotency(topic_list, existing)
 
-    PROPERTY_3_STRATEGY = "seeded-loop"
+    IDEMPOTENCY_PROPERTY_STRATEGY = "seeded-loop"
 
 
 # --------------------------------------------------------------------------- #
-# 2. Concrete case behind Property 3: an existing topic is success, no change. #
+# 2. Concrete case behind the property: existing topic is success, no change. #
 # --------------------------------------------------------------------------- #
 
 
@@ -321,13 +319,13 @@ def test_existing_topic_is_success_with_no_config_change():
 
 
 # --------------------------------------------------------------------------- #
-# 3. Unreachable cluster exits non-zero (Req 4.10) via the _fail path.         #
+# 3. Unreachable cluster exits non-zero via the _fail path.         #
 # --------------------------------------------------------------------------- #
 
 
 def test_unreachable_cluster_build_admin_client_aborts_nonzero(monkeypatch):
     """When build_admin_client raises a KafkaError, main() aborts via _fail
-    (sys.exit(1)) with a descriptive stderr message (Req 4.10)."""
+    (sys.exit(1)) with a descriptive stderr message."""
     monkeypatch.setenv("PROPELLER_INPUT_bootstrap_servers", "broker.invalid:9092")
     monkeypatch.setenv("PROPELLER_INPUT_security_protocol", "PLAINTEXT")
     monkeypatch.setenv("PROPELLER_INPUT_topics", "[]")
@@ -349,7 +347,7 @@ def test_unreachable_cluster_build_admin_client_aborts_nonzero(monkeypatch):
 
 
 def test_create_topics_kafka_error_aborts_nonzero(monkeypatch):
-    """A KafkaError raised while creating topics also aborts non-zero (Req 4.10)."""
+    """A KafkaError raised while creating topics also aborts non-zero."""
     monkeypatch.setenv("PROPELLER_INPUT_bootstrap_servers", "broker.internal:9092")
     monkeypatch.setenv("PROPELLER_INPUT_security_protocol", "PLAINTEXT")
     monkeypatch.setenv("PROPELLER_INPUT_topics", '[{"name": "t1"}]')
@@ -371,13 +369,12 @@ def test_create_topics_kafka_error_aborts_nonzero(monkeypatch):
 
 # --------------------------------------------------------------------------- #
 # 4. SASL_SSL/IAM path uses the OAUTHBEARER token provider; PLAINTEXT doesn't. #
-#    Validates: Requirement 4.11                                               #
 # --------------------------------------------------------------------------- #
 
 
 def test_sasl_ssl_builds_client_with_oauthbearer_token_provider(monkeypatch):
     """SASL_SSL builds the admin client with sasl_mechanism=OAUTHBEARER and a
-    token provider obtained from build_token_provider (Req 4.11)."""
+    token provider obtained from build_token_provider."""
     captured = {}
 
     def _fake_admin(**kwargs):
@@ -421,7 +418,7 @@ def test_build_token_provider_uses_msk_iam_signer(monkeypatch):
 
 def test_plaintext_does_not_require_signer(monkeypatch):
     """A PLAINTEXT run builds the client with no SASL and never imports/calls
-    the IAM token provider (Req 4.11)."""
+    the IAM token provider."""
     captured = {}
 
     def _fake_admin(**kwargs):

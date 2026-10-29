@@ -28,8 +28,8 @@ Idempotent, re-runnable preparation of one MariaDB instance:
    README and the project README's "Credential handling" section.
 
 Nothing about the host, user, parameter names, account or region is hardcoded;
-every environment-specific value arrives as a ``PROPELLER_INPUT_*`` variable
-(Requirement 7). This project requires no AWS access to *build* or test — it is
+every environment-specific value arrives as a ``PROPELLER_INPUT_*`` variable.
+This project requires no AWS access to *build* or test — it is
 exercised entirely through mocked clients (see the project tests) — but at run
 time it must execute on an In_VPC_Runner able to reach the database and
 Parameter Store.
@@ -38,13 +38,8 @@ A credential VALUE is never written to stdout, stderr, or any output.
 
 Implementation note: the AWS (boto3 SSM) and database (PyMySQL) clients are
 constructed in exactly one place — :func:`build_clients` — so that tests can
-mock at the client boundary (design.md, Testing Strategy). The rest of the
-module receives already-constructed clients and never imports boto3 or PyMySQL
-at call sites.
-
-Implemented across tasks 1.11 (inputs, admin credential, client boundary),
-1.12 (preconditions) and 1.13 (CDC user creation, credential publication, and
-the full apply wiring in :func:`main`).
+mock at the client boundary. The rest of the module receives
+already-constructed clients and never imports boto3 or PyMySQL at call sites.
 """
 
 from __future__ import annotations
@@ -58,7 +53,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 # Default KMS key used to encrypt the CDC credential parameters when no
-# kms_key_id input is supplied: the AWS-managed SSM key (Requirement 3.17).
+# kms_key_id input is supplied: the AWS-managed SSM key.
 DEFAULT_KMS_KEY_ID = "alias/aws/ssm"
 
 # Note on the credential shape: the CDC username and password are stored in TWO
@@ -70,13 +65,13 @@ DEFAULT_KMS_KEY_ID = "alias/aws/ssm"
 # the two scalar parameters this project creates for the CDC user.
 
 # Every environment-specific value arrives as a PROPELLER_INPUT_* variable. The
-# prefix is defined once here so the reader never spells it inline (Requirement 7).
+# prefix is defined once here so the reader never spells it inline.
 INPUT_PREFIX = "PROPELLER_INPUT_"
 
 # Default MariaDB port used when the db_port input is not supplied.
 DEFAULT_DB_PORT = 3306
 
-# The exact five grants the CDC_User needs — no more (Requirement 3.5). Kept as
+# The exact five grants the CDC_User needs — no more. Kept as
 # a module constant so the grant statement is built from a single source of
 # truth and a test can assert the set has not drifted.
 CDC_GRANTS = (
@@ -168,7 +163,7 @@ def _optional(name: str, default: str) -> str:
 class Inputs:
     """Declared inputs, read from ``PROPELLER_INPUT_*`` environment variables.
 
-    Populated by :func:`read_inputs` (task 1.11). Field set is fixed here so the
+    Populated by :func:`read_inputs`. Field set is fixed here so the
     later task fills the reader, not the shape.
     """
 
@@ -230,8 +225,7 @@ def build_clients(inputs: Inputs, admin_username: str, admin_password: str) -> C
 
     On a connection or authentication failure, raises
     :class:`ConnectionError` with a message that names the host and port but
-    never the credential; :func:`main` renders it to stderr with a non-zero exit
-    (Requirement 3.16).
+    never the credential; :func:`main` renders it to stderr with a non-zero exit.
     """
     import pymysql  # lazy: not needed to unit-test the input/credential readers
 
@@ -246,7 +240,7 @@ def build_clients(inputs: Inputs, admin_username: str, admin_password: str) -> C
         )
     except pymysql.MySQLError as exc:
         # Report the endpoint and the driver's error class only — never the
-        # credential value that failed (Requirements 3.13, 3.16).
+        # credential value that failed.
         raise ConnectionError(
             f"could not connect to MariaDB at {inputs.db_host}:{inputs.db_port}: "
             f"{type(exc).__name__}: {exc}"
@@ -265,8 +259,7 @@ def read_inputs() -> Inputs:
     exit.
 
     Every parameter reference is a *name* supplied as an input — no path is
-    hardcoded and no name is defaulted (Requirements 3.2, 3.3, 3.4, 3.17, 7.1,
-    7.2, 7.3). The CDC credential is split across two named parameters
+    hardcoded and no name is defaulted. The CDC credential is split across two named parameters
     (``cdc_username_parameter`` and ``cdc_password_parameter``) so the connector
     can read each with the SSM Config_Provider. A credential value is never read
     here; only the names of the parameters that hold or will hold them.
@@ -286,8 +279,8 @@ def read_inputs() -> Inputs:
 def _parse_credential_value(value: str, fallback_username: str) -> tuple[str, str]:
     """Split a stored parameter value into ``(username, password)``.
 
-    Two stored forms are supported, because consumers differ (design.md,
-    ``cdc-prepare-mariadb`` step 1):
+    Two stored forms are supported, because consumers store the admin
+    credential either way:
 
     * **JSON document** — the value is ``{"username": ..., "password": ...}``.
       Both fields are taken from the document.
@@ -345,7 +338,7 @@ def _resolve_scalar_parameter(
 
     ``value_if_absent`` is a callable, not a plain value, so the password is
     generated ONLY when the password parameter is actually absent — a re-run
-    against an existing parameter must generate nothing (Requirement 3.8).
+    against an existing parameter must generate nothing.
 
     The value is stored and read as the parameter's whole verbatim content, not
     wrapped in a JSON document, because the connector's SSM Config_Provider
@@ -444,17 +437,16 @@ def verify_preconditions(db: Any) -> None:
 
     Checks, in order, that:
       * ``log_bin`` is active — else name the automated-backup retention
-        setting that controls it (Requirement 3.10);
-      * ``binlog_format`` is ``ROW`` (Requirement 3.11);
-      * ``binlog_row_image`` is ``FULL`` (Requirement 3.11);
+        setting that controls it;
+      * ``binlog_format`` is ``ROW``;
+      * ``binlog_row_image`` is ``FULL``;
       * ``log_bin_compress`` is OFF — Debezium cannot read a compressed binary
-        log (Requirement 3.12).
+        log.
 
     Each value is read with ``SHOW VARIABLES LIKE`` against a read-only cursor
     on ``db`` (the mockable client boundary). All variable names are fixed
     literals, so no input flows into any statement and this function performs
-    no modification — there is nothing to undo because it runs first
-    (Requirement 3.9).
+    no modification — there is nothing to undo because it runs first.
 
     On any failure, raises :class:`PreconditionError` with a message that names
     the offending setting and its required value; :func:`main` renders it to
@@ -463,7 +455,7 @@ def verify_preconditions(db: Any) -> None:
     # 1. Binary logging must be active. On RDS MariaDB, binary logging is turned
     #    on by giving the instance a non-zero automated-backup retention period,
     #    so a failure here points the operator at that control rather than at a
-    #    server variable they cannot set directly (Requirement 3.10).
+    #    server variable they cannot set directly.
     log_bin = _read_variable(db, "log_bin")
     if (log_bin or "").upper() != "ON":
         raise PreconditionError(
@@ -473,7 +465,7 @@ def verify_preconditions(db: Any) -> None:
             "period (backup_retention_period) to a non-zero value."
         )
 
-    # 2. binlog_format must be ROW (Requirement 3.11).
+    # 2. binlog_format must be ROW.
     binlog_format = _read_variable(db, "binlog_format")
     if (binlog_format or "").upper() != "ROW":
         raise PreconditionError(
@@ -481,7 +473,7 @@ def verify_preconditions(db: Any) -> None:
             "requires row-based binary logging."
         )
 
-    # 3. binlog_row_image must be FULL (Requirement 3.11).
+    # 3. binlog_row_image must be FULL.
     binlog_row_image = _read_variable(db, "binlog_row_image")
     if (binlog_row_image or "").upper() != "FULL":
         raise PreconditionError(
@@ -489,7 +481,7 @@ def verify_preconditions(db: Any) -> None:
             "Debezium requires the full before/after row image."
         )
 
-    # 4. log_bin_compress must be OFF (Requirement 3.12). This is a MariaDB
+    # 4. log_bin_compress must be OFF. This is a MariaDB
     #    variable that does not exist on every version; when the server does
     #    not expose it at all, the binary log cannot be compressed, so its
     #    absence is treated as not-enabled. Only a present-and-ON value fails.
@@ -530,7 +522,7 @@ def run_sql(db: Any, statement: str, params: tuple[Any, ...] = ()) -> Any:
     """Run a single parameterised SQL statement and return its fetched rows.
 
     Every value derived from an input MUST be passed through ``params`` and bound
-    by the driver, never interpolated into ``statement`` (Requirement 3.14). The
+    by the driver, never interpolated into ``statement``. The
     one grammar-forced exception is an account *identifier* (a username in
     ``CREATE USER``/``GRANT``), which MariaDB will not accept as a placeholder;
     such identifiers are allowlist-validated by :func:`_validated_username`
@@ -589,12 +581,11 @@ def create_cdc_user(clients: Clients, inputs: Inputs) -> None:
        is skipped entirely: the database password is never reset from here,
        matching the parameter's own no-rotation guarantee.
     d. ``GRANT`` exactly the five :data:`CDC_GRANTS` on ``*.*`` — naturally
-       idempotent (Requirement 3.5).
+       idempotent.
     e. ``CALL mysql.rds_set_configuration('binlog retention hours', %s)`` with
-       ``inputs.binlog_retention_hours`` bound (Requirement 3.7).
+       ``inputs.binlog_retention_hours`` bound.
 
-    A credential VALUE is never printed, logged, or placed in an error message
-    (Requirement 3.13).
+    A credential VALUE is never printed, logged, or placed in an error message.
     """
     db = clients.db
     ssm = clients.ssm
@@ -668,7 +659,7 @@ def main() -> int:
         )
         clients = build_clients(inputs, admin_username, admin_password)
 
-        # Verify every precondition BEFORE any modification (Requirement 3.9).
+        # Verify every precondition BEFORE any modification.
         verify_preconditions(clients.db)
 
         # Create the CDC user, grant it, set retention, and publish its
@@ -676,7 +667,7 @@ def main() -> int:
         create_cdc_user(clients, inputs)
 
         # Non-secret success summary: the user name and the parameter name
-        # holding its credential — never a credential value (Requirement 3.13).
+        # holding its credential — never a credential value.
         print(
             "cdc-prepare-mariadb: prepared CDC user "
             f"{inputs.cdc_username!r}; credential resolved from parameters "

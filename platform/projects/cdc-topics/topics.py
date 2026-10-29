@@ -45,7 +45,8 @@ def read_inputs(env=None, project_dir=None):
 
     Returns a tuple of (bootstrap_servers, topics, security_protocol). Fails
     fast if a required input is missing or the security protocol is not one of
-    the two accepted values (Req 4.8; no default per design open-item 5).
+    the two accepted values. The protocol has no default on purpose: a wrong
+    guess against the other cluster shape fails late and obscurely.
 
     ``project_dir`` is where a relative ``PROPELLER_INPUT_topics_file`` is
     resolved against; defaults to this file's directory. Overridable so tests
@@ -117,7 +118,7 @@ def build_token_provider(region):
     """Build the AWS MSK IAM SASL/OAUTHBEARER token provider.
 
     The signer is imported here rather than at module load so a PLAINTEXT run
-    never requires ``aws-msk-iam-sasl-signer-python`` (Req 4.11). Isolated in
+    never requires ``aws-msk-iam-sasl-signer-python``. Isolated in
     its own function so tests can patch it without a real signer.
     """
     from aws_msk_iam_sasl_signer import MSKAuthTokenProvider
@@ -131,9 +132,9 @@ def build_token_provider(region):
 
 
 def build_admin_client(bootstrap_servers, security_protocol, region=None):
-    """Construct the KafkaAdminClient in one place (Req 4.8, 4.11).
+    """Construct the KafkaAdminClient in one place.
 
-    Isolated so task 1.29's tests can patch this single function to inject a
+    Isolated so the tests can patch this single function to inject a
     mock admin client. For SASL_SSL the client uses SASL/OAUTHBEARER backed by
     the AWS MSK IAM token provider; for PLAINTEXT it uses no SASL at all.
     """

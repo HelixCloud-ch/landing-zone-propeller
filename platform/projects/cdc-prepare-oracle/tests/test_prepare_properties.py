@@ -11,11 +11,11 @@ its FakeCursor/FakeDB and helper functions rather than duplicating them.
 
 Implements:
 
-* **Feature: debezium, Property 1: Prepare idempotency preserves the existing
+* **Prepare idempotency preserves the existing
   credential** — a re-run against an already-prepared database issues no
   CREATE USER, generates no password, and does not overwrite the password
   parameter.
-* **Feature: debezium, Property 2: Precondition failures make no
+* **Precondition failures make no
   modification** — any combination of {not ARCHIVELOG, minimal supplemental
   logging disabled, primary-key supplemental logging disabled} aborts with
   PreconditionError and performs no modification.
@@ -109,7 +109,7 @@ def _run_rerun(inputs, ssm):
 # =========================================================================== #
 # PROPERTY 2 — Precondition failures make no modification.                    #
 #                                                                             #
-# Feature: debezium, Property 2: For any combination of {database not in     #
+# For any combination of {database not in     #
 # ARCHIVELOG mode, minimal supplemental logging disabled, primary-key         #
 # supplemental logging disabled}, prepare.py aborts with the documented       #
 # error, exits non-zero, and performs NO database modification.              #
@@ -184,7 +184,7 @@ if HAVE_HYPOTHESIS:
     def test_property2_precondition_failures_make_no_modification(
         log_mode_v, supp_min_v, supp_pk_v
     ):
-        """Feature: debezium, Property 2: Precondition failures make no modification.
+        """Precondition failures make no modification.
 
         For any combination of {LOG_MODE != ARCHIVELOG,
         SUPPLEMENTAL_LOG_DATA_MIN != YES, SUPPLEMENTAL_LOG_DATA_PK != YES} with
@@ -199,7 +199,7 @@ if HAVE_HYPOTHESIS:
 else:  # pragma: no cover - exercised only without hypothesis
 
     def test_property2_precondition_failures_make_no_modification():
-        """Feature: debezium, Property 2: Precondition failures make no modification.
+        """Precondition failures make no modification.
 
         Seeded-loop fallback (Hypothesis unavailable): >=100 generated failing
         combinations of the three preconditions.
@@ -219,7 +219,7 @@ else:  # pragma: no cover - exercised only without hypothesis
 def test_property2_all_failing_combinations_exhaustive():
     """Exhaustive companion: every one of the 7 failing subsets makes no change.
 
-    Feature: debezium, Property 2. Complements the generated property run by
+    Complements the generated property run by
     covering the whole combination space once.
     """
     for combo in _FAILING_COMBINATIONS:
@@ -229,7 +229,7 @@ def test_property2_all_failing_combinations_exhaustive():
 # =========================================================================== #
 # PROPERTY 1 — Prepare idempotency preserves the existing credential.         #
 #                                                                             #
-# Feature: debezium, Property 1: For any already-prepared state (CDC user     #
+# For any already-prepared state (CDC user     #
 # exists), re-running create_cdc_user issues no CREATE USER, generates no     #
 # password, and does not overwrite/rotate the password parameter.             #
 # =========================================================================== #
@@ -282,7 +282,7 @@ if HAVE_HYPOTHESIS:
     def test_property1_idempotency_preserves_credential(
         username, credential_param, hours, kms
     ):
-        """Feature: debezium, Property 1: Prepare idempotency preserves the existing credential.
+        """Prepare idempotency preserves the existing credential.
 
         For any already-prepared state (user exists AND the credential
         parameter already holds a value), varying usernames (from Oracle's
@@ -296,7 +296,7 @@ if HAVE_HYPOTHESIS:
 else:  # pragma: no cover - exercised only without hypothesis
 
     def test_property1_idempotency_preserves_credential():
-        """Feature: debezium, Property 1: Prepare idempotency preserves the existing credential.
+        """Prepare idempotency preserves the existing credential.
 
         Seeded-loop fallback (Hypothesis unavailable): >=100 generated
         already-prepared input sets, each asserting the no-rotation

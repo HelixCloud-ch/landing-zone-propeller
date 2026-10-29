@@ -7,7 +7,7 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 # — nothing about the host, user, parameter names, account or region is
 # hardcoded.
 #
-# Phase 2 — unverified against real infrastructure. See README.md and
+# Unverified against real infrastructure. See README.md and
 # docs/cdc-deployment-verification.md before any production use.
 
 _dir := justfile_directory()

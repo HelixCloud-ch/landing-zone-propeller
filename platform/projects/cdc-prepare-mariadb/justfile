@@ -34,7 +34,7 @@ apply:
     python3 prepare.py
 
 # destroy: deliberate NO-OP. Dropping the CDC_User is irreversible and is not
-# the deployment's decision to make (Requirements 3.14, 3.15).
+# the deployment's decision to make.
 destroy:
     @echo "cdc-prepare-mariadb destroy: no-op by design."
     @echo "  The CDC user is NOT dropped: dropping it is irreversible and is an"
