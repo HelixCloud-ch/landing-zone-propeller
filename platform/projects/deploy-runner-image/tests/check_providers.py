@@ -1,16 +1,22 @@
 """Check that the baked provider mirror satisfies every framework project.
 
 Runs inside the deploy-runner image container with the repo mounted at /repo.
-Exits 0 if all constraints are satisfied, 1 if any are missing.
+The provider versions come from the image's own manifest
+(terraform_providers.<key>.resolved.version). Exits 0 if every constraint in a
+framework versions.tf is satisfied, 1 if not.
+
+Constraints supported: `~> X.Y[.Z]`, `>= X.Y[.Z]`, and exact versions. A
+compound constraint (with a comma) is reported as unsupported.
 """
 
 import glob
-import os
+import json
 import re
 import sys
 
-MIRROR = "/opt/tf-providers/registry.terraform.io"
-DEFERRED = {"terraform-redhat/rhcs", "hetznercloud/hcloud"}
+MANIFEST = "/etc/propeller/image.json"
+# Providers that framework projects use but the mirror does not carry.
+NOT_MIRRORED = {"terraform-redhat/rhcs"}
 
 
 def parse_version(v: str) -> tuple[int, ...]:
@@ -19,81 +25,60 @@ def parse_version(v: str) -> tuple[int, ...]:
 
 def satisfies(ver_str: str, constraint: str) -> bool:
     """Check if ver_str satisfies a terraform version constraint."""
-    constraint = constraint.strip().strip('"')
+    constraint = constraint.strip()
     ver = parse_version(ver_str)
     if constraint.startswith("~>"):
-        parts = constraint[2:].strip().split(".")
-        lower = tuple(int(x) for x in parts)
-        while len(lower) < len(ver):
-            lower = lower + (0,)
-        upper_parts = [int(x) for x in parts]
-        if len(upper_parts) == 1:
-            upper = (upper_parts[0] + 1,)
-        else:
-            upper_parts[-2] += 1
-            upper_parts[-1] = 0
-            upper = tuple(upper_parts)
-        while len(upper) < len(ver):
-            upper = upper + (0,)
+        parts = [int(x) for x in constraint[2:].strip().split(".")]
+        lower = tuple(parts)
+        # ~> X.Y allows X.*; ~> X.Y.Z allows X.Y.*.
+        upper = (parts[0] + 1,) if len(parts) == 1 else (*parts[:-2], parts[-2] + 1)
         return lower <= ver < upper
-    elif constraint.startswith(">="):
-        lower = parse_version(constraint[2:].strip())
-        return ver >= lower
-    else:
-        return ver == parse_version(constraint)
+    if constraint.startswith(">="):
+        return ver >= parse_version(constraint[2:].strip())
+    return ver == parse_version(constraint)
 
 
-def mirror_versions(ns: str, name: str) -> list[str]:
-    """List versions available in the mirror for a provider."""
-    path = os.path.join(MIRROR, ns, name)
-    if not os.path.isdir(path):
-        return []
-    versions: set[str] = set()
-    for entry in os.listdir(path):
-        full = os.path.join(path, entry)
-        if os.path.isdir(full):
-            versions.add(entry)
-        elif entry.endswith(".zip"):
-            # terraform-provider-<name>_<ver>_<os>_<arch>.zip
-            parts = entry.rsplit("_", 2)
-            if len(parts) >= 2:
-                name_ver = parts[0]
-                ver_part = name_ver.rsplit("_", 1)
-                if len(ver_part) == 2:
-                    versions.add(ver_part[1])
-    return list(versions)
+def mirrored_versions() -> dict[str, list[str]]:
+    """Map provider source to the versions the image mirrors."""
+    with open(MANIFEST) as f:
+        providers = json.load(f)["terraform_providers"]
+    versions: dict[str, list[str]] = {}
+    for entry in providers.values():
+        if entry["enabled"]:
+            versions.setdefault(entry["source"], []).append(entry["resolved"]["version"])
+    return versions
 
 
 def main() -> int:
+    mirrored = mirrored_versions()
     rc = 0
-    vtfs = sorted(
+    files = sorted(
         glob.glob("/repo/platform/projects/*/terraform/versions.tf")
         + glob.glob("/repo/platform/shared/modules/*/versions.tf")
         + glob.glob("/repo/landing-zone/projects/*/terraform/versions.tf")
         + glob.glob("/repo/autopilot/terraform/versions.tf")
     )
-    for vtf in vtfs:
-        proj = vtf.removeprefix("/repo/")
-        with open(vtf) as f:
-            content = f.read()
+    for path in files:
+        project = path.removeprefix("/repo/")
+        content = open(path).read()
         for m in re.finditer(r'source\s*=\s*"([^"]+)"', content):
-            src = m.group(1)
-            if src in DEFERRED:
-                print(f"  skip ({src}): {proj}")
+            source = m.group(1)
+            if source in NOT_MIRRORED:
+                print(f"  skip ({source}): {project}")
                 continue
-            after = content[m.end():]
-            vm = re.search(r'version\s*=\s*"([^"]+)"', after[:200])
+            vm = re.search(r'version\s*=\s*"([^"]+)"', content[m.end():][:200])
             if not vm:
                 continue
             constraint = vm.group(1)
-            ns, name = src.split("/", 1)
-            versions = mirror_versions(ns, name)
+            if "," in constraint:
+                print(f"  FAIL: {project} ({source} {constraint}): compound constraints are not supported")
+                rc = 1
+                continue
+            versions = mirrored.get(source, [])
             if any(satisfies(v, constraint) for v in versions):
-                print(f"  ok:   {proj} ({src} {constraint})")
+                print(f"  ok:   {project} ({source} {constraint})")
             else:
-                print(
-                    f"  FAIL: {proj} ({src} {constraint} not satisfied by mirror: {versions})"
-                )
+                print(f"  FAIL: {project} ({source} {constraint} not satisfied by mirror: {versions})")
                 rc = 1
     return rc
 

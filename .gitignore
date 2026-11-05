@@ -452,6 +452,8 @@ $RECYCLE.BIN/
 
 ### Propeller ###
 .propeller-outputs.json
+# deploy-runner image build input (renderer/render.py stage)
+platform/projects/deploy-runner-image/.build/
 
 .terraform.lock.hcl
 

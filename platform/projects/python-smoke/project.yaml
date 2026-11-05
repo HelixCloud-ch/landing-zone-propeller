@@ -1,0 +1,12 @@
+name: python-smoke
+description: >-
+  Test project for python envs. Runs main.py in the python-smoke env
+  through the py-run recipe and publishes the Python and PyYAML versions as
+  outputs. On the deploy-runner image it needs the python-smoke env in the
+  image (see the project README).
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just

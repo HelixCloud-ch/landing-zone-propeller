@@ -1,0 +1,11 @@
+# Overrides used by tests/test.sh. Exercises the consumer path: add a
+# python env and a script on top of the framework manifest.
+version: "1"
+
+python_envs:
+  python-smoke:
+    path: ../../../shared/python/python-smoke
+
+scripts:
+  zz-test-marker:
+    path: test-marker.sh
