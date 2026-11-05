@@ -1,144 +1,65 @@
 # syntax=docker/dockerfile:1
 #
-# deploy-runner image: lean Amazon Linux 2023 base with the tools a propeller
-# deploy needs, with an offline terraform provider mirror.
+# deploy-runner image. This file is generic: everything the image contains
+# comes from the rendered manifest, .build/image.json, written by
+# `renderer/render.py stage` from image.yaml + image.overrides.yaml.
 #
-# Supports amd64 and arm64.
-# Tools: bash, terraform, just, aws-cli, jq, python3, git, kubectl, helm.
-ARG BASE_IMAGE=public.ecr.aws/amazonlinux/amazonlinux:2023
+# Install order follows the manifest sections: packages, binaries,
+# terraform_providers, python_envs, scripts. Each has one step in steps/.
+#
+# BASE_IMAGE should be pinned by digest (image@sha256:...), so both stages use
+# the same base. BASE_DIGEST is recorded in the image's manifest.
 
-# =============================================================================
-# -- fetch stage: download and checksum-verify tool binaries ------------------
-# =============================================================================
+ARG BASE_IMAGE
+ARG BASE_DIGEST=""
 
+# ── fetch: download and verify binaries ─────────────────────────────────────
 FROM ${BASE_IMAGE} AS fetch
-
-ARG TARGETARCH
-ARG TERRAFORM_VERSION JUST_VERSION KUBECTL_VERSION HELM_VERSION
-SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
-
-RUN dnf install -y --setopt=install_weak_deps=False tar gzip unzip && dnf clean all
-
-WORKDIR /tmp/fetch
-
-RUN <<'EOF'
-set -euo pipefail
-mkdir -p /out
-
-case "$TARGETARCH" in
-  amd64) tf_arch=amd64; just_arch=x86_64; kube_arch=amd64; helm_arch=amd64 ;;
-  arm64) tf_arch=arm64; just_arch=aarch64; kube_arch=arm64; helm_arch=arm64 ;;
-  *) echo "unsupported arch: $TARGETARCH"; exit 1 ;;
-esac
-
-check_sha() { echo "$1  $2" | sha256sum -c -; }
-hash_for() { grep "$1" "$2" | awk '{print $1}'; }
-
-# terraform
-curl -fsSL -o tf.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${tf_arch}.zip"
-curl -fsSL -o tf.sums "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS"
-check_sha "$(hash_for "linux_${tf_arch}.zip$" tf.sums)" tf.zip
-unzip -o tf.zip terraform -d /out
-
-# just
-curl -fsSL -o just.tgz "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-${just_arch}-unknown-linux-musl.tar.gz"
-curl -fsSL -o just.sums "https://github.com/casey/just/releases/download/${JUST_VERSION}/SHA256SUMS"
-check_sha "$(hash_for "${just_arch}-unknown-linux-musl.tar.gz$" just.sums)" just.tgz
-tar -xzf just.tgz -C /out just
-
-# kubectl
-curl -fsSL -o /out/kubectl "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${kube_arch}/kubectl"
-curl -fsSL -o kubectl.sha "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${kube_arch}/kubectl.sha256"
-check_sha "$(cat kubectl.sha)" /out/kubectl
-chmod +x /out/kubectl
-
-# helm
-curl -fsSL -o helm.tgz "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${helm_arch}.tar.gz"
-curl -fsSL -o helm.sha "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${helm_arch}.tar.gz.sha256sum"
-check_sha "$(hash_for "helm-v${HELM_VERSION}-linux-${helm_arch}.tar.gz$" helm.sha)" helm.tgz
-tar -xzf helm.tgz --strip-components=1 -C /out "linux-${helm_arch}/helm"
-EOF
-
-# =============================================================================
-# -- final stage: runtime with tools + provider mirror ------------------------
-# =============================================================================
-
-FROM ${BASE_IMAGE}
-
 ARG TARGETARCH
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+RUN dnf install -y --setopt=install_weak_deps=False jq tar gzip unzip && dnf clean all
+RUN --mount=type=bind,source=.build/image.json,target=/tmp/image.json \
+    --mount=type=bind,source=steps,target=/tmp/steps \
+    bash /tmp/steps/binaries.sh /tmp/image.json "$TARGETARCH" /out
 
-RUN dnf install -y --setopt=install_weak_deps=False \
-      git jq python3.14 python3.14-pip tar gzip unzip ca-certificates awscli findutils which \
- && pip3.14 install --no-cache-dir boto3 botocore \
- && ln -sf /usr/bin/python3.14 /usr/local/bin/python3 \
- && ln -sf /usr/bin/python3.14 /usr/local/bin/python \
- && ln -sf /usr/bin/pip3.14 /usr/local/bin/pip3 \
- && ln -sf /usr/bin/pip3.14 /usr/local/bin/pip \
- && dnf clean all && rm -rf /var/cache/dnf
+# ── final: the runner image (build with --target final) ─────────────────────
+FROM ${BASE_IMAGE} AS final
+ARG TARGETARCH
+ARG BASE_DIGEST
+ARG PROPELLER_VERSION=dev
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
-COPY --from=fetch /out/terraform /out/just /out/kubectl /out/helm /usr/local/bin/
+# The image describes itself: steps add build facts to this file.
+COPY .build/image.json /etc/propeller/image.json
 
-# Provider mirror: terraform init resolves from here with no network access.
-# providers.txt is the framework baseline (never overlaid by consumers).
-# providers.extra.txt is the consumer-additive overlay (optional); it is placed
-# here by the overlay mechanism at build time if the consumer defines one.
-COPY providers.txt /tmp/providers.txt
-COPY providers.extra.txt* /tmp/
-RUN <<'EOF'
-set -euo pipefail
-mkdir -p /opt/tf-providers
-tf_platform="linux_${TARGETARCH}"
+RUN --mount=type=bind,source=steps,target=/tmp/steps \
+    bash /tmp/steps/packages.sh /etc/propeller/image.json
 
-mirror_providers() {
-  local file="$1"
-  [ -f "$file" ] || return 0
-  while read -r src ver; do
-    [ -z "${src:-}" ] && continue
-    case "$src" in \#*) continue ;; esac
+COPY --from=fetch /out/bin/ /usr/local/bin/
 
-    name="${src##*/}"
-    conf="$(mktemp -d)/main.tf"
-    cat > "$conf" <<HCL
-terraform {
-  required_providers {
-    $name = { source = "$src", version = "$ver" }
-  }
-}
-HCL
-    ( cd "$(dirname "$conf")" && terraform providers mirror -platform="$tf_platform" /opt/tf-providers )
-    rm -rf "$(dirname "$conf")"
-  done < "$file"
-}
-
-mirror_providers /tmp/providers.txt
-mirror_providers /tmp/providers.extra.txt
-rm -f /tmp/providers.txt /tmp/providers.extra.txt
-EOF
-
-RUN <<'EOF'
-cat > /etc/terraformrc <<HCL
-provider_installation {
-  filesystem_mirror {
-    path    = "/opt/tf-providers"
-    include = ["*/*"]
-  }
-}
-HCL
-EOF
+RUN --mount=type=bind,source=steps,target=/tmp/steps \
+    bash /tmp/steps/providers.sh /etc/propeller/image.json "$TARGETARCH"
 ENV TF_CLI_CONFIG_FILE=/etc/terraformrc
+
+# Envs use the image's interpreters only; never download one.
+ENV UV_PYTHON_DOWNLOADS=never
+RUN --mount=type=bind,source=steps,target=/tmp/steps \
+    --mount=type=bind,source=.build/python,target=/tmp/python \
+    bash /tmp/steps/python.sh /etc/propeller/image.json /tmp/python
+
+RUN --mount=type=bind,source=steps,target=/tmp/steps \
+    --mount=type=bind,source=.build/scripts,target=/tmp/scripts \
+    bash /tmp/steps/scripts.sh /etc/propeller/image.json /tmp/scripts
+
+RUN --mount=type=bind,source=steps,target=/tmp/steps \
+    --mount=type=bind,from=fetch,source=/out/resolved.json,target=/tmp/fetch-resolved.json \
+    bash /tmp/steps/finalize.sh /etc/propeller/image.json \
+      "$PROPELLER_VERSION" "$TARGETARCH" "$BASE_DIGEST" /tmp/fetch-resolved.json
 
 ENTRYPOINT []
 CMD ["/bin/bash"]
 
-RUN terraform version \
- && just --version \
- && kubectl version --client \
- && helm version --short \
- && aws --version \
- && git --version \
- && jq --version \
- && python3 --version \
- && python --version \
- && pip3 --version \
- && python3 -c "import boto3, botocore; print(boto3.__version__, botocore.__version__)"
+# ── manifest: the final image's manifest, for `--output type=local` ─────────
+# apply exports it after the push, to store what the image contains.
+FROM scratch AS manifest
+COPY --from=final /etc/propeller/image.json /image.json

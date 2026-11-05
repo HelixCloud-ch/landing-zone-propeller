@@ -1,0 +1,97 @@
+# deploy-runner image manifest (framework baseline).
+#
+# Components are grouped by kind, one section per kind, in install order.
+# Consumers change them in image.overrides.yaml (overlay), merged by section
+# and key. Never edit this file for consumer needs. Reference: README.md.
+
+version: "1"
+
+base:
+  image: public.ecr.aws/amazonlinux/amazonlinux:2023
+
+# dnf packages. The key is the package name. Versions come from the base image
+# release; the build records the installed version.
+packages:
+  awscli: { required: true }
+  ca-certificates: { required: true }
+  jq: { required: true }
+  python3.14: { required: true }
+  findutils: {}
+  git: {}
+  gzip: {}
+  python3.14-pip: {}
+  tar: {}
+  unzip: {}
+  which: {}
+
+# Files in /usr/local/bin/<key>. Exact version, checked against the upstream
+# checksum file. `check` runs in the final image before push.
+binaries:
+  terraform:
+    required: true
+    version: "1.15.8"
+    check: terraform version
+    url: https://releases.hashicorp.com/terraform/{version}/terraform_{version}_linux_{arch}.zip
+    checksum_url: https://releases.hashicorp.com/terraform/{version}/terraform_{version}_SHA256SUMS
+    extract: terraform
+  just:
+    required: true
+    version: "1.58.0"
+    check: just --version
+    url: https://github.com/casey/just/releases/download/{version}/just-{version}-{arch}-unknown-linux-musl.tar.gz
+    checksum_url: https://github.com/casey/just/releases/download/{version}/SHA256SUMS
+    arch: { amd64: x86_64, arm64: aarch64 }
+    extract: just
+  uv:
+    required: true
+    version: "0.10.9"
+    check: uv --version
+    url: https://github.com/astral-sh/uv/releases/download/{version}/uv-{arch}-unknown-linux-musl.tar.gz
+    checksum_url: https://github.com/astral-sh/uv/releases/download/{version}/uv-{arch}-unknown-linux-musl.tar.gz.sha256
+    arch: { amd64: x86_64, arm64: aarch64 }
+    extract: uv-{arch}-unknown-linux-musl/uv
+  kubectl:
+    version: "1.36.3"
+    check: kubectl version --client
+    url: https://dl.k8s.io/release/v{version}/bin/linux/{arch}/kubectl
+    checksum_url: https://dl.k8s.io/release/v{version}/bin/linux/{arch}/kubectl.sha256
+  helm:
+    version: "4.2.3"
+    check: helm version --short
+    url: https://get.helm.sh/helm-v{version}-linux-{arch}.tar.gz
+    checksum_url: https://get.helm.sh/helm-v{version}-linux-{arch}.tar.gz.sha256sum
+    extract: linux-{arch}/helm
+
+# Offline provider mirror. Constraints resolve at build; the build records the
+# selected version.
+terraform_providers:
+  aws:
+    required: true
+    source: hashicorp/aws
+    version: "~> 6.49.0"
+  random:
+    source: hashicorp/random
+    version: "~> 3.9.0"
+  external:
+    source: hashicorp/external
+    version: "~> 2.4.0"
+  tls:
+    source: hashicorp/tls
+    version: "~> 4.3.0"
+  helm:
+    source: hashicorp/helm
+    version: "~> 3.2.0"
+  kubernetes:
+    source: hashicorp/kubernetes
+    version: "~> 3.2.1"
+  archive:
+    source: hashicorp/archive
+    version: "~> 2.8.0"
+
+# uv venvs in /opt/propeller/python/<key>. None in the framework baseline.
+python_envs: {}
+
+# Executable files, run last, as root, with network access.
+scripts:
+  system-python:
+    path: scripts/system-python.sh

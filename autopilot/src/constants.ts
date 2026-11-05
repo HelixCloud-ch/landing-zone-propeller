@@ -30,8 +30,8 @@ export const TERMINAL_BUILD_STATUSES: Set<string> = new Set([
 ]);
 
 /** Default buildspec used by CodeBuild for running project deploys. */
-// Tool version defaults below (TF_VERSION, JUST_VERSION) must stay in sync with
-// platform/projects/deploy-runner-image/versions.env — CI enforces this.
+// Tool version defaults below (TF_VERSION, JUST_VERSION, UV_VERSION) must stay in
+// sync with platform/projects/deploy-runner-image/image.yaml — CI enforces this.
 // On a baked image every `command -v` guard short-circuits and these are unused;
 // they only apply on a standard:6.0 fallback (no image_repo configured).
 export const BUILDSPEC = `version: 0.2
@@ -45,6 +45,7 @@ env:
     AWS_REGION: ""
     TF_VERSION: "1.15.8"
     JUST_VERSION: "1.58.0"
+    UV_VERSION: "0.10.9"
     PROPELLER_OUTPUTS_JSON: "{}"
     PROPELLER_FRAMEWORK_TAGS_JSON: "{}"
     PROPELLER_CONSUMER_TAGS_JSON: "{}"
@@ -62,6 +63,7 @@ phases:
       # and an offline/private VPC with no egress) does no downloads.
       - command -v terraform >/dev/null || { curl -fsSL "https://releases.hashicorp.com/terraform/\${TF_VERSION}/terraform_\${TF_VERSION}_linux_amd64.zip" -o /tmp/tf.zip && unzip -o /tmp/tf.zip -d /usr/local/bin/; }
       - command -v just >/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --tag \${JUST_VERSION} --to /usr/local/bin
+      - command -v uv >/dev/null || curl --proto '=https' --tlsv1.2 -LsSf "https://astral.sh/uv/\${UV_VERSION}/install.sh" | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
 
   build:
     commands:

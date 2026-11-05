@@ -1,0 +1,13 @@
+# python-smoke: runs a script in the python-smoke env through py-run and
+# publishes what it found as outputs. No state, nothing to destroy.
+import "../../../shared/recipes/python.just"
+
+_env := "../../shared/python/python-smoke"
+
+plan:
+    @echo "python-smoke plan: would run main.py in env {{ _env }}"
+
+apply: (py-run _env "python" "main.py")
+
+destroy:
+    @echo "python-smoke destroy: no-op"
