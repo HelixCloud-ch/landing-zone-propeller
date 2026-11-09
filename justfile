@@ -55,10 +55,12 @@ test-autopilot: (section "autopilot: vitest + tsc")
     "${pm[@]}" test
     "${pm[@]}" run typecheck
 
-# Shell recipes: value flow (aggregator, _propeller-vars) and consumer `wait`
-test-recipes: (section "recipes: value flow + wait")
+# Shell recipes: value flow (aggregator, _propeller-vars), consumer `wait`, and
+# py-run without a baked env (needs internet access)
+test-recipes: (section "recipes: value flow + wait + py-run")
     @./shared/recipes/tests/value-flow.sh
     @./consumer/tests/wait.sh
+    @./shared/recipes/tests/py-run.sh
 
 # Build and verify the deploy-runner image. Heavy (docker + buildx + egress,
 # ~minutes), so it's not part of `test`; run it explicitly or via `test-all`.
@@ -81,9 +83,17 @@ image-size:
     docker run --rm --entrypoint sh "$img" -c 'du -sh /opt/tf-providers/*/*/* 2>/dev/null | sort -rh'
     echo
     echo "== tools =="
-    docker run --rm --entrypoint sh "$img" -c 'du -sh /usr/local/aws-cli /usr/local/bin/terraform /usr/local/bin/helm /usr/local/bin/kubectl /usr/local/bin/just 2>/dev/null | sort -rh'
+    docker run --rm --entrypoint sh "$img" -c 'du -sh /usr/local/aws-cli /usr/local/bin/* 2>/dev/null | sort -rh'
+    echo
+    echo "== python envs =="
+    docker run --rm --entrypoint sh "$img" -c 'du -sh /opt/propeller/python/* 2>/dev/null | sort -rh'
 
-# Check tool version sync between versions.env and the buildspec in constants.ts
+# Image manifest renderer unit tests (pytest), plus the framework manifest itself
+test-image-manifest: (section "deploy-runner image: manifest renderer")
+    @cd platform/projects/deploy-runner-image/renderer && uv run --frozen pytest -q --tb=short -p no:cacheprovider
+    @cd platform/projects/deploy-runner-image && uv run --quiet --project renderer --frozen --no-dev python renderer/render.py show >/dev/null
+
+# Check tool version sync between image.yaml and the buildspec in constants.ts
 check-versions-sync:
     @./platform/projects/deploy-runner-image/tests/check_versions_sync.sh
 
