@@ -1,0 +1,19 @@
+# Python env for the CDC projects (cdc-prepare-mariadb, cdc-prepare-oracle,
+# cdc-topics). Bake it into the deploy-runner image with python_envs.cdc; the
+# projects run through py-run.
+[project]
+name = "cdc"
+version = "0"
+requires-python = ">=3.14"
+dependencies = [
+  "boto3==1.43.123",
+  "kafka-python==3.0.12",
+  "oracledb==26.1.0",
+  "pymysql==1.2.3",
+]
+
+[dependency-groups]
+dev = ["pytest==8.4.2"]
+
+[tool.uv]
+package = false
