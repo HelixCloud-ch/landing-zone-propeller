@@ -87,8 +87,41 @@ image-size:
 check-versions-sync:
     @./platform/projects/deploy-runner-image/tests/check_versions_sync.sh
 
+# The CDC tests run in their own venv on a uv-managed Python, both in dist/
+# (gitignored, removed by `just clean`). A Python installed on the machine,
+# for example an old 3.14 pre-release, is never used.
+_cdc_uv := "env UV_PYTHON_PREFERENCE=only-managed UV_PYTHON_INSTALL_DIR=" + justfile_directory() + "/dist/test-python UV_PROJECT_ENVIRONMENT=" + justfile_directory() + "/dist/cdc-venv uv run --quiet --project platform/shared/python/cdc"
+
+# CDC Python projects (pytest in the shared cdc env). One run per project:
+# each has its own prepare/topics module.
+test-cdc: (section "cdc: pytest")
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for p in cdc-prepare-mariadb cdc-prepare-oracle cdc-topics; do
+      {{ _cdc_uv }} pytest -q -p no:cacheprovider "platform/projects/$p"
+    done
+
+_cdc_compose := "docker compose -f platform/shared/python/cdc/tests/compose.yaml"
+
+# Start MariaDB, Oracle and Kafka for the CDC integration tests. Oracle takes
+# about a minute on the first start. They keep running until `just cdc-down`.
+cdc-up:
+    {{ _cdc_compose }} up -d --wait
+
+# Stop the CDC integration services and delete their data
+cdc-down:
+    {{ _cdc_compose }} down -v
+
+# CDC scripts against real MariaDB, Oracle and Kafka (needs Docker). Starts the
+# services, runs the tests, stops the services.
+test-cdc-integration: (section "cdc: integration") cdc-up
+    #!/usr/bin/env bash
+    set -euo pipefail
+    trap 'just cdc-down' EXIT
+    {{ _cdc_uv }} pytest -q -p no:cacheprovider platform/shared/python/cdc/tests
+
 # Fast tests: pipeline resolve/validate + engine + autopilot (no docker)
-test: resolve validate test-engine test-autopilot test-recipes check-versions-sync
+test: resolve validate test-engine test-autopilot test-recipes check-versions-sync test-cdc
     @printf '\n{{ _ok }}  %-60s  {{ _reset }}\n' 'PASS: all checks passed'
 
 # Everything, including the heavy image build/verify
