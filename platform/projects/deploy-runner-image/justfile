@@ -106,8 +106,12 @@ _ensure-uv:
     command -v uv >/dev/null && exit 0
     version="${UV_VERSION:-{{ _uv_version }}}"
     echo "installing uv ${version}"
-    curl --proto '=https' --tlsv1.2 -LsSf "https://astral.sh/uv/${version}/install.sh" \
-      | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
+    # Saved to a file first: piped into sh, a failed download would install nothing.
+    installer="$(mktemp)"
+    curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 -fsSL \
+      "https://astral.sh/uv/${version}/install.sh" -o "$installer"
+    env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh "$installer"
+    rm -f "$installer"
 
 # Download the last applied manifest to PATH. A missing object is normal
 # (first apply); any other S3 error stops the recipe. Outside a deploy (no AWS

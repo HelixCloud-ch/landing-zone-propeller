@@ -60,10 +60,12 @@ phases:
   install:
     commands:
       # Each install is guarded so a baked image (with the tools already present,
-      # and an offline/private VPC with no egress) does no downloads.
-      - command -v terraform >/dev/null || { curl -fsSL "https://releases.hashicorp.com/terraform/\${TF_VERSION}/terraform_\${TF_VERSION}_linux_amd64.zip" -o /tmp/tf.zip && unzip -o /tmp/tf.zip -d /usr/local/bin/; }
-      - command -v just >/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --tag \${JUST_VERSION} --to /usr/local/bin
-      - command -v uv >/dev/null || curl --proto '=https' --tlsv1.2 -LsSf "https://astral.sh/uv/\${UV_VERSION}/install.sh" | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
+      # and an offline/private VPC with no egress) does no downloads. Downloads
+      # retry transient errors, and installers are saved to a file first: piped
+      # into sh, a failed download would install nothing and still succeed.
+      - command -v terraform >/dev/null || { curl --retry 3 --retry-delay 2 -fsSL "https://releases.hashicorp.com/terraform/\${TF_VERSION}/terraform_\${TF_VERSION}_linux_amd64.zip" -o /tmp/tf.zip && unzip -o /tmp/tf.zip -d /usr/local/bin/; }
+      - command -v just >/dev/null || { curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 -fsSL https://just.systems/install.sh -o /tmp/just-install.sh && bash /tmp/just-install.sh --tag \${JUST_VERSION} --to /usr/local/bin; }
+      - command -v uv >/dev/null || { curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 -fsSL "https://astral.sh/uv/\${UV_VERSION}/install.sh" -o /tmp/uv-install.sh && env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh /tmp/uv-install.sh; }
 
   build:
     commands:

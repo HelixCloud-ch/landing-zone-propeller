@@ -11,6 +11,12 @@ mkdir -p "$out/bin"
 work="$(mktemp -d)"
 resolved='{}'
 
+# fetch URL FILE: https only (also on redirects), fail on HTTP errors, retry
+# transient errors (timeouts, 408, 429, 5xx).
+fetch() {
+  curl --proto "=https" --proto-redir "=https" --retry 3 --retry-delay 2 -fsSL -o "$2" "$1"
+}
+
 # checksum_for FILE SUMS: the hash for FILE in a checksum file. Handles the two
 # upstream formats: "<hash>  <file>" lines (also "*<file>"), or a bare hash.
 checksum_for() {
@@ -31,8 +37,8 @@ for key in $keys; do
   extract="$(jq -r '.extract // empty' <<<"$artifact")"
 
   echo "binary $key: $url"
-  curl --proto "=https" --proto-redir "=https" -fsSL -o "$work/$file" "$url"
-  curl --proto "=https" --proto-redir "=https" -fsSL -o "$work/$file.sums" "$checksum_url"
+  fetch "$url" "$work/$file"
+  fetch "$checksum_url" "$work/$file.sums"
   expected="$(checksum_for "$file" "$work/$file.sums")"
   if [[ -z "$expected" ]]; then
     echo "binary $key: no checksum for $file in $checksum_url" >&2
