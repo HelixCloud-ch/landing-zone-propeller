@@ -1,0 +1,11 @@
+name: msk-connect-plugin
+description: >-
+  Registers Debezium connector artifacts as MSK Connect custom plugins, one per
+  flavour, with the version encoded in the plugin name and the S3 object version
+  pinned. Publishes the plugin ARNs for the connector project to consume.
+
+metadata:
+  cost-center: platform
+
+deploy:
+  type: just

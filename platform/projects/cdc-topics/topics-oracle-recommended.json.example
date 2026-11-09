@@ -1,0 +1,26 @@
+[
+  {
+    "name": "schema-history.oracle.ORCLPDB1",
+    "partitions": 1,
+    "configs": {
+      "cleanup.policy": "delete",
+      "retention.ms": "-1",
+      "retention.bytes": "-1"
+    }
+  },
+  {
+    "name": "connect-offsets",
+    "partitions": 25,
+    "configs": { "cleanup.policy": "compact" }
+  },
+  {
+    "name": "connect-configs",
+    "partitions": 1,
+    "configs": { "cleanup.policy": "compact" }
+  },
+  {
+    "name": "connect-status",
+    "partitions": 5,
+    "configs": { "cleanup.policy": "compact" }
+  }
+]

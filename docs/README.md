@@ -37,6 +37,8 @@ Schemas, conventions, and lookups.
 - [Examples](examples/) - working reference projects to copy as starting
   points.
 - [Glossary](glossary.md) - terminology used throughout.
+- [CDC deployment verification](cdc-deployment-verification.md) - first-deploy
+  checklist for the Debezium CDC projects.
 
 ## Internals
 

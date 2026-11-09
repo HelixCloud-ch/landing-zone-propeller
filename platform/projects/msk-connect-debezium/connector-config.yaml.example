@@ -1,0 +1,21 @@
+# Example connector configuration file (placeholders only).
+#
+# Copy it into an overlay as e.g. connector-config.yaml and set
+#   connector_config_file = "connector-config.yaml"
+# The path is relative to the project directory. JSON works too.
+#
+# Use this file OR connector_config_overrides, not both. If both are set they
+# are merged (file first, inline map on top) and the plan shows a warning.
+#
+# - Must be a flat map of scalar values. An empty file is invalid: write {}.
+# - Quote values that must stay verbatim: unquoted yes/on become "true",
+#   1.50 becomes "1.5", leading zeros are dropped (0123 becomes "123").
+# - A null value (~) removes the key, e.g. a module default.
+# - Kafka Connect placeholders are written as is: no $${} escaping in files.
+
+snapshot.mode: recovery
+max.batch.size: 1024
+include.schema.changes: ~
+transforms: outbox
+transforms.outbox.type: io.debezium.transforms.outbox.EventRouter
+transforms.outbox.route.topic.replacement: "<prefix>.v1.${routedByValue}"
