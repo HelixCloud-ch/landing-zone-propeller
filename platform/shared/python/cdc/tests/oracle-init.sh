@@ -3,7 +3,7 @@
 # - ARCHIVELOG and supplemental logging (RDS: backup retention, alter_supplemental_logging);
 # - an ADMIN user in FREEPDB1 (RDS: the master user, not SYS);
 # - a stub rdsadmin.rdsadmin_util: grant_sys_object runs a plain GRANT,
-#   set_configuration does nothing.
+#   set_configuration and alter_supplemental_logging do nothing.
 # Runs once, on the first start of the container.
 set -euo pipefail
 
@@ -40,6 +40,7 @@ END;
 CREATE OR REPLACE PACKAGE rdsadmin.rdsadmin_util AS
   PROCEDURE grant_sys_object(p_obj_name VARCHAR2, p_grantee VARCHAR2, p_privilege VARCHAR2);
   PROCEDURE set_configuration(name VARCHAR2, value VARCHAR2);
+  PROCEDURE alter_supplemental_logging(p_action VARCHAR2, p_type VARCHAR2 DEFAULT NULL);
 END;
 /
 CREATE OR REPLACE PACKAGE BODY rdsadmin.rdsadmin_util AS
@@ -48,6 +49,11 @@ CREATE OR REPLACE PACKAGE BODY rdsadmin.rdsadmin_util AS
     EXECUTE IMMEDIATE 'GRANT ' || p_privilege || ' ON SYS.' || p_obj_name || ' TO ' || p_grantee;
   END;
   PROCEDURE set_configuration(name VARCHAR2, value VARCHAR2) IS
+  BEGIN
+    NULL;
+  END;
+  -- Supplemental logging is turned on above, at the CDB level.
+  PROCEDURE alter_supplemental_logging(p_action VARCHAR2, p_type VARCHAR2 DEFAULT NULL) IS
   BEGIN
     NULL;
   END;

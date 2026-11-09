@@ -38,7 +38,8 @@ on the machine is not used: a Python 3.14 pre-release crashes when it loads
   `oracle-init.sh` makes it look like RDS for Oracle: ARCHIVELOG and
   supplemental logging on, an `ADMIN` user in the PDB (like the RDS master
   user), and a stand-in `rdsadmin.rdsadmin_util`. Its `grant_sys_object` runs
-  a plain `GRANT`, and `set_configuration` does nothing.
+  a plain `GRANT`; `set_configuration` and `alter_supplemental_logging` do
+  nothing.
 - Kafka 4.1 on port 9092, one node, `PLAINTEXT`.
 
 ## Tests

@@ -5,7 +5,9 @@ Idempotent. Every run:
 
 1. Reads the inputs (PROPELLER_INPUT_*) and the admin credential from the SSM
    parameter named by `admin_credential_parameter`.
-2. Verifies the LogMiner preconditions. It changes nothing if one fails.
+2. If `enable_supplemental_logging` is true, turns on the supplemental logging
+   that is missing (minimal and primary key). Then verifies the LogMiner
+   preconditions. It changes nothing else if one fails.
 3. Resolves the CDC credential from two SecureString parameters, one for the
    username and one for the password. An existing parameter is the source of
    truth and is never overwritten. A missing one is created: the username from
@@ -99,6 +101,13 @@ def _env(name: str, default: str | None = None) -> str:
     return default
 
 
+def _env_bool(name: str) -> bool:
+    raw = _env(name, "false").lower()
+    if raw not in ("true", "false"):
+        raise InputError(f"input {PREFIX}{name} must be true or false, got {raw!r}")
+    return raw == "true"
+
+
 def _env_int(name: str, default: str | None = None) -> int:
     raw = _env(name, default)
     try:
@@ -120,6 +129,7 @@ class Inputs:
     cdc_password_parameter: str
     archivelog_retention_hours: int
     kms_key_id: str
+    enable_supplemental_logging: bool
 
 
 def read_inputs() -> Inputs:
@@ -135,6 +145,7 @@ def read_inputs() -> Inputs:
         cdc_password_parameter=_env("cdc_password_parameter"),
         archivelog_retention_hours=_env_int("archivelog_retention_hours"),
         kms_key_id=_env("kms_key_id", "alias/aws/ssm"),
+        enable_supplemental_logging=_env_bool("enable_supplemental_logging"),
     )
 
 
@@ -222,6 +233,23 @@ def query(db, sql: str, params: dict | None = None) -> list[tuple]:
         return list(cur.fetchall()) if cur.description else []
 
 
+def enable_supplemental_logging(db) -> None:
+    """Turn on the supplemental logging that is missing, minimal and primary key.
+
+    On RDS only rdsadmin_util can change it. Only missing settings are added,
+    so a rerun changes nothing.
+    """
+    supp_min, supp_pk = (str(v).upper() for v in query(
+        db, "SELECT SUPPLEMENTAL_LOG_DATA_MIN, SUPPLEMENTAL_LOG_DATA_PK FROM V$DATABASE")[0])
+    if supp_min not in ("YES", "IMPLICIT"):
+        print("cdc-prepare-oracle: turning on minimal supplemental logging")
+        query(db, "BEGIN rdsadmin.rdsadmin_util.alter_supplemental_logging(p_action => 'ADD'); END;")
+    if supp_pk != "YES":
+        print("cdc-prepare-oracle: turning on primary key supplemental logging")
+        query(db, "BEGIN rdsadmin.rdsadmin_util.alter_supplemental_logging("
+                  "p_action => 'ADD', p_type => 'PRIMARY KEY'); END;")
+
+
 def verify_preconditions(db) -> None:
     """Fail before any change if LogMiner cannot feed Debezium."""
     # V$DATABASE is the public synonym; V_$DATABASE (the SYS view) needs a SYS. prefix.
@@ -300,6 +328,8 @@ def main() -> int:
         )
         db = connect(inputs, admin_user, admin_password)
         try:
+            if inputs.enable_supplemental_logging:
+                enable_supplemental_logging(db)
             verify_preconditions(db)
             username, password = resolve_cdc_credential(ssm, inputs)
             prepare_user(db, username, password, inputs)

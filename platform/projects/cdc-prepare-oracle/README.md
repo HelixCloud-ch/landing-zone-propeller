@@ -12,8 +12,9 @@ first.
 
 1. Reads the admin credential from the SSM parameter that
    `admin_credential_parameter` names.
-2. Verifies the LogMiner preconditions. If one fails, it stops and changes
-   nothing.
+2. If `enable_supplemental_logging` is `true`, turns on the supplemental
+   logging that is missing. Then verifies the LogMiner preconditions. If one
+   fails, it stops and changes nothing else.
 3. Resolves the CDC credential from two SecureString parameters (see below).
 4. Creates the CDC user if it does not exist, and grants the LogMiner
    privileges (see below).
@@ -44,6 +45,9 @@ Inputs arrive as `PROPELLER_INPUT_*` variables.
 - `archivelog_retention_hours`: required, for example `24`.
 - `kms_key_id`: the key for parameters this project creates. Default
   `alias/aws/ssm`.
+- `enable_supplemental_logging`: `true` or `false` (default). With `true`, the
+  project turns on minimal and primary key supplemental logging if they are
+  off, with `rdsadmin.rdsadmin_util.alter_supplemental_logging`.
 
 ## Credentials
 
@@ -85,7 +89,8 @@ Open points:
 
 ## Preconditions
 
-The project verifies these. It does not set them.
+The project verifies these. It sets supplemental logging only with
+`enable_supplemental_logging: true`.
 
 - `LOG_MODE` is `ARCHIVELOG`. On RDS, set the automated backup retention
   (`backup_retention_period`) to more than 0.

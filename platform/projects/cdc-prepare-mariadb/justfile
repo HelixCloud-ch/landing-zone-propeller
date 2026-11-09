@@ -40,3 +40,22 @@ destroy:
     @echo "cdc-prepare-mariadb destroy: no-op by design."
     @echo "  The CDC user is NOT dropped: dropping it is irreversible and is an"
     @echo "  operator decision, not the deployment's. Remove it manually if required."
+
+# ── Sleep and wake ────────────────────────────────────────────────────────────
+# The autopilot calls `just sleep` / `just wake` with PROPELLER_SLEEP_MODE.
+# apply-on-wake: sleep does nothing; wake runs apply again (idempotent), after
+# the database and the Kafka cluster are back.
+sleep:
+    #!/usr/bin/env bash
+    : "${PROPELLER_SLEEP_MODE:?PROPELLER_SLEEP_MODE required (declare an explicit mode in the sleep preset)}"
+    just sleep-${PROPELLER_SLEEP_MODE}
+
+wake:
+    #!/usr/bin/env bash
+    : "${PROPELLER_SLEEP_MODE:?PROPELLER_SLEEP_MODE required (declare an explicit mode in the sleep preset)}"
+    just wake-${PROPELLER_SLEEP_MODE}
+
+sleep-apply-on-wake:
+    @echo "sleep-apply-on-wake: no-op"
+
+wake-apply-on-wake: apply

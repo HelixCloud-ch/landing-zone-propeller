@@ -63,7 +63,15 @@ class FakeCursor:
         self.db.executed.append((sql, params))
         self.description, self.rows = None, []
         if "FROM V$DATABASE" in sql:
-            self.description, self.rows = [("x",)], [self.db.database]
+            row = self.db.database if "LOG_MODE" in sql else self.db.database[1:]
+            self.description, self.rows = [("x",)], [row]
+        elif "alter_supplemental_logging" in sql:
+            log_mode, supp_min, supp_pk = self.db.database
+            if "PRIMARY KEY" in sql:
+                supp_pk = "YES"
+            else:
+                supp_min = "YES"
+            self.db.database = (log_mode, supp_min, supp_pk)
         elif "FROM ALL_USERS" in sql:
             self.description, self.rows = [("x",)], [(1 if self.db.user_exists else 0,)]
 
@@ -241,3 +249,41 @@ def test_main_reports_a_password_that_differs_from_ssm(env, capsys):
     err = capsys.readouterr().err
     assert "cannot log in with the password in /db/cdc-password" in err
     assert "stale" not in err
+
+
+# ── Supplemental logging ─────────────────────────────────────────────────────
+
+
+def test_enable_supplemental_logging_adds_only_what_is_missing():
+    db = FakeDB(("ARCHIVELOG", "YES", "NO"))
+    prepare.enable_supplemental_logging(db)
+    calls = [s for s in db.statements() if "alter_supplemental_logging" in s]
+    assert calls == ["BEGIN rdsadmin.rdsadmin_util.alter_supplemental_logging("
+                     "p_action => 'ADD', p_type => 'PRIMARY KEY'); END;"]
+    prepare.verify_preconditions(db)
+
+    prepare.enable_supplemental_logging(db)  # nothing missing: no new call
+    assert len([s for s in db.statements() if "alter_supplemental_logging" in s]) == 1
+
+
+def test_main_with_flag_turns_on_logging_then_prepares(env):
+    env.setenv(prepare.PREFIX + "enable_supplemental_logging", "true")
+    ssm = FakeSSM({"/db/admin": '{"username": "admin", "password": "pw"}'})
+    admin_db = FakeDB(("ARCHIVELOG", "NO", "NO"))
+    code, _ = run_main(env, ssm, admin_db)
+    assert code == 0
+    assert sum("alter_supplemental_logging" in s for s in admin_db.statements()) == 2
+
+
+def test_main_without_flag_only_verifies(env):
+    ssm = FakeSSM({"/db/admin": '{"username": "admin", "password": "pw"}'})
+    admin_db = FakeDB(("ARCHIVELOG", "NO", "NO"))
+    code, _ = run_main(env, ssm, admin_db)
+    assert code == 1
+    assert admin_db.statements() == []
+
+
+def test_bad_flag_value_exits_2(env, capsys):
+    env.setenv(prepare.PREFIX + "enable_supplemental_logging", "yes")
+    assert prepare.main() == 2
+    assert "must be true or false" in capsys.readouterr().err

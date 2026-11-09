@@ -88,8 +88,12 @@ terraform_providers:
     source: hashicorp/archive
     version: "~> 2.8.0"
 
-# uv venvs in /opt/propeller/python/<key>. None in the framework baseline.
-python_envs: {}
+# uv venvs in /opt/propeller/python/<key>, for projects that run Python with
+# py-run (shared/recipes/python.just).
+python_envs:
+  # cdc-prepare-mariadb, cdc-prepare-oracle, cdc-topics.
+  cdc:
+    path: ../../shared/python/cdc
 
 # Executable files, run last, as root, with network access.
 scripts:
