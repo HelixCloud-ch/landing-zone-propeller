@@ -33,6 +33,7 @@ plan:
     echo "  CDC username param:       ${PROPELLER_INPUT_cdc_username_parameter:-<unset>} (read if present; created if absent)"
     echo "  CDC password param:       ${PROPELLER_INPUT_cdc_password_parameter:-<unset>} (read if present; created if absent)"
     echo "  archivelog retention hrs: ${PROPELLER_INPUT_archivelog_retention_hours:-<unset>} (applied on every run)"
+    echo "  supplemental logging:     ${PROPELLER_INPUT_enable_supplemental_logging:-false} (true: turned on if missing)"
     echo "  KMS key id:               ${PROPELLER_INPUT_kms_key_id:-alias/aws/ssm}"
     echo "  preconditions to verify:  LOG_MODE=ARCHIVELOG, SUPPLEMENTAL_LOG_DATA_MIN, SUPPLEMENTAL_LOG_DATA_PK"
 
@@ -46,3 +47,22 @@ destroy:
     @echo "cdc-prepare-oracle destroy: no-op by design."
     @echo "  The CDC user is NOT dropped: dropping it is irreversible and is an"
     @echo "  operator decision, not the deployment's. Remove it manually if required."
+
+# ── Sleep and wake ────────────────────────────────────────────────────────────
+# The autopilot calls `just sleep` / `just wake` with PROPELLER_SLEEP_MODE.
+# apply-on-wake: sleep does nothing; wake runs apply again (idempotent), after
+# the database and the Kafka cluster are back.
+sleep:
+    #!/usr/bin/env bash
+    : "${PROPELLER_SLEEP_MODE:?PROPELLER_SLEEP_MODE required (declare an explicit mode in the sleep preset)}"
+    just sleep-${PROPELLER_SLEEP_MODE}
+
+wake:
+    #!/usr/bin/env bash
+    : "${PROPELLER_SLEEP_MODE:?PROPELLER_SLEEP_MODE required (declare an explicit mode in the sleep preset)}"
+    just wake-${PROPELLER_SLEEP_MODE}
+
+sleep-apply-on-wake:
+    @echo "sleep-apply-on-wake: no-op"
+
+wake-apply-on-wake: apply

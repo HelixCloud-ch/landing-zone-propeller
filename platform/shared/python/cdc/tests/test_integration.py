@@ -117,7 +117,7 @@ def test_oracle(run):
     ssm = FakeSSM({"/admin": json.dumps({"username": "admin", "password": "adminpw"})})
     inputs = {**cdc_inputs(user), "db_host": "127.0.0.1", "db_port": "31521",
               "service_name": "FREE", "pdb_name": "FREEPDB1",
-              "archivelog_retention_hours": "24"}
+              "archivelog_retention_hours": "24", "enable_supplemental_logging": "true"}
 
     code, out = run(prepare, inputs, ssm)
     assert code == 0, out
