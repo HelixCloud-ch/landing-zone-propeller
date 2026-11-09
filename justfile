@@ -121,7 +121,7 @@ test-cdc-integration: (section "cdc: integration") cdc-up
     {{ _cdc_uv }} pytest -q -p no:cacheprovider platform/shared/python/cdc/tests
 
 # Fast tests: pipeline resolve/validate + engine + autopilot (no docker)
-test: resolve validate test-engine test-autopilot test-recipes check-versions-sync test-cdc
+test: resolve validate test-engine test-autopilot test-recipes test-image-manifest check-versions-sync test-cdc
     @printf '\n{{ _ok }}  %-60s  {{ _reset }}\n' 'PASS: all checks passed'
 
 # Everything, including the heavy image build/verify
