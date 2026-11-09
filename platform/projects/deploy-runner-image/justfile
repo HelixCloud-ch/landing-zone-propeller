@@ -1,47 +1,141 @@
 # deploy-runner-image: builds and pushes the propeller runner image.
 # Not a terraform project. Runs on standard:6.0 (default_image, privileged).
+#
+# The image content is declared in image.yaml (framework) and
+# image.overrides.yaml (consumer overlay). renderer/render.py merges and
+# validates them into .build/; the Dockerfile reads only .build/.
 
 _dir := justfile_directory()
 _repo_name := "deploy-runner-image"
+_render := "uv run --quiet --project renderer --frozen --no-dev python renderer/render.py"
+# Fallback uv for the builder when the buildspec did not install one (an older
+# autopilot). Kept in sync with image.yaml by tests/check_versions_sync.sh.
+_uv_version := "0.10.9"
 
-# plan: no-op. The image is built and pushed on apply; there's nothing to plan.
-plan:
-    @echo "plan: no-op (image is built on apply)"
-
-# apply: build the image for amd64 and push it to the target account's ECR,
-# tagged with the propeller version and latest. Writes the pushed URI + digest
-# to .propeller-outputs.json for the autopilot to persist.
-apply:
+# plan: render and validate the manifest, print the components, and diff them
+# against the manifest of the last apply. Builds nothing.
+plan: _ensure-uv
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{ _dir }}"
-    set -a; . ./versions.env; [ -f versions.extra.env ] && . ./versions.extra.env; set +a
+    previous="$(mktemp -u)"
+    just _fetch-applied "$previous"
+    {{ _render }} stage --out .build --previous "$previous"
+    rm -f "$previous"
 
+# apply: render, build for amd64, and push to the target account's ECR, tagged
+# with the propeller version and latest. Then export the manifest of the built
+# image (what it contains, with resolved provider versions), print the changes,
+# and store it for the next plan. Writes the outputs for the autopilot.
+apply: _ensure-uv
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ _dir }}"
     : "${AWS_ACCOUNT_ID:?}" "${AWS_REGION:?}"
+    {{ _render }} stage --out .build
+
     registry="${PROPELLER_INPUT_registry_id:-$AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
     repo="${registry}/{{ _repo_name }}"
     tag="${PROPELLER_VERSION:-latest}"
+    read -r base_ref base_digest < <(just _base-ref)
+    build_args=(--platform linux/amd64 --provenance=false
+      --build-arg BASE_IMAGE="$base_ref" --build-arg BASE_DIGEST="$base_digest"
+      --build-arg PROPELLER_VERSION="$tag")
 
     aws ecr get-login-password --region "$AWS_REGION" \
       | docker login --username AWS --password-stdin "$registry"
 
-    docker buildx build --platform linux/amd64 --provenance=false \
-      --build-arg BASE_IMAGE="$BASE_IMAGE" \
-      --build-arg TERRAFORM_VERSION="$TERRAFORM_VERSION" \
-      --build-arg JUST_VERSION="$JUST_VERSION" \
-      --build-arg KUBECTL_VERSION="$KUBECTL_VERSION" \
-      --build-arg HELM_VERSION="$HELM_VERSION" \
-      -t "${repo}:${tag}" -t "${repo}:latest" \
-      --push .
+    docker buildx build "${build_args[@]}" --target final \
+      -t "${repo}:${tag}" -t "${repo}:latest" --push .
+
+    # Same build, other target: reuses the cached layers, writes one file.
+    docker buildx build "${build_args[@]}" --target manifest \
+      --output type=local,dest=.build/out .
+    built=.build/out/image.json
 
     digest=$(aws ecr describe-images --region "$AWS_REGION" \
       --repository-name "{{ _repo_name }}" --image-ids imageTag="$tag" \
       --query 'imageDetails[0].imageDigest' --output text 2>/dev/null || echo "")
+    manifest_sha="$(sha256sum "$built" | cut -d' ' -f1)"
 
-    printf '{"image_uri":"%s","image_repo":"%s","image_tag":"%s","image_digest":"%s"}\n' \
-      "${repo}:${tag}" "$repo" "$tag" "$digest" > .propeller-outputs.json
-    echo "pushed ${repo}:${tag} (${digest:-no digest})"
+    previous="$(mktemp -u)"
+    just _fetch-applied "$previous"
+    echo "Changes against the last applied manifest:"
+    {{ _render }} diff "$previous" "$built"
+    rm -f "$previous"
+
+    if key="$(just _applied-manifest-key 2>/dev/null)"; then
+      aws s3 cp --quiet "$built" "$key"
+    fi
+
+    jq -n --arg uri "${repo}:${tag}" --arg repo "$repo" --arg tag "$tag" \
+      --arg digest "$digest" --arg manifest "$manifest_sha" \
+      '{image_uri: $uri, image_repo: $repo, image_tag: $tag, image_digest: $digest, manifest_sha256: $manifest}' \
+      > .propeller-outputs.json
+    echo "pushed ${repo}:${tag} (${digest:-no digest}, manifest ${manifest_sha})"
 
 # destroy: no-op. Image lifecycle is ECR's job (lifecycle policy).
 destroy:
     @echo "destroy: no-op (image lifecycle is handled by ECR)"
+
+# show: print the effective manifest (image.yaml + overrides) as JSON.
+show:
+    @cd "{{ _dir }}" && {{ _render }} show
+
+# Print "<reference> <digest>" for the base image in .build/image.json. A tag
+# is resolved to its current digest, so both build stages use the same base and
+# the image records which one.
+[private]
+_base-ref:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ _dir }}"
+    image="$(jq -r .base.image .build/image.json)"
+    if [[ "$image" == *@sha256:* ]]; then
+      echo "$image ${image##*@}"
+    else
+      digest="$(docker buildx imagetools inspect "$image" --format '{{{{json .Manifest}}' | jq -r .digest)"
+      echo "${image}@${digest} ${digest}"
+    fi
+
+# Install uv on the builder if it is missing.
+[private]
+_ensure-uv:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v uv >/dev/null && exit 0
+    version="${UV_VERSION:-{{ _uv_version }}}"
+    echo "installing uv ${version}"
+    # Saved to a file first: piped into sh, a failed download would install nothing.
+    installer="$(mktemp)"
+    curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 -fsSL \
+      "https://astral.sh/uv/${version}/install.sh" -o "$installer"
+    env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh "$installer"
+    rm -f "$installer"
+
+# Download the last applied manifest to PATH. A missing object is normal
+# (first apply); any other S3 error stops the recipe. Outside a deploy (no AWS
+# context) it does nothing.
+[private]
+_fetch-applied path:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    key="$(just _applied-manifest-key 2>/dev/null)" || exit 0
+    if ! err="$(aws s3 cp --quiet "$key" "{{ path }}" 2>&1)"; then
+      if grep -q "(404)" <<<"$err"; then
+        echo "note: no applied manifest at $key"
+      else
+        echo "$err" >&2
+        echo "error: could not read the applied manifest at $key" >&2
+        exit 1
+      fi
+    fi
+
+# S3 location of the last applied manifest, next to terraform state. Fails
+# outside a deploy (no AWS context), which callers treat as "no previous".
+[private]
+_applied-manifest-key:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${AWS_ACCOUNT_ID:?}" "${AWS_REGION:?}" "${PROPELLER_NAMESPACE:?}" "${PROJECT_NAME:?}"
+    echo "s3://state-iac-${AWS_ACCOUNT_ID}-${AWS_REGION}-an/propeller/${PROPELLER_NAMESPACE}/${PROJECT_NAME}/image.json"
