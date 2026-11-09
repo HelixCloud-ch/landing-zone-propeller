@@ -65,7 +65,7 @@ apply: _ensure-uv
     rm -f "$previous"
 
     if key="$(just _applied-manifest-key 2>/dev/null)"; then
-      aws s3 cp --quiet "$built" "$key"
+      aws s3 cp "$built" "$key" >/dev/null
     fi
 
     jq -n --arg uri "${repo}:${tag}" --arg repo "$repo" --arg tag "$tag" \
@@ -121,7 +121,7 @@ _fetch-applied path:
     #!/usr/bin/env bash
     set -euo pipefail
     key="$(just _applied-manifest-key 2>/dev/null)" || exit 0
-    if ! err="$(aws s3 cp --quiet "$key" "{{ path }}" 2>&1)"; then
+    if ! err="$(aws s3 cp "$key" "{{ path }}" 2>&1 >/dev/null)"; then
       if grep -q "(404)" <<<"$err"; then
         echo "note: no applied manifest at $key"
       else
