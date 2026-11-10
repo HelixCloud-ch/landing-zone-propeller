@@ -100,8 +100,11 @@ and [Example of IAM policy for MSK Connect](https://docs.aws.amazon.com/msk/late
 
 The connector's ENIs live in `subnet_ids`, which must reach both the source
 database (`db_port`) and the Kafka brokers (`broker_port`). The created
-security group opens exactly those two egress ports; ingress is not needed
-because the connector only initiates outbound connections.
+security group opens those two egress ports; ingress is not needed because the
+connector only initiates outbound connections. With derived credentials
+(`cdc_username_parameter` set), it also opens 443: the `ssm` config provider
+reads the credentials from SSM, so the subnets must also reach SSM (a VPC
+endpoint, or a route to the internet).
 
 When overrides make the connector reach something else (VPC endpoints for
 Secrets Manager or S3, a second broker listener), add rules with
@@ -622,6 +625,7 @@ No modules.
 | [aws_vpc_security_group_egress_rule.additional](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_egress_rule.brokers](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_egress_rule.database](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
+| [aws_vpc_security_group_egress_rule.ssm](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_iam_policy_document.assume](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.connector](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
