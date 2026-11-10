@@ -39,6 +39,19 @@ resource "aws_vpc_security_group_egress_rule" "brokers" {
   description       = "Connector egress to the Kafka brokers"
 }
 
+# The ssm config provider reads the derived CDC credentials over HTTPS, through
+# the SSM VPC endpoint (or the internet, if the subnets have a route to it).
+resource "aws_vpc_security_group_egress_rule" "ssm" {
+  count = var.create_security_group && local.cdc_credentials_enabled ? 1 : 0
+
+  security_group_id = aws_security_group.connector[0].id
+  from_port         = 443
+  to_port           = 443
+  ip_protocol       = "tcp"
+  cidr_ipv4         = "0.0.0.0/0"
+  description       = "Connector egress to SSM (CDC credentials)"
+}
+
 resource "aws_vpc_security_group_egress_rule" "additional" {
   for_each = var.create_security_group ? var.additional_egress_rules : {}
 
