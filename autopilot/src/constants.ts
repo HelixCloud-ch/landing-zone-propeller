@@ -65,7 +65,10 @@ phases:
       # into sh, a failed download would install nothing and still succeed.
       - command -v terraform >/dev/null || { curl --retry 3 --retry-delay 2 -fsSL "https://releases.hashicorp.com/terraform/\${TF_VERSION}/terraform_\${TF_VERSION}_linux_amd64.zip" -o /tmp/tf.zip && unzip -o /tmp/tf.zip -d /usr/local/bin/; }
       - command -v just >/dev/null || { curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 -fsSL https://just.systems/install.sh -o /tmp/just-install.sh && bash /tmp/just-install.sh --tag \${JUST_VERSION} --to /usr/local/bin; }
-      - command -v uv >/dev/null || { curl --proto '=https' --tlsv1.2 --retry 3 --retry-delay 2 -fsSL "https://astral.sh/uv/\${UV_VERSION}/install.sh" -o /tmp/uv-install.sh && env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh /tmp/uv-install.sh; }
+      # uv is needed only by py-run projects, which fail there if it is missing.
+      # So a failed install (an older image on a runner with no egress) is not
+      # fatal, and the connect timeout keeps it short.
+      - command -v uv >/dev/null || { curl --proto '=https' --tlsv1.2 --connect-timeout 10 --retry 3 --retry-delay 2 -fsSL "https://astral.sh/uv/\${UV_VERSION}/install.sh" -o /tmp/uv-install.sh && env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh /tmp/uv-install.sh; } || echo "WARNING - uv not installed, py-run projects will fail"
 
   build:
     commands:

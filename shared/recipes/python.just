@@ -24,6 +24,11 @@ py-run env +cmd:
     key="$(basename "$env_dir")"
     baked="/opt/propeller/python/${key}/.venv"
 
+    if ! command -v uv >/dev/null; then
+      echo "py-run: uv is not installed. Use a deploy-runner image that has it, or a runner with internet access." >&2
+      exit 1
+    fi
+
     uv_args=(--quiet --project "$env_dir" --frozen --no-dev)
     # Envs are not packages: sync installs the dependencies, never the env
     # itself. `uv run` always runs with --no-sync, after an explicit sync.
