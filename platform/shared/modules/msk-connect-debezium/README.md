@@ -24,18 +24,42 @@ just the project. With an external role (`service_execution_role_arn`) no IAM
 call is made, but the runner still needs to reach the MSK Connect API (and
 CloudWatch Logs / EC2 for whatever else the module creates).
 
-## Connector immutability and replace-on-plugin-change
+## Connector replacement
 
-MSK Connect connectors are immutable with respect to their plugin. Changing
-`custom_plugin_arn` — which happens on a Debezium version bump — therefore
-**replaces** the connector rather than updating it in place. The connector sets
-`create_before_destroy` so the new connector is created before the old one is
-removed, but a replacement still implies a CDC gap: while the old connector is
-torn down and the new one starts and re-establishes its position, no changes are
-captured. If the offset topic is lost or unreadable across the bump, the new
-connector cannot resume from the recorded position and performs a full
-re-snapshot of the source. Treat a plugin bump as an operational
+The AWS provider updates only the capacity and the connector configuration of
+an `aws_mskconnect_connector` in place. A change to the plugin
+(`custom_plugin_arn`, which changes on a Debezium version bump), the worker
+configuration or the network settings **replaces** the connector. The MSK
+Connect API can also update the plugin and the worker configuration in place,
+but the provider does not use that yet
+([hashicorp/terraform-provider-aws#50823](https://github.com/hashicorp/terraform-provider-aws/issues/50823)).
+
+A replacement deletes the old connector first, then creates the new one. There
+is no overlap: the connector name is unique per account and region, and two
+connectors on the same offsets and topics (and, for MariaDB, the same
+`database.server.id`) must not run at the same time.
+
+Capture pauses during the replacement, but no change is lost: the new connector
+resumes from the offset topic and reads the binlog or archive logs it missed.
+This holds while the pause is shorter than the source's log retention. If the
+recorded position is no longer in the logs, the connector fails and asks for a
+new snapshot. If the offset topic is lost or unreadable, the new connector
+performs a full re-snapshot of the source. Treat a plugin bump as an operational
 event, not a routine apply.
+
+An in-place update (capacity, or the connector configuration such as
+`connector_config_overrides`) can fail silently. MSK Connect checks the
+connector's health after an update and rolls the update back if the connector
+is not healthy, but the provider reports success once the connector is
+`RUNNING` again
+([hashicorp/terraform-provider-aws#48199](https://github.com/hashicorp/terraform-provider-aws/issues/48199)).
+After such a change, check the last connector operation; a rolled-back update
+also shows as the same diff on the next plan:
+
+```bash
+aws kafkaconnect list-connector-operations --connector-arn <arn> \
+  --query 'sort_by(connectorOperations, &creationTime)[-1].[connectorOperationType,connectorOperationState]'
+```
 
 ## Bring your own resources
 
@@ -103,8 +127,9 @@ database (`db_port`) and the Kafka brokers (`broker_port`). The created
 security group opens those two egress ports; ingress is not needed because the
 connector only initiates outbound connections. With derived credentials
 (`cdc_username_parameter` set), it also opens 443: the `ssm` config provider
-reads the credentials from SSM, so the subnets must also reach SSM (a VPC
-endpoint, or a route to the internet).
+reads the credentials from SSM, so the subnets must also reach SSM: through an
+SSM VPC endpoint, or through a NAT gateway (MSK Connect reaches the internet
+only from private subnets with a route to a NAT device).
 
 When overrides make the connector reach something else (VPC endpoints for
 Secrets Manager or S3, a second broker listener), add rules with
@@ -652,7 +677,7 @@ No modules.
 | <a name="input_create_alarm"></a> [create\_alarm](#input\_create\_alarm) | Create the connector not-running CloudWatch alarm. | `bool` | `false` | no |
 | <a name="input_create_log_group"></a> [create\_log\_group](#input\_create\_log\_group) | Create the /aws/mskconnect/<identifier> log group and deliver to it.<br/>Requires log\_delivery.cloudwatch\_logs without log\_group. See README. | `bool` | `false` | no |
 | <a name="input_create_security_group"></a> [create\_security\_group](#input\_create\_security\_group) | Create the connector security group (with database and broker egress rules). | `bool` | `true` | no |
-| <a name="input_custom_plugin_arn"></a> [custom\_plugin\_arn](#input\_custom\_plugin\_arn) | ARN of the registered MSK Connect custom plugin. Changing it forces connector replacement (MSK Connect connectors are immutable wrt their plugin). | `string` | n/a | yes |
+| <a name="input_custom_plugin_arn"></a> [custom\_plugin\_arn](#input\_custom\_plugin\_arn) | ARN of the registered MSK Connect custom plugin. Changing it replaces the connector (the AWS provider does not update the plugin in place). | `string` | n/a | yes |
 | <a name="input_custom_plugin_revision"></a> [custom\_plugin\_revision](#input\_custom\_plugin\_revision) | Revision of the custom plugin to pin. Defaults to 1, the revision an MSK Connect custom plugin is created with. | `number` | `1` | no |
 | <a name="input_db_host"></a> [db\_host](#input\_db\_host) | Hostname of the source database the connector reads from. | `string` | n/a | yes |
 | <a name="input_db_name"></a> [db\_name](#input\_db\_name) | Oracle service name / SID (database.dbname). Ignored for mariadb.<br/>On a CDB source this is the container's service; see pdb\_name. | `string` | `""` | no |

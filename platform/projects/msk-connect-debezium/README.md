@@ -31,15 +31,14 @@ creates no IAM, but the runner still needs to reach the MSK Connect API.
 
 ## Debezium version bump replaces the connector
 
-MSK Connect connectors are immutable with respect to their plugin. A Debezium
-version bump changes the resolved plugin ARN, which **replaces** the connector
-rather than updating it in place — it is not a routine apply. A replacement
-implies a **CDC gap** while the old connector is torn down and the new one
-starts and re-establishes its position, and if the offset topic is lost or
-unreadable across the bump the new connector performs a full re-snapshot of the
-source. See
-[the module README](../../shared/modules/msk-connect-debezium/README.md#connector-immutability-and-replace-on-plugin-change)
-for the full behaviour and the `create_before_destroy` handling.
+A Debezium version bump changes the resolved plugin ARN. The AWS provider does
+not update a connector's plugin in place, so this **replaces** the connector —
+it is not a routine apply. A replacement
+deletes the old connector, then creates the new one, so capture **pauses**. The
+new connector resumes from the offset topic; if that topic is lost or
+unreadable, it performs a full re-snapshot of the source. See
+[the module README](../../shared/modules/msk-connect-debezium/README.md#connector-replacement)
+for the full behaviour.
 
 ## Pipeline wiring
 
