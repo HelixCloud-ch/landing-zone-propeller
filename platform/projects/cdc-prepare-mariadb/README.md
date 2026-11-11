@@ -12,7 +12,11 @@ state. `apply` runs `prepare.py` in the shared `cdc` Python env
    nothing.
 3. Resolves the CDC credential from two SecureString parameters (see below).
 4. Creates the CDC user if it does not exist. Grants `SELECT`, `RELOAD`,
-   `SHOW DATABASES`, `REPLICATION SLAVE` and `REPLICATION CLIENT` on `*.*`.
+   `SHOW DATABASES`, `REPLICATION SLAVE`, `REPLICATION CLIENT` and
+   `LOCK TABLES` on `*.*`, as in Debezium's
+   [user setup](https://debezium.io/documentation/reference/stable/connectors/mariadb.html#mariadb-creating-user).
+   RDS does not allow a global read lock, so the snapshot locks each table,
+   which needs `LOCK TABLES`.
 5. Sets `binlog retention hours` with `mysql.rds_set_configuration`, on every
    run.
 6. Logs in as the CDC user. If the login fails, the database password and the

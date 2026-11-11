@@ -100,6 +100,7 @@ def test_mariadb(run):
         grants = cur.fetchone()[0]
     root.close()
     assert "REPLICATION SLAVE" in grants and "SHOW DATABASES" in grants
+    assert "LOCK TABLES" in grants
 
     # A password that differs from the database fails the login check.
     ssm.params["/cdc/password"] = "not-the-password"
@@ -131,7 +132,7 @@ def test_oracle(run):
         objects = {row[0] for row in cur}
     admin.close()
     assert {"CREATE SESSION", "LOGMINING", "SELECT ANY TRANSACTION"} <= sys_privs
-    assert {"DBMS_LOGMNR", "V_$DATABASE", "V_$LOGMNR_CONTENTS"} <= objects
+    assert {"DBMS_LOGMNR", "V_$DATABASE", "V_$LOGMNR_CONTENTS", "V_$MYSTAT"} <= objects
 
     ssm.params["/cdc/password"] = "not-the-password"
     code, out = run(prepare, inputs, ssm)

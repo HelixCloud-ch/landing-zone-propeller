@@ -210,7 +210,7 @@ def test_prepare_user_binds_password_and_grants(env):
     prepare.prepare_user(db, "cdc_user", "pw'; DROP", prepare.read_inputs())
     create, grant, retention = db.executed
     assert create == ("CREATE USER IF NOT EXISTS 'cdc_user'@'%%' IDENTIFIED BY %s", ("pw'; DROP",))
-    assert grant[0] == "GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'cdc_user'@'%%'"
+    assert grant[0] == "GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT, LOCK TABLES ON *.* TO 'cdc_user'@'%%'"
     assert retention == ("CALL mysql.rds_set_configuration('binlog retention hours', %s)", (168,))
 
 
