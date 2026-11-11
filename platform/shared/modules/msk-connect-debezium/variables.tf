@@ -167,7 +167,7 @@ variable "additional_egress_rules" {
 
 variable "custom_plugin_arn" {
   type        = string
-  description = "ARN of the registered MSK Connect custom plugin. Changing it forces connector replacement (MSK Connect connectors are immutable wrt their plugin)."
+  description = "ARN of the registered MSK Connect custom plugin. Changing it replaces the connector (the AWS provider does not update the plugin in place)."
 
   validation {
     condition     = can(regex("^arn:aws:kafkaconnect:", var.custom_plugin_arn))

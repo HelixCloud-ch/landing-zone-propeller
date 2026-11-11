@@ -110,7 +110,8 @@ locals {
   worker_properties_file_content = join("", [
     for k in sort(keys(local.worker_properties)) : "${k}=${local.worker_properties[k]}\n"
   ])
-  # Worker configurations cannot be updated in place and inherit the
-  # connector's create_before_destroy, so the name must change with content.
+  # Worker configurations cannot be updated in place, and the old one is still
+  # in use while the new one is created (create_before_destroy), so the name
+  # must change with content.
   worker_configuration_name = "${var.identifier}-worker-${substr(sha256(local.worker_properties_file_content), 0, 8)}"
 }
