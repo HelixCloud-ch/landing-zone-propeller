@@ -133,7 +133,7 @@ resource "aws_mskconnect_connector" "this" {
   plugin {
     custom_plugin {
       # Changing custom_plugin_arn (a new Debezium version) forces replacement:
-      # MSK Connect connectors are immutable with respect to their plugin.
+      # the AWS provider does not update a connector's plugin in place.
       arn      = var.custom_plugin_arn
       revision = var.custom_plugin_revision
     }
@@ -190,9 +190,10 @@ resource "aws_mskconnect_connector" "this" {
     aws_cloudwatch_log_group.connector,
   ]
 
-  lifecycle {
-    create_before_destroy = true
-  }
+  # No create_before_destroy: a replacement deletes the old connector first.
+  # The name is fixed and unique per account and region, and two connectors on
+  # the same offsets and topics must not run at the same time. The new
+  # connector resumes from the offset topic.
 }
 
 # ── Alarm ─────────────────────────────────────────────────────────────────────
