@@ -37,8 +37,12 @@ import pymysql
 
 PREFIX = "PROPELLER_INPUT_"
 
-# The privileges Debezium's MySQL/MariaDB connector needs.
-CDC_GRANTS = ("SELECT", "RELOAD", "SHOW DATABASES", "REPLICATION SLAVE", "REPLICATION CLIENT")
+# The privileges Debezium's MariaDB connector needs. RDS does not allow a global
+# read lock, so the snapshot uses table locks, which need LOCK TABLES.
+CDC_GRANTS = (
+    "SELECT", "RELOAD", "SHOW DATABASES", "REPLICATION SLAVE", "REPLICATION CLIENT",
+    "LOCK TABLES",
+)
 
 # MariaDB cannot bind an account name in CREATE USER / GRANT, so the name is
 # composed into the statement. This allowlist is the injection defence.

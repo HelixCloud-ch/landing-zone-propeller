@@ -78,7 +78,10 @@ The list follows Debezium's
   `CREATE SEQUENCE`.
 - SYS objects, with `rdsadmin.rdsadmin_util.grant_sys_object`, because the RDS
   master user is not SYS: `EXECUTE` on `DBMS_LOGMNR` and `DBMS_LOGMNR_D`;
-  `SELECT` on the `V_$` views LogMiner reads.
+  `SELECT` on the `V_$` views LogMiner reads, including `V_$MYSTAT` and
+  `V_$STATNAME`.
+- `QUOTA UNLIMITED` on the user's default tablespace. The connector creates
+  its `LOG_MINING_FLUSH` table there and writes to it.
 
 Open points:
 

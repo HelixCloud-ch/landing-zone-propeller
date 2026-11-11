@@ -74,15 +74,18 @@ class FakeCursor:
             self.db.database = (log_mode, supp_min, supp_pk)
         elif "FROM ALL_USERS" in sql:
             self.description, self.rows = [("x",)], [(1 if self.db.user_exists else 0,)]
+        elif "FROM DBA_USERS" in sql:
+            self.description, self.rows = [("x",)], [(self.db.tablespace,)]
 
     def fetchall(self):
         return self.rows
 
 
 class FakeDB:
-    def __init__(self, database=GOOD_DATABASE, user_exists=False):
+    def __init__(self, database=GOOD_DATABASE, user_exists=False, tablespace="USERS"):
         self.database = database
         self.user_exists = user_exists
+        self.tablespace = tablespace
         self.executed: list[tuple] = []
         self.closed = False
 
@@ -201,6 +204,7 @@ def test_prepare_user_creates_with_double_quoted_password(env):
     prepare.prepare_user(db, "CDC_USER", "Ab_1-x", prepare.read_inputs())
     statements = db.statements()
     assert statements[0] == 'CREATE USER CDC_USER IDENTIFIED BY "Ab_1-x"'
+    assert statements[1] == "ALTER USER CDC_USER QUOTA UNLIMITED ON USERS"
     assert sum(s.startswith("GRANT ") for s in statements) == len(prepare.CDC_SYSTEM_GRANTS)
     sys_grants = [p for s, p in db.executed if "grant_sys_object" in s]
     assert len(sys_grants) == len(prepare.CDC_SYS_OBJECT_GRANTS)
@@ -212,6 +216,13 @@ def test_existing_user_keeps_its_password(env):
     db = FakeDB(user_exists=True)
     prepare.prepare_user(db, "CDC_USER", "pw", prepare.read_inputs())
     assert not any(s.startswith("CREATE USER") for s in db.statements())
+    assert "ALTER USER CDC_USER QUOTA UNLIMITED ON USERS" in db.statements()
+
+
+def test_unexpected_tablespace_name_is_rejected(env):
+    db = FakeDB(tablespace="USERS; DROP USER X")
+    with pytest.raises(prepare.PrepareError, match="unexpected default tablespace"):
+        prepare.prepare_user(db, "CDC_USER", "pw", prepare.read_inputs())
 
 
 # ── main ─────────────────────────────────────────────────────────────────────

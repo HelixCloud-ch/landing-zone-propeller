@@ -71,6 +71,8 @@ CDC_SYS_OBJECT_GRANTS = (
     ("V_$ARCHIVED_LOG", "SELECT"),
     ("V_$ARCHIVE_DEST_STATUS", "SELECT"),
     ("V_$TRANSACTION", "SELECT"),
+    ("V_$MYSTAT", "SELECT"),
+    ("V_$STATNAME", "SELECT"),
 )
 
 # Oracle DDL cannot bind values, so the username and the password are composed
@@ -78,6 +80,9 @@ CDC_SYS_OBJECT_GRANTS = (
 # The password goes in double quotes: it must not contain `"` and must fit in
 # 30 bytes (Oracle 19c limit).
 USERNAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_#$]{0,29}$")
+# The default tablespace is read from the database, then composed into ALTER
+# USER, so it must be a bare identifier too.
+TABLESPACE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_#$]{0,127}$")
 PASSWORD_MAX_BYTES = 30
 
 
@@ -284,6 +289,14 @@ def prepare_user(db, username: str, password: str, inputs: Inputs) -> None:
     exists = query(db, "SELECT COUNT(*) FROM ALL_USERS WHERE USERNAME = :u", {"u": username})[0][0]
     if not exists:
         query(db, f'CREATE USER {username} IDENTIFIED BY "{password}"')
+    # The connector creates its LOG_MINING_FLUSH table in the user's default
+    # tablespace and writes to it, so the user needs a quota there.
+    tablespace = query(
+        db, "SELECT DEFAULT_TABLESPACE FROM DBA_USERS WHERE USERNAME = :u", {"u": username},
+    )[0][0]
+    if not TABLESPACE_RE.match(tablespace):
+        raise PrepareError(f"unexpected default tablespace name {tablespace!r}")
+    query(db, f"ALTER USER {username} QUOTA UNLIMITED ON {tablespace}")
     for grant in CDC_SYSTEM_GRANTS:
         query(db, f"GRANT {grant} TO {username}")
     # grant_sys_object succeeds when the privilege is already granted.
