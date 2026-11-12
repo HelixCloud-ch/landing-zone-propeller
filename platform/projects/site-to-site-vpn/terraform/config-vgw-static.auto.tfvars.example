@@ -1,0 +1,28 @@
+# Create a virtual private gateway in a VPC, use static routing and propagate
+# the routes to route tables. static_routes are allowed only on a connection
+# with a vpn_gateway_key.
+region = "eu-central-2"
+
+vpn_gateways = {
+  main = {
+    # Use vpn_gateway_id instead of vpc_id to attach to an existing gateway.
+    vpc_id          = "vpc-0123456789abcdef0"
+    amazon_side_asn = 64513
+    route_table_ids = ["rtb-0123456789abcdef0", "rtb-0fedcba9876543210"]
+  }
+}
+
+customer_gateways = {
+  branch = {
+    ip_address = "198.51.100.10"
+  }
+}
+
+connections = {
+  branch = {
+    customer_gateway_key = "branch"
+    vpn_gateway_key      = "main"
+    routing              = "static"
+    static_routes        = ["192.0.2.0/24"]
+  }
+}

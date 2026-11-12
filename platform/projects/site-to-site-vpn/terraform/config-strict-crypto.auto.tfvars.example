@@ -1,0 +1,30 @@
+# Strict tunnel profile: IKEv2 only, one AES-256-GCM / SHA2-256 / DH20 proposal.
+# Single values on purpose: AWS evaluates proposals from the lowest configured
+# value, so a tight list avoids a downgrade. The device must support the profile.
+# Changing options on a live connection restarts the tunnels.
+region             = "eu-central-2"
+transit_gateway_id = "tgw-0123456789abcdef0"
+
+customer_gateways = {
+  hq = {
+    ip_address = "203.0.113.10"
+    bgp_asn    = 65010
+  }
+}
+
+connections = {
+  hq = {
+    customer_gateway_key = "hq"
+    tunnel_options = {
+      ike_versions                 = ["ikev2"]
+      phase1_encryption_algorithms = ["AES256-GCM-16"]
+      phase2_encryption_algorithms = ["AES256-GCM-16"]
+      phase1_integrity_algorithms  = ["SHA2-256"]
+      phase2_integrity_algorithms  = ["SHA2-256"]
+      phase1_dh_group_numbers      = [20]
+      phase2_dh_group_numbers      = [20]
+      dpd_timeout_action           = "restart"
+      startup_action               = "start"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+# site-to-site-vpn — minimal example: one customer gateway, one BGP connection
+# attached to a transit gateway. Copy to config.auto.tfvars and fill in.
+region = "eu-central-2"
+
+# Default target of every connection that sets no target field.
+# In a pipeline, wire this from the transit gateway project instead.
+transit_gateway_id = "tgw-0123456789abcdef0"
+
+# Keys are state addresses: renaming a key recreates the object.
+# The Name tag is the key unless you set name.
+customer_gateways = {
+  hq = {
+    ip_address = "203.0.113.10"
+    bgp_asn    = 65010
+  }
+}
+
+connections = {
+  hq = {
+    customer_gateway_key = "hq"
+  }
+}
