@@ -1,0 +1,33 @@
+# Three connections with three different targets in one instance. This works
+# only when the transit gateway and the VPC are in the account that runs the
+# step, because AWS lets only the owner of a target attach to it.
+region = "eu-central-2"
+
+# Default target: connections that set no target field use this transit gateway.
+transit_gateway_id = "tgw-0123456789abcdef0"
+
+vpn_gateways = {
+  app = { vpc_id = "vpc-0123456789abcdef0" }
+}
+
+customer_gateways = {
+  hq     = { ip_address = "203.0.113.10", bgp_asn = 65010 }
+  branch = { ip_address = "198.51.100.10" }
+  lab    = { ip_address = "192.0.2.50" }
+}
+
+connections = {
+  hq = { customer_gateway_key = "hq" }
+
+  branch = {
+    customer_gateway_key = "branch"
+    vpn_gateway_key      = "app"
+    routing              = "static"
+    static_routes        = ["192.0.2.0/24"]
+  }
+
+  lab = {
+    customer_gateway_key = "lab"
+    unattached           = true
+  }
+}

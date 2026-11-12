@@ -1,0 +1,18 @@
+# One customer gateway used by two connections on the same transit gateway.
+# Four tunnels reach one device. ECMP needs vpn_ecmp_support on the transit
+# gateway and BGP. A customer gateway can serve several connections only when
+# they are on transit gateways, or on different targets.
+region             = "eu-central-2"
+transit_gateway_id = "tgw-0123456789abcdef0"
+
+customer_gateways = {
+  hq = {
+    ip_address = "203.0.113.10"
+    bgp_asn    = 65010
+  }
+}
+
+connections = {
+  hq-1 = { customer_gateway_key = "hq" }
+  hq-2 = { customer_gateway_key = "hq" }
+}

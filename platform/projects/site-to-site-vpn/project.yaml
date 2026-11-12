@@ -1,0 +1,10 @@
+name: site-to-site-vpn
+description: >-
+  Creates AWS Site-to-Site VPN connections and their customer gateways. Each
+  connection attaches to a transit gateway, to a virtual private gateway
+  (existing or created from a VPC), or to nothing. Deployed to the account
+  that owns the target gateway.
+metadata:
+  cost-center: platform
+deploy:
+  type: just

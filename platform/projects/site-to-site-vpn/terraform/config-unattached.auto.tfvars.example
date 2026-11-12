@@ -1,0 +1,17 @@
+# Create the connection without a target gateway. Attach it later by adding a
+# target field. AWS cannot detach a target again.
+region = "eu-central-2"
+
+customer_gateways = {
+  hq = {
+    ip_address = "203.0.113.10"
+    bgp_asn    = 65010
+  }
+}
+
+connections = {
+  hq = { customer_gateway_key = "hq" }
+}
+
+# With a default transit_gateway_id set, add unattached = true to a connection
+# to keep it without a target.

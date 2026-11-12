@@ -1,0 +1,24 @@
+# Two customer gateways (two on-premises devices), one connection each.
+# Four tunnels in total, two per device, all on one transit gateway.
+region             = "eu-central-2"
+transit_gateway_id = "tgw-0123456789abcdef0"
+
+customer_gateways = {
+  hq-a = {
+    name        = "hq-router-a"
+    ip_address  = "203.0.113.10"
+    bgp_asn     = 65010
+    device_name = "router-a"
+  }
+  hq-b = {
+    name        = "hq-router-b"
+    ip_address  = "203.0.113.20"
+    bgp_asn     = 65010
+    device_name = "router-b"
+  }
+}
+
+connections = {
+  hq-a = { name = "hq-vpn-a", customer_gateway_key = "hq-a" }
+  hq-b = { name = "hq-vpn-b", customer_gateway_key = "hq-b" }
+}
