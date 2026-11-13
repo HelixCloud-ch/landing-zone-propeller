@@ -40,12 +40,43 @@ variable "kms_key_arn" {
   default     = null
 }
 
+variable "enforce_kms_key" {
+  type        = bool
+  description = <<-EOT
+    Deny uploads that request another encryption or KMS key (default policy only).
+    Ignored when kms_key_arn is null, or when no default policy is applied.
+  EOT
+  default     = false
+
+  validation {
+    condition = (
+      !var.enforce_kms_key || var.kms_key_arn == null ||
+      can(regex("^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/.+$", var.kms_key_arn))
+    )
+    error_message = "With enforce_kms_key, kms_key_arn must be a key ARN (arn:...:key/<id>), not an alias or a key ID."
+  }
+}
+
 # ── Bucket policy ─────────────────────────────────────────────────────────────
+
+variable "manage_bucket_policy" {
+  type        = bool
+  description = <<-EOT
+    Create the bucket policy. Set false to manage it outside this project
+    (one policy per bucket). Then bucket_policy_json must stay null.
+  EOT
+  default     = true
+}
 
 variable "bucket_policy_json" {
   type        = string
   description = "Bucket policy as a JSON string. When null, a built-in DenyInsecureTransport (TLS-only) policy is applied. Pass an alternative policy to override; build it with aws_iam_policy_document in the overlay or the consumer pipeline and pass the .json result here."
   default     = null
+
+  validation {
+    condition     = var.bucket_policy_json == null || var.manage_bucket_policy
+    error_message = "bucket_policy_json cannot be set when manage_bucket_policy is false."
+  }
 }
 
 # ── Tags ──────────────────────────────────────────────────────────────────────
