@@ -46,51 +46,8 @@ data "aws_iam_policy_document" "default_bucket_policy" {
     }
   }
 
-  # KMS enforcement (see README). Uploads without encryption headers stay
-  # allowed: they get the bucket default, which is the same key.
-  dynamic "statement" {
-    for_each = local.enforce_kms_key ? [1] : []
-    content {
-      sid    = "DenyNonKmsEncryption"
-      effect = "Deny"
-      principals {
-        type        = "*"
-        identifiers = ["*"]
-      }
-      actions   = ["s3:PutObject"]
-      resources = ["${module.bucket.bucket_arn}/*"]
-      condition {
-        test     = "StringNotEqualsIfExists"
-        variable = "s3:x-amz-server-side-encryption"
-        values   = ["aws:kms"]
-      }
-    }
-  }
-
-  dynamic "statement" {
-    for_each = local.enforce_kms_key ? [1] : []
-    content {
-      sid    = "DenyKmsWithoutKeyId"
-      effect = "Deny"
-      principals {
-        type        = "*"
-        identifiers = ["*"]
-      }
-      actions   = ["s3:PutObject"]
-      resources = ["${module.bucket.bucket_arn}/*"]
-      condition {
-        test     = "StringEquals"
-        variable = "s3:x-amz-server-side-encryption"
-        values   = ["aws:kms"]
-      }
-      condition {
-        test     = "Null"
-        variable = "s3:x-amz-server-side-encryption-aws-kms-key-id"
-        values   = ["true"]
-      }
-    }
-  }
-
+  # KMS enforcement (see README). Uploads without encryption options get the
+  # bucket default, which is the same key.
   dynamic "statement" {
     for_each = local.enforce_kms_key ? [1] : []
     content {
