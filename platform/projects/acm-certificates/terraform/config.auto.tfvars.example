@@ -1,0 +1,21 @@
+region = "eu-central-2"
+
+certificates = {
+  main = {
+    domain_name               = "*.example.com"
+    subject_alternative_names = ["example.com"]
+  }
+
+  shop = {
+    domain_name         = "shop.example.com"
+    key_algorithm       = "EC_prime256v1"
+    wait_for_validation = true
+    validation_zone_id  = "Z0123456789ABCDEFGHIJ"
+  }
+
+  # internal = {
+  #   domain_name               = "app.internal.example.com"
+  #   certificate_authority_arn = "arn:aws:acm-pca:eu-central-2:111122223333:certificate-authority/00000000-0000-0000-0000-000000000000"
+  #   early_renewal_duration    = "P90D"
+  # }
+}
