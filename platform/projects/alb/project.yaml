@@ -1,0 +1,10 @@
+name: alb
+description: >-
+  Creates one Application Load Balancer with IP target groups, listeners and
+  listener rules in the account and VPC of the step. Certificates and target
+  IPs are wired in from other steps. Creates its own security group by default,
+  or attaches security groups managed elsewhere.
+metadata:
+  cost-center: platform
+deploy:
+  type: just
