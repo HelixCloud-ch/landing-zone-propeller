@@ -9,7 +9,7 @@ variable "listener_arn" {
 
 variable "priority" {
   type        = number
-  description = "Rule priority (1-50000), unique per listener."
+  description = "Rule priority (1-50000), unique per listener. Lower values are evaluated first."
   validation {
     condition     = var.priority == floor(var.priority) && var.priority >= 1 && var.priority <= 50000
     error_message = "priority must be an integer between 1 and 50000."
@@ -40,6 +40,14 @@ variable "conditions" {
       length(var.conditions.http_headers) + length(var.conditions.query_strings)
     ) > 0
     error_message = "conditions must set at least one condition."
+  }
+  validation {
+    condition = (
+      length(var.conditions.host_headers) + length(var.conditions.path_patterns) +
+      length(var.conditions.http_request_methods) + length(var.conditions.source_ips) +
+      length(var.conditions.query_strings) + sum(concat([0], [for h in var.conditions.http_headers : length(h.values)]))
+    ) <= 5
+    error_message = "A rule allows at most five match evaluations (condition values) in total."
   }
   validation {
     condition     = alltrue([for p in concat(var.conditions.host_headers, var.conditions.path_patterns) : length(p) <= 128])

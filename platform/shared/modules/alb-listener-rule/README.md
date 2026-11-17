@@ -24,9 +24,17 @@ module "listener_rule" {
 }
 ```
 
+## Priority
+
+`priority` is required, an integer from 1 to 50000. The load balancer evaluates the rules of a listener from the lowest priority to the highest, and the first match wins. The default action runs when no rule matches. Priorities must be unique per listener. Two rules with the same priority fail at apply.
+
+The module has no automatic priority on purpose. Without one, AWS gives the next free priority in the order of creation, so the order would depend on the order in which Terraform creates the rules, not on the configuration.
+
+Changing the priority updates the rule in place (`SetRulePriorities`). In one apply, a rule can only move to a priority that no rule holds before the apply. A swap of two priorities in one apply fails with `PriorityInUse`, and AWS keeps both rules unchanged. To reorder, move the rules to free values, for example a new range (10, 20 → 200, 100).
+
 ## Design notes
 
-- A rule needs at least one condition. All non-empty condition groups must match (AND).
+- A rule needs at least one condition. All non-empty condition groups must match (AND). Each `http_headers` and `query_strings` item is its own condition. A rule allows at most five condition values in total (AWS limit).
 - Each host header and path pattern has at most 128 characters.
 - `http_headers` must not name `Host`. Use `host_headers`.
 - `source_ips` takes IPv4 CIDR blocks.

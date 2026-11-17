@@ -75,14 +75,11 @@ resource "aws_lb_listener_rule" "this" {
   }
 
   dynamic "condition" {
-    for_each = length(var.conditions.query_strings) == 0 ? [] : [var.conditions.query_strings]
+    for_each = var.conditions.query_strings
     content {
-      dynamic "query_string" {
-        for_each = condition.value
-        content {
-          key   = query_string.value.key
-          value = query_string.value.value
-        }
+      query_string {
+        key   = condition.value.key
+        value = condition.value.value
       }
     }
   }
