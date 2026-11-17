@@ -50,6 +50,7 @@ variable "ssl_policy" {
   type        = string
   description = "TLS security policy for HTTPS (TLS 1.2 minimum). Ignored for HTTP."
   default     = "ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09"
+  nullable    = false
   validation {
     condition     = can(regex("^ELBSecurityPolicy-TLS13-1-[23]-", var.ssl_policy))
     error_message = "ssl_policy must be a TLS13-1-2 or TLS13-1-3 policy, so that TLS 1.2 is the minimum version."
