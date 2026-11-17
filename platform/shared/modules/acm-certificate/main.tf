@@ -18,8 +18,6 @@ resource "aws_acm_certificate" "this" {
     }
   }
 
-  tags = merge({ Name = var.domain_name }, var.tags)
-
   lifecycle {
     create_before_destroy = true
   }
