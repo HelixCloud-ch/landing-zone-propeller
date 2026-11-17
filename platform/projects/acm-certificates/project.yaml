@@ -1,0 +1,11 @@
+name: acm-certificates
+description: >-
+  Requests ACM certificates (public with DNS or email validation, or private
+  from AWS Private CA). Fans out over the acm-certificate shared module. It can
+  wait until a certificate is issued. It publishes the validation records
+  when validation_zone_id is set. It also outputs them in the shape of the
+  dns-record project input.
+metadata:
+  cost-center: platform
+deploy:
+  type: just
