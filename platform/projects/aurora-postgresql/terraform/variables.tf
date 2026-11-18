@@ -204,6 +204,12 @@ variable "tags" {
   default = {}
 }
 
+variable "db_cluster_tags" {
+  type        = map(string)
+  description = "Tags applied to the DB cluster only, on top of provider default_tags."
+  default     = {}
+}
+
 variable "consumer_tags" {
   type    = map(string)
   default = {}

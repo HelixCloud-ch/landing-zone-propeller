@@ -94,6 +94,8 @@ resource "aws_docdb_cluster" "this" {
 
   # Parameter group (created only when custom parameters are provided)
   db_cluster_parameter_group_name = length(var.cluster_parameters) > 0 ? aws_docdb_cluster_parameter_group.this[0].name : null
+
+  tags = var.db_cluster_tags
 }
 
 # ── Cluster Parameter Group ───────────────────────────────────────────────────

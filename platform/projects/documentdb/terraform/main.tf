@@ -79,4 +79,7 @@ module "documentdb" {
 
   # Logging
   enabled_cloudwatch_logs_exports = var.enabled_cloudwatch_logs_exports
+
+  # Tags
+  db_cluster_tags = var.db_cluster_tags
 }

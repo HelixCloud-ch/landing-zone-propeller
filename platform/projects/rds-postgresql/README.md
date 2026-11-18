@@ -86,6 +86,14 @@ the latest minor. Pin a specific minor for production stability if needed.
 - Read replicas — future extension of the shared module
 - RDS Proxy — separate project (cross-account connectivity pattern)
 
+
+## Instance-only tags
+
+`tags` flows through provider `default_tags` and lands on every resource in the
+project. `db_instance_tags` is applied to the `aws_db_instance` only. Use it for
+selectors such as an AWS Backup tag that must not match the other resources. On
+a key clash the instance value wins over `default_tags`.
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -122,6 +130,7 @@ No resources.
 | <a name="input_backup_window"></a> [backup\_window](#input\_backup\_window) | n/a | `string` | `"03:00-04:00"` | no |
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | n/a | `map(string)` | `{}` | no |
 | <a name="input_credential"></a> [credential](#input\_credential) | Credential strategy. Set one of secret\_name/secret\_arn/parameter\_name/<br/>parameter\_arn to use the ephemeral-credential module. Leave all null to<br/>use RDS-managed master password (manage\_master\_user\_password=true with<br/>kms\_key\_id for encryption). | <pre>object({<br/>    # Identity — set exactly one, or leave all null for RDS-managed mode<br/>    secret_name    = optional(string)<br/>    secret_arn     = optional(string)<br/>    parameter_name = optional(string)<br/>    parameter_arn  = optional(string)<br/><br/>    # Password generation<br/>    password = optional(object({<br/>      length                     = optional(number, 28)<br/>      exclude_characters         = optional(string, "/@\"\\'\n")<br/>      exclude_lowercase          = optional(bool, false)<br/>      exclude_numbers            = optional(bool, false)<br/>      exclude_punctuation        = optional(bool, false)<br/>      exclude_uppercase          = optional(bool, false)<br/>      include_space              = optional(bool, false)<br/>      require_each_included_type = optional(bool, true)<br/>    }), {})<br/><br/>    # Rotation & encryption<br/>    password_version = optional(number, 1)<br/>    kms_key_id       = optional(string)<br/>    description      = optional(string)<br/>  })</pre> | `{}` | no |
+| <a name="input_db_instance_tags"></a> [db\_instance\_tags](#input\_db\_instance\_tags) | Tags applied to the DB instance only, on top of provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_db_name"></a> [db\_name](#input\_db\_name) | n/a | `string` | `"appdb"` | no |
 | <a name="input_deletion_protection"></a> [deletion\_protection](#input\_deletion\_protection) | n/a | `bool` | `true` | no |
 | <a name="input_engine_version"></a> [engine\_version](#input\_engine\_version) | PostgreSQL major version (e.g. '16'). | `string` | `"16"` | no |
@@ -140,8 +149,7 @@ No resources.
 | <a name="input_snapshot_identifier"></a> [snapshot\_identifier](#input\_snapshot\_identifier) | n/a | `string` | `""` | no |
 | <a name="input_storage_encrypted"></a> [storage\_encrypted](#input\_storage\_encrypted) | n/a | `bool` | `true` | no |
 | <a name="input_storage_type"></a> [storage\_type](#input\_storage\_type) | n/a | `string` | `"gp3"` | no |
-| <a name="input_subnet_ids_json"></a> [subnet\_ids\_json](#input\_subnet\_ids\_json) | JSON string of subnet tier map (from VPC project output). Decoded to extract the selected tier. | `string` | n/a | yes |
-| <a name="input_subnet_tier"></a> [subnet\_tier](#input\_subnet\_tier) | Key in the subnet map to use for the DB subnet group. | `string` | `"data"` | no |
+| <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | Subnet IDs for the DB subnet group (from VPC project output). | `list(string)` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | n/a | `map(string)` | `{}` | no |
 | <a name="input_username"></a> [username](#input\_username) | Master username. Ignored when credential.username is set (generated). | `string` | `"dbadmin"` | no |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | VPC ID (from VPC project output). | `string` | n/a | yes |

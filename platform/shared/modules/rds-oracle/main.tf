@@ -137,6 +137,8 @@ resource "aws_db_instance" "this" {
   parameter_group_name = var.parameter_group_name
   option_group_name    = aws_db_option_group.this.name
 
+  tags = var.db_instance_tags
+
   lifecycle {
     ignore_changes = [
       # Storage autoscaling adjusts this dynamically
