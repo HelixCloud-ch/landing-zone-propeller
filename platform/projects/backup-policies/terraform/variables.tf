@@ -16,6 +16,26 @@ variable "ou_ids" {
   default     = {}
 }
 
+variable "workload_account_ids" {
+  type        = map(string)
+  description = "Account name to ID, from @landing-zone/workload-parameters.account_ids. Resolves target_accounts."
+  default     = {}
+}
+
+variable "landing_zone_account_ids" {
+  type        = map(string)
+  description = "Account name to ID, from @landing-zone/accounts.account_ids. Resolves target_accounts."
+  default     = {}
+
+  validation {
+    condition = length(setintersection(
+      [for n in keys(var.workload_account_ids) : lower(replace(n, " ", "-"))],
+      [for n in keys(var.landing_zone_account_ids) : lower(replace(n, " ", "-"))],
+    )) == 0
+    error_message = "An account name appears in both workload_account_ids and landing_zone_account_ids."
+  }
+}
+
 variable "copy_vault_arn" {
   type        = string
   description = "Default destination vault ARN (e.g. the central backup-vault's vault_arn). Null disables copies."
@@ -29,6 +49,7 @@ variable "policies" {
     description               = optional(string, "AWS Backup policy managed by propeller.")
     target_ou_paths           = optional(list(string), [])
     target_ids                = optional(list(string), [])
+    target_accounts           = optional(list(string), [])
     regions                   = optional(list(string), [])
     schedule_expression       = optional(string, "cron(0 2 ? * * *)")
     start_window_minutes      = optional(number)
@@ -54,13 +75,25 @@ variable "policies" {
   }
 
   validation {
-    condition     = alltrue([for k, p in var.policies : length(p.target_ou_paths) + length(p.target_ids) > 0])
-    error_message = "Every policy must set at least one of target_ou_paths or target_ids."
+    condition     = alltrue([for k, p in var.policies : length(p.target_ou_paths) + length(p.target_ids) + length(p.target_accounts) > 0])
+    error_message = "Every policy must set at least one of target_ou_paths, target_ids or target_accounts."
   }
 
   validation {
     condition     = alltrue(flatten([for k, p in var.policies : [for path in p.target_ou_paths : contains(keys(var.ou_ids), path)]]))
     error_message = "Every target_ou_paths entry must be a key of ou_ids."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for k, p in var.policies : [
+        for n in p.target_accounts : contains(concat(
+          [for a in keys(var.workload_account_ids) : lower(replace(a, " ", "-"))],
+          [for a in keys(var.landing_zone_account_ids) : lower(replace(a, " ", "-"))],
+        ), n)
+      ]
+    ]))
+    error_message = "Every target_accounts entry must be an account name from workload_account_ids or landing_zone_account_ids (lowercase, spaces as hyphens)."
   }
 
   validation {
