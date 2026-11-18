@@ -322,3 +322,11 @@ variable "additional_options" {
   description = "Additional options to include in the module-managed option group (e.g. APEX, native network encryption)."
   default     = []
 }
+
+# ── Tags ──────────────────────────────────────────────────────────────────────
+
+variable "db_instance_tags" {
+  type        = map(string)
+  description = "Tags applied to the DB instance only, on top of provider default_tags."
+  default     = {}
+}

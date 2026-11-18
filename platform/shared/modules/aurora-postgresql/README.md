@@ -35,8 +35,6 @@ No modules.
 | [aws_rds_cluster.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/rds_cluster) | resource |
 | [aws_rds_cluster_instance.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/rds_cluster_instance) | resource |
 | [aws_security_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
-| [aws_vpc_security_group_egress_rule.custom](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
-| [aws_vpc_security_group_egress_rule.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.ingress_cidrs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.ingress_sgs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_rds_engine_version.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/rds_engine_version) | data source |
@@ -52,12 +50,11 @@ No modules.
 | <a name="input_auto_minor_version_upgrade"></a> [auto\_minor\_version\_upgrade](#input\_auto\_minor\_version\_upgrade) | Apply minor version upgrades automatically during the maintenance window. | `bool` | `true` | no |
 | <a name="input_backup_retention_period"></a> [backup\_retention\_period](#input\_backup\_retention\_period) | Days to retain automated backups (1-35). Aurora does not allow 0. | `number` | `7` | no |
 | <a name="input_backup_window"></a> [backup\_window](#input\_backup\_window) | Daily time range for automated backups (UTC). Format: hh:mm-hh:mm. | `string` | `"03:00-04:00"` | no |
-| <a name="input_create_egress_rule"></a> [create\_egress\_rule](#input\_create\_egress\_rule) | Create an allow-all egress rule on the security group. Keep true for the common case; set false to restrict egress (via egress\_rules) or manage it externally. | `bool` | `true` | no |
 | <a name="input_db_cluster_parameter_group_name"></a> [db\_cluster\_parameter\_group\_name](#input\_db\_cluster\_parameter\_group\_name) | DB cluster parameter group name. Uses engine default if not specified. | `string` | `null` | no |
+| <a name="input_db_cluster_tags"></a> [db\_cluster\_tags](#input\_db\_cluster\_tags) | Tags applied to the DB cluster only, on top of provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_db_name"></a> [db\_name](#input\_db\_name) | Name of the initial database to create. | `string` | `"appdb"` | no |
 | <a name="input_db_parameter_group_name"></a> [db\_parameter\_group\_name](#input\_db\_parameter\_group\_name) | DB instance parameter group name. Uses engine default if not specified. | `string` | `null` | no |
 | <a name="input_deletion_protection"></a> [deletion\_protection](#input\_deletion\_protection) | Prevent accidental deletion of the cluster. | `bool` | `true` | no |
-| <a name="input_egress_rules"></a> [egress\_rules](#input\_egress\_rules) | Explicit egress rules for restricted setups. Used with create\_egress\_rule = false. | <pre>list(object({<br/>    cidr_ipv4   = string<br/>    from_port   = number<br/>    to_port     = number<br/>    ip_protocol = optional(string, "tcp")<br/>    description = optional(string, "")<br/>  }))</pre> | `[]` | no |
 | <a name="input_engine_version"></a> [engine\_version](#input\_engine\_version) | Aurora PostgreSQL major version (e.g. '17'). Auto-pause (min\_capacity = 0) requires a recent version. | `string` | `"17"` | no |
 | <a name="input_final_snapshot_identifier"></a> [final\_snapshot\_identifier](#input\_final\_snapshot\_identifier) | Name for the final snapshot on deletion. Defaults to '{identifier}-final'. | `string` | `""` | no |
 | <a name="input_identifier"></a> [identifier](#input\_identifier) | Unique identifier for the Aurora cluster. Used for naming all associated resources. | `string` | n/a | yes |

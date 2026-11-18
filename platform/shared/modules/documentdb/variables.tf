@@ -319,3 +319,11 @@ variable "enabled_cloudwatch_logs_exports" {
     error_message = "enabled_cloudwatch_logs_exports entries must be 'audit' and/or 'profiler'."
   }
 }
+
+# ── Tags ──────────────────────────────────────────────────────────────────────
+
+variable "db_cluster_tags" {
+  type        = map(string)
+  description = "Tags applied to the DB cluster only, on top of provider default_tags."
+  default     = {}
+}

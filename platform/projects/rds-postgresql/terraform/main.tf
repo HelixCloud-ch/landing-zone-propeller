@@ -76,4 +76,7 @@ module "rds_postgresql" {
 
   # Monitoring
   performance_insights_enabled = var.performance_insights_enabled
+
+  # Tags
+  db_instance_tags = var.db_instance_tags
 }

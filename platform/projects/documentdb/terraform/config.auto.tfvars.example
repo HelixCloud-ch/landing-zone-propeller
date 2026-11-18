@@ -74,3 +74,7 @@ engine_version     = "8.0.0"  # Use: aws docdb describe-db-engine-versions --eng
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 # enabled_cloudwatch_logs_exports = ["audit"]  # Valid: "audit", "profiler"
+
+# ── Cluster-only tags ─────────────────────────────────────────────────────────
+# Added to the DB cluster only, not to cluster instances.
+# db_cluster_tags = { backup = "default" }

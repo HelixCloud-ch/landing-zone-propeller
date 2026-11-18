@@ -106,6 +106,8 @@ resource "aws_rds_cluster" "this" {
   # Parameter group
   db_cluster_parameter_group_name = var.db_cluster_parameter_group_name
 
+  tags = var.db_cluster_tags
+
   lifecycle {
     precondition {
       condition     = !(var.min_capacity == 0 && var.performance_insights_enabled)

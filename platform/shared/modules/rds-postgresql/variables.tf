@@ -358,3 +358,11 @@ variable "enabled_cloudwatch_logs_exports" {
     error_message = "enabled_cloudwatch_logs_exports entries must be 'postgresql' and/or 'upgrade'."
   }
 }
+
+# ── Tags ──────────────────────────────────────────────────────────────────────
+
+variable "db_instance_tags" {
+  type        = map(string)
+  description = "Tags applied to the DB instance only, on top of provider default_tags."
+  default     = {}
+}

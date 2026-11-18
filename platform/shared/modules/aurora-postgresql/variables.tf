@@ -334,3 +334,11 @@ variable "db_parameter_group_name" {
   description = "DB instance parameter group name. Uses engine default if not specified."
   default     = null
 }
+
+# ── Tags ──────────────────────────────────────────────────────────────────────
+
+variable "db_cluster_tags" {
+  type        = map(string)
+  description = "Tags applied to the DB cluster only, on top of provider default_tags."
+  default     = {}
+}

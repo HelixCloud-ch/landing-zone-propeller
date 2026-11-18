@@ -80,4 +80,7 @@ module "rds_mariadb" {
   # Parameter group
   parameter_group_name = var.parameter_group_name
   parameters           = var.parameters
+
+  # Tags
+  db_instance_tags = var.db_instance_tags
 }

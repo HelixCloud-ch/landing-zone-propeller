@@ -68,3 +68,7 @@ engine_version = "17"
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
 # performance_insights_enabled = false  # Keep disabled with scale-to-zero
+
+# ── Cluster-only tags ─────────────────────────────────────────────────────────
+# Added to the DB cluster only, not to cluster instances.
+# db_cluster_tags = { backup = "default" }

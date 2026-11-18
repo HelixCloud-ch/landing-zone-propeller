@@ -54,6 +54,7 @@ No modules.
 | Name | Type |
 | ---- | ---- |
 | [aws_db_instance.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance) | resource |
+| [aws_db_parameter_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_parameter_group) | resource |
 | [aws_db_subnet_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_subnet_group) | resource |
 | [aws_security_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_vpc_security_group_ingress_rule.ingress_cidrs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
@@ -72,6 +73,7 @@ No modules.
 | <a name="input_auto_minor_version_upgrade"></a> [auto\_minor\_version\_upgrade](#input\_auto\_minor\_version\_upgrade) | Apply minor version upgrades automatically during the maintenance window. | `bool` | `true` | no |
 | <a name="input_backup_retention_period"></a> [backup\_retention\_period](#input\_backup\_retention\_period) | Days to retain automated backups (0 to disable, max 35). | `number` | `7` | no |
 | <a name="input_backup_window"></a> [backup\_window](#input\_backup\_window) | Daily time range for automated backups (UTC). Format: hh:mm-hh:mm. | `string` | `"03:00-04:00"` | no |
+| <a name="input_db_instance_tags"></a> [db\_instance\_tags](#input\_db\_instance\_tags) | Tags applied to the DB instance only, on top of provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_db_name"></a> [db\_name](#input\_db\_name) | Name of the initial database to create. Must begin with a letter; subsequent characters can be letters, underscores, or digits (1-64 chars). | `string` | `"appdb"` | no |
 | <a name="input_deletion_protection"></a> [deletion\_protection](#input\_deletion\_protection) | Prevent accidental deletion of the instance. | `bool` | `true` | no |
 | <a name="input_enabled_cloudwatch_logs_exports"></a> [enabled\_cloudwatch\_logs\_exports](#input\_enabled\_cloudwatch\_logs\_exports) | List of log types to export to CloudWatch. Valid values for MariaDB: 'audit', 'error', 'general', 'slowquery'. | `list(string)` | <pre>[<br/>  "error",<br/>  "slowquery"<br/>]</pre> | no |
@@ -85,7 +87,8 @@ No modules.
 | <a name="input_master_user_secret_kms_key_id"></a> [master\_user\_secret\_kms\_key\_id](#input\_master\_user\_secret\_kms\_key\_id) | KMS key for a Secrets Manager-managed master password. When set, credentials are managed by Secrets Manager and 'password' must not be provided. | `string` | `null` | no |
 | <a name="input_max_allocated_storage"></a> [max\_allocated\_storage](#input\_max\_allocated\_storage) | Maximum storage in GiB for autoscaling. Set to 0 to disable. | `number` | `40` | no |
 | <a name="input_multi_az"></a> [multi\_az](#input\_multi\_az) | Enable Multi-AZ deployment for high availability. | `bool` | `false` | no |
-| <a name="input_parameter_group_name"></a> [parameter\_group\_name](#input\_parameter\_group\_name) | DB parameter group name. Uses engine default if not specified. | `string` | `null` | no |
+| <a name="input_parameter_group_name"></a> [parameter\_group\_name](#input\_parameter\_group\_name) | Existing DB parameter group to attach (bring-your-own). Wins over `parameters` when both are set. Falls back to the engine default when both are unset. | `string` | `null` | no |
+| <a name="input_parameters"></a> [parameters](#input\_parameters) | Extra DB parameter group values as name -> value. When non-empty and parameter\_group\_name is null, the module creates a per-instance aws\_db\_parameter\_group and attaches it. Default apply\_method is pending-reboot, safe for both static and dynamic params. | `map(string)` | `{}` | no |
 | <a name="input_password"></a> [password](#input\_password) | Master password. Used only when master\_user\_secret\_kms\_key\_id is not set. Mutually exclusive with it. Ephemeral: never written to state or plan (delivered via the write-only password\_wo argument). MariaDB allows 8-41 printable ASCII characters excluding '/', single-quote, '"', '@', and spaces. | `string` | `null` | no |
 | <a name="input_password_wo_version"></a> [password\_wo\_version](#input\_password\_wo\_version) | Bump to rotate the write-only password. Only relevant in password mode. | `number` | `1` | no |
 | <a name="input_performance_insights_enabled"></a> [performance\_insights\_enabled](#input\_performance\_insights\_enabled) | Enable Performance Insights. | `bool` | `true` | no |
@@ -109,6 +112,7 @@ No modules.
 | <a name="output_db_name"></a> [db\_name](#output\_db\_name) | The database name. |
 | <a name="output_endpoint"></a> [endpoint](#output\_endpoint) | Connection endpoint in address:port format. |
 | <a name="output_master_user_secret_arn"></a> [master\_user\_secret\_arn](#output\_master\_user\_secret\_arn) | ARN of the Secrets Manager secret containing the master user credentials. |
+| <a name="output_parameter_group_name"></a> [parameter\_group\_name](#output\_parameter\_group\_name) | Name of the DB parameter group attached to the instance (existing or module-created), or null when engine default is used. |
 | <a name="output_port"></a> [port](#output\_port) | Database port. |
 | <a name="output_security_group_id"></a> [security\_group\_id](#output\_security\_group\_id) | ID of the security group used by the RDS instance (created or caller-provided). |
 | <a name="output_username"></a> [username](#output\_username) | The master username for the database. |

@@ -79,3 +79,7 @@ engine_version = "19"  # Required. Use: aws rds describe-db-engine-versions --en
 # Creates an S3 bucket, IAM role, and option group for Oracle Data Pump.
 # Bucket name: <identifier>-oracle-data-<account_id>-<region>-an
 # enable_s3_integration = false
+
+# ── Instance-only tags ────────────────────────────────────────────────────────
+# Added to the DB instance only (not the bucket, role or security group).
+# db_instance_tags = { backup = "default" }

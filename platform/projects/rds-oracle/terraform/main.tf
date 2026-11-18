@@ -87,4 +87,7 @@ module "rds_oracle" {
 
   # JVM
   enable_jvm = var.enable_jvm
+
+  # Tags
+  db_instance_tags = var.db_instance_tags
 }
