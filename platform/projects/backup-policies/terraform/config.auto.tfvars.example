@@ -3,9 +3,10 @@
 
 region = "eu-central-2"
 
-# ou_ids and copy_vault_arn are injected by the pipeline from
-# @landing-zone/workload-parameters.ou_ids and the central backup-vault
-# instance's vault_arn — do NOT set them here.
+# ou_ids, the account maps and copy_vault_arn are injected by the pipeline
+# from @landing-zone/workload-parameters.{ou_ids,account_ids},
+# @landing-zone/accounts.account_ids and the central backup-vault instance's
+# vault_arn — do NOT set them here.
 
 policies = {
   # Daily backup of every resource tagged backup=default in the production
@@ -27,6 +28,12 @@ policies = {
     copy_retention_days   = 90
     selection_tag_values  = ["critical"]
   }
+
+  # One account by name (pipeline target name), resolved against the
+  # workload_account_ids / landing_zone_account_ids pipeline inputs.
+  # "propeller-backup-shared" = {
+  #   target_accounts = ["shared-services"]
+  # }
 
   # Local-only tier for test accounts: no cross-account copy.
   # "propeller-backup-test" = {
