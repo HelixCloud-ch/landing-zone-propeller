@@ -206,8 +206,8 @@ resource "aws_cloudwatch_metric_alarm" "not_running" {
   alarm_name          = "${var.identifier}-connector-not-running"
   alarm_description   = "Fires when the ${var.identifier} MSK Connect connector is not in a running state."
   namespace           = "AWS/KafkaConnect"
-  metric_name         = "ConnectorRunningTaskCount"
-  dimensions          = { "Connector Name" = aws_mskconnect_connector.this.name }
+  metric_name         = "RunningTaskCount"
+  dimensions          = { ConnectorName = aws_mskconnect_connector.this.name }
   statistic           = "Minimum"
   comparison_operator = "LessThanThreshold"
   threshold           = 1
