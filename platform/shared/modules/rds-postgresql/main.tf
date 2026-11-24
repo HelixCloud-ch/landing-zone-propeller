@@ -45,6 +45,29 @@ resource "aws_vpc_security_group_ingress_rule" "ingress_sgs" {
   description                  = "PostgreSQL access from ${each.value}"
 }
 
+# ── DB Parameter Group ────────────────────────────────────────────────────────
+
+resource "aws_db_parameter_group" "this" {
+  count       = local.create_parameter_group ? 1 : 0
+  name_prefix = "${var.identifier}-"
+  family      = local.parameter_group_family
+  description = "Custom PostgreSQL parameters for ${var.identifier}"
+
+  dynamic "parameter" {
+    for_each = var.parameters
+    content {
+      name         = parameter.key
+      value        = parameter.value
+      apply_method = "pending-reboot"
+    }
+  }
+
+  # The new group must exist before the instance switches over when the family changes.
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # ── RDS PostgreSQL Instance ───────────────────────────────────────────────────
 
 resource "aws_db_instance" "this" {
@@ -105,7 +128,7 @@ resource "aws_db_instance" "this" {
   enabled_cloudwatch_logs_exports = var.enabled_cloudwatch_logs_exports
 
   # Parameter group
-  parameter_group_name = var.parameter_group_name
+  parameter_group_name = local.parameter_group_name
 
   tags = var.db_instance_tags
 

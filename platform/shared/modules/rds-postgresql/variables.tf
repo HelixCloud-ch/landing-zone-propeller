@@ -342,8 +342,19 @@ variable "performance_insights_enabled" {
 
 variable "parameter_group_name" {
   type        = string
-  description = "DB parameter group name. Uses engine default if not specified."
+  description = "Existing DB parameter group to attach. Uses the engine default if null."
   default     = null
+}
+
+variable "parameters" {
+  type        = map(string)
+  description = "Parameter name to value. When non-empty, creates and attaches a parameter group (pending-reboot)."
+  default     = {}
+
+  validation {
+    condition     = length(var.parameters) == 0 || var.parameter_group_name == null
+    error_message = "parameters and parameter_group_name are mutually exclusive; set at most one."
+  }
 }
 
 # ── Logging ───────────────────────────────────────────────────────────────────
