@@ -24,6 +24,11 @@ output "security_group_id" {
 }
 
 output "server_id" {
-  description = "Debezium database.server.id in effect (supplied or derived from identifier)."
+  description = "Debezium database.server.id in effect (supplied or derived from identifier). Used by mariadb only."
   value       = local.server_id
+}
+
+output "slot_name" {
+  description = "PostgreSQL replication slot name in effect (slot.name, after overrides). Null for other engines."
+  value       = module.debezium.slot_name
 }

@@ -39,6 +39,11 @@ output "connector_configuration" {
   sensitive   = true
 }
 
+output "slot_name" {
+  description = "PostgreSQL replication slot name in effect (slot.name, after overrides). Null for other engines."
+  value       = try(local.connector_configuration["slot.name"], null)
+}
+
 output "alarm_arn" {
   description = "ARN of the module-created not-running alarm; null when not created."
   value       = one(aws_cloudwatch_metric_alarm.not_running[*].arn)

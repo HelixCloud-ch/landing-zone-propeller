@@ -91,7 +91,9 @@ terraform_providers:
 # uv venvs in /opt/propeller/python/<key>, for projects that run Python with
 # py-run (shared/recipes/python.just).
 python_envs:
-  # cdc-prepare-mariadb, cdc-prepare-oracle, cdc-topics.
+  # cdc-prepare-mariadb, cdc-prepare-oracle, cdc-prepare-postgresql, cdc-topics.
+  # The env now includes psycopg (cdc-prepare-postgresql): rebuild the image
+  # before that project runs. Keep any overlay copy of this env equal.
   cdc:
     path: ../../shared/python/cdc
 

@@ -88,7 +88,10 @@ variable "db_host" {
 
 variable "db_port" {
   type        = number
-  description = "Port of the source database. Opened as egress on the created security group."
+  description = <<-EOT
+    Port of the source database. Opened as egress on the created security
+    group. The default is 3306 for every engine: set 5432 for postgresql.
+  EOT
   default     = 3306
 
   validation {
@@ -100,17 +103,23 @@ variable "db_port" {
 variable "db_name" {
   type        = string
   description = <<-EOT
-    Oracle service name / SID (database.dbname). Ignored for mariadb.
-    On a CDB source this is the container's service; see pdb_name.
+    Oracle service name / SID, or PostgreSQL database name (database.dbname).
+    Required for postgresql; ignored for mariadb. On an Oracle CDB source it
+    is the container's service; see pdb_name.
   EOT
   default     = ""
+
+  validation {
+    condition     = var.engine != "postgresql" || trimspace(var.db_name) != ""
+    error_message = "db_name is required for engine postgresql: set it to the PostgreSQL database name."
+  }
 }
 
 variable "pdb_name" {
   type        = string
   description = <<-EOT
     Oracle pluggable database (database.pdb.name) for a CDB source.
-    Empty (default) omits the property. Ignored for mariadb.
+    Empty (default) omits the property. Ignored for other engines.
   EOT
   default     = ""
 }
@@ -221,7 +230,16 @@ variable "offset_topic" {
 
 variable "schema_history_topic" {
   type        = string
-  description = "Kafka topic where Debezium stores captured schema history."
+  description = <<-EOT
+    Kafka topic where Debezium stores captured schema history. Required for
+    mariadb and oracle; ignored for postgresql.
+  EOT
+  default     = null
+
+  validation {
+    condition     = var.engine == "postgresql" || var.schema_history_topic != null
+    error_message = "schema_history_topic is required for engine mariadb and oracle."
+  }
 }
 
 variable "topic_prefix" {
@@ -231,7 +249,17 @@ variable "topic_prefix" {
 
 variable "server_id" {
   type        = string
-  description = "Debezium database.server.id. Must be stable per connector and unique across connectors; the project derives it deterministically from identifier."
+  description = <<-EOT
+    Debezium database.server.id. Required for mariadb, ignored otherwise.
+    Must be stable per connector and unique across connectors; the project
+    derives it deterministically from identifier.
+  EOT
+  default     = null
+
+  validation {
+    condition     = var.engine != "mariadb" || var.server_id != null
+    error_message = "server_id is required for engine mariadb."
+  }
 }
 
 # ── Credentials ───────────────────────────────────────────────────────────────
@@ -353,12 +381,12 @@ variable "table_include_list" {
 
 variable "engine" {
   type        = string
-  description = "Source engine. Selects the connector class and the per-engine defaults."
+  description = "Source engine: mariadb, oracle or postgresql. Selects the connector class and defaults."
   default     = "mariadb"
 
   validation {
-    condition     = contains(["mariadb", "oracle"], var.engine)
-    error_message = "engine must be 'mariadb' or 'oracle'."
+    condition     = contains(["mariadb", "oracle", "postgresql"], var.engine)
+    error_message = "engine must be 'mariadb', 'oracle' or 'postgresql'."
   }
 }
 
@@ -366,7 +394,7 @@ variable "log_mining_strategy" {
   type        = string
   description = <<-EOT
     Oracle log.mining.strategy, set in the defaults layer (overridable).
-    Ignored for mariadb. See README for hybrid vs online_catalog.
+    Ignored for other engines. See README for hybrid vs online_catalog.
   EOT
   default     = "hybrid"
 

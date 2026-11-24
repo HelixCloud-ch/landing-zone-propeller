@@ -1,6 +1,7 @@
 # Python env for the CDC projects (cdc-prepare-mariadb, cdc-prepare-oracle,
-# cdc-topics). Bake it into the deploy-runner image with python_envs.cdc; the
-# projects run through py-run.
+# cdc-prepare-postgresql, cdc-topics). Bake it into the deploy-runner image
+# with python_envs.cdc; the projects run through py-run. A new dependency here
+# (psycopg, psycopg-binary) needs an image rebuild.
 [project]
 name = "cdc"
 version = "0"
@@ -9,6 +10,8 @@ dependencies = [
   "boto3==1.43.123",
   "kafka-python==3.0.12",
   "oracledb==26.1.0",
+  "psycopg==3.3.9",
+  "psycopg-binary==3.3.9",
   "pymysql==1.2.3",
 ]
 

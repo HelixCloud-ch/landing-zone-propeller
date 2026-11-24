@@ -1,0 +1,17 @@
+[
+  {
+    "name": "connect-offsets",
+    "partitions": 25,
+    "configs": { "cleanup.policy": "compact" }
+  },
+  {
+    "name": "connect-configs",
+    "partitions": 1,
+    "configs": { "cleanup.policy": "compact" }
+  },
+  {
+    "name": "connect-status",
+    "partitions": 5,
+    "configs": { "cleanup.policy": "compact" }
+  }
+]

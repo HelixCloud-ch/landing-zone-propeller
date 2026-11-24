@@ -7,7 +7,8 @@ group, MSK Connect worker configuration and not-in-running-state CloudWatch
 alarm; each of these can be supplied from elsewhere instead (see
 [Bring your own resources](#bring-your-own-resources)). The connector configuration is built
 from three merged layers (see [Connector configuration](#connector-configuration));
-`mariadb` and `oracle` are supported; **Oracle is unverified against real
+`mariadb`, `oracle` and `postgresql` are supported (see [PostgreSQL](#postgresql));
+**Oracle is unverified against real
 infrastructure**, see [Oracle](#oracle) below. The module takes plain AWS inputs — IDs, ARNs,
 hostnames, topic names — and knows nothing about propeller's input shapes, so it
 is usable on its own as well as through the
@@ -188,8 +189,9 @@ parameter's **entire value** and cannot extract a key out of a JSON document
 (only the Secrets Manager provider can). A single JSON `{username, password}`
 parameter would therefore not work here. The upstream
 [`cdc-prepare-mariadb`](../../../projects/cdc-prepare-mariadb/README.md) /
-[`cdc-prepare-oracle`](../../../projects/cdc-prepare-oracle/README.md) projects
-create exactly these two scalar `SecureString` parameters. See
+[`cdc-prepare-oracle`](../../../projects/cdc-prepare-oracle/README.md) /
+[`cdc-prepare-postgresql`](../../../projects/cdc-prepare-postgresql/README.md)
+projects create exactly these two scalar `SecureString` parameters. See
 [Tutorial: Externalizing sensitive information using config providers](https://docs.aws.amazon.com/msk/latest/developerguide/msk-connect-config-provider.html).
 
 **The derived credentials are optional.** Leave `cdc_username_parameter` and
@@ -225,8 +227,8 @@ the same key:
 
 | Layer | Source | Keys |
 | ----- | ------ | ---- |
-| 1. Defaults | per engine, in `locals.tf` | `include.schema.changes=false`, `schema.history.internal.store.only.captured.tables.ddl=true`, `schema.history.internal.store.only.captured.databases.ddl=true`, `snapshot.mode=initial`; Oracle also `log.mining.strategy` (from `log_mining_strategy`) |
-| 2. Derived | typed inputs | `connector.class`, `tasks.max=1`, `database.hostname`, `database.port`, `database.user` / `database.password` (`${ssm::<name>}`, when the credential parameters are set), `topic.prefix`, `schema.history.internal.kafka.bootstrap.servers`, `schema.history.internal.kafka.topic`, `config.action.reload=none`, `table.include.list` (when set); MariaDB `database.server.id`; Oracle `database.dbname`, `database.pdb.name` (when set); the [schema-history authentication](#schema-history-authentication) keys |
+| 1. Defaults | per engine, in `locals.tf` | All engines: `snapshot.mode=initial`. MariaDB and Oracle also `include.schema.changes=false`, `schema.history.internal.store.only.captured.tables.ddl=true`, `schema.history.internal.store.only.captured.databases.ddl=true`; Oracle also `log.mining.strategy` (from `log_mining_strategy`). PostgreSQL also `plugin.name=pgoutput`, `publication.autocreate.mode=disabled`, `database.sslmode=require` |
+| 2. Derived | typed inputs | `connector.class`, `tasks.max=1`, `database.hostname`, `database.port`, `database.user` / `database.password` (`${ssm::<name>}`, when the credential parameters are set), `topic.prefix`, `config.action.reload=none`, `table.include.list` (when set); MariaDB and Oracle `schema.history.internal.kafka.bootstrap.servers`, `schema.history.internal.kafka.topic` and the [schema-history authentication](#schema-history-authentication) keys; MariaDB `database.server.id`; Oracle `database.dbname`, `database.pdb.name` (when set); PostgreSQL `database.dbname`, `slot.name` (see [PostgreSQL](#postgresql)) |
 | 3. Overrides | `connector_config_overrides` | anything |
 
 Typed inputs exist only for values Terraform itself needs outside the map
@@ -394,7 +396,7 @@ effect, or no equivalent, on MSK Connect:
 - `${dir:...}` / `${env:...}` placeholders: only the config providers declared
   in the worker configuration exist.
 - `name`: MSK Connect sets it from the connector name.
-- `database.server.id` on Oracle: unused by the Oracle connector.
+- `database.server.id` on Oracle and PostgreSQL: unused by those connectors.
 - OpenLineage noop settings.
 - Prefixed `schema.history.internal.{producer,consumer}.store.only.captured.*`:
   no-ops; only the unprefixed `schema.history.internal.store.only.captured.*`
@@ -421,9 +423,11 @@ is not exposed: the AWS provider `~> 6.0` (checked at 6.70.0) has no
 `network_type` argument on `aws_mskconnect_connector`. `client_authentication` (`NONE` | `IAM`)
 and `in_transit_encryption` (`PLAINTEXT` | `TLS`) are independent inputs with no
 built-in assumption about which combination a cluster uses — a consumer sets both
-to match its cluster. `server_id` (Debezium `database.server.id`) is derived
-deterministically per connector by the caller so it is stable across applies and
-distinct across connectors. `topic_prefix` is effectively immutable: changing it
+to match its cluster. `server_id` (Debezium `database.server.id`) is used by
+MariaDB only and is required there; the caller derives it
+deterministically per connector so it is stable across applies and
+distinct across connectors. `schema_history_topic` is required for MariaDB and
+Oracle and ignored for PostgreSQL, which keeps no schema history. `topic_prefix` is effectively immutable: changing it
 orphans the existing topics and breaks schema-history recovery, so it should be
 treated as fixed for the life of the connector.
 
@@ -440,6 +444,12 @@ a consumer runs elsewhere, on MSK Connect the connector runs on 3.7.x.
 Moving from 2.7 to 3.x renames or removes some connector options; check an
 existing configuration against the docs of the target series before switching
 plugins.
+
+For PostgreSQL, the Debezium 2.7 series lists PostgreSQL 12 to 16 as tested
+and the 3.x series lists 14 to 18 ([releases](https://debezium.io/releases/)).
+The default plugin (2.7.4.Final) is therefore not tested on PostgreSQL 17 and
+18, which RDS offers. A source on those versions needs a 3.x plugin, which is
+unverified on MSK Connect.
 
 ## Oracle
 
@@ -493,6 +503,53 @@ privileges Debezium's connector needs cannot always be granted the same way
 on RDS as on a self-managed Oracle instance. This has not been resolved or
 tested against a real RDS for Oracle CDB instance; close it before production
 use.
+
+## PostgreSQL
+
+`engine = "postgresql"` selects
+`connector.class=io.debezium.connector.postgresql.PostgresConnector`. It
+differs from the other engines in these points:
+
+- **`db_name`** is the database name (`database.dbname`). It is required and
+  must not be blank. `db_port` still defaults to 3306: set `5432`.
+- **No schema history.** PostgreSQL has no `schema.history.internal.*` keys, no
+  `include.schema.changes` default and no schema-history authentication keys.
+  `schema_history_topic` is ignored.
+- **No `database.server.id`.** `server_id` is ignored.
+- **Layer 1 defaults:** `plugin.name=pgoutput`,
+  `publication.autocreate.mode=disabled` and `database.sslmode=require`. All
+  three can be overridden. `publication.name` and `heartbeat.interval.ms` are
+  not set: Debezium defaults apply (`dbz_publication`, heartbeat off).
+- **Publication.** `disabled` stops the connector with an error when the
+  publication is missing. Create it before the first start (the
+  `cdc-prepare-postgresql` project does it by default). To let the connector
+  create it, override `publication.autocreate.mode` to `filtered`. The
+  database role then needs `rds_replication` (on RDS), `CREATE` on the
+  database, `SELECT` on the tables and ownership of every captured table.
+  The Debezium default `all_tables` needs a superuser right.
+- **SSL.** `require` encrypts the traffic and does not check the server
+  certificate. `verify-ca` and `verify-full` need the CA file on the MSK Connect
+  worker. The module does not provide it.
+- **Heartbeat.** Off by default. An idle or low-traffic database does not
+  confirm the slot position, so the slot keeps WAL. Set
+  `heartbeat.interval.ms` to enable it. The connector then writes to the topic
+  `__debezium-heartbeat.<topic_prefix>`, which must exist when topic
+  auto-creation is off.
+- **`slot.name`** is a layer 2 value derived from `identifier`: lowercase, each
+  character outside `[a-z0-9_]` becomes `_`. To change it, set `slot.name` in
+  `connector_config_overrides`. Because `identifier` allows only
+  lowercase letters, digits and hyphens and at most 56 characters, the slot
+  name is at most 56 bytes, below the 63-byte PostgreSQL limit. The module has
+  no length check. Add one if a prefix is ever added to the derived name. An
+  override of `slot.name` is not checked either.
+- **`slot_name` output** shows the `slot.name` in effect, after overrides. It
+  is null for the other engines.
+
+A new slot with an old Kafka offset can skip changes without any error
+([Debezium PostgreSQL connector](https://debezium.io/documentation/reference/2.7/connectors/postgresql.html), section "Upgrading PostgreSQL"),
+so treat `identifier` as immutable: renaming the connector changes the slot.
+The [project README](../../../projects/msk-connect-debezium/README.md#postgresql)
+has the operational detail.
 
 ## Log delivery
 
@@ -611,6 +668,7 @@ under a bare `terraform apply` or any non-propeller consumer.
 - [MSK Connect API: UpdateConnector](https://docs.aws.amazon.com/MSKC/latest/mskc/API_UpdateConnector.html)
 - [MSK Connect API: ProvisionedCapacity](https://docs.aws.amazon.com/MSKC/latest/mskc/API_ProvisionedCapacity.html)
 - [Debezium connector for MariaDB (2.7)](https://debezium.io/documentation/reference/2.7/connectors/mariadb.html)
+- [Debezium connector for PostgreSQL (2.7)](https://debezium.io/documentation/reference/2.7/connectors/postgresql.html) — `slot.name`, `publication.autocreate.mode`, `database.sslmode`.
 - [Debezium connector for Oracle (2.7)](https://debezium.io/documentation/reference/2.7/connectors/oracle.html) — `log.mining.strategy` options.
 - [Debezium outbox event router (2.7)](https://debezium.io/documentation/reference/2.7/transformations/outbox-event-router.html)
 - [aws-msk-iam-auth](https://github.com/aws/aws-msk-iam-auth)
@@ -680,23 +738,23 @@ No modules.
 | <a name="input_custom_plugin_arn"></a> [custom\_plugin\_arn](#input\_custom\_plugin\_arn) | ARN of the registered MSK Connect custom plugin. Changing it replaces the connector (the AWS provider does not update the plugin in place). | `string` | n/a | yes |
 | <a name="input_custom_plugin_revision"></a> [custom\_plugin\_revision](#input\_custom\_plugin\_revision) | Revision of the custom plugin to pin. Defaults to 1, the revision an MSK Connect custom plugin is created with. | `number` | `1` | no |
 | <a name="input_db_host"></a> [db\_host](#input\_db\_host) | Hostname of the source database the connector reads from. | `string` | n/a | yes |
-| <a name="input_db_name"></a> [db\_name](#input\_db\_name) | Oracle service name / SID (database.dbname). Ignored for mariadb.<br/>On a CDB source this is the container's service; see pdb\_name. | `string` | `""` | no |
-| <a name="input_db_port"></a> [db\_port](#input\_db\_port) | Port of the source database. Opened as egress on the created security group. | `number` | `3306` | no |
-| <a name="input_engine"></a> [engine](#input\_engine) | Source engine. Selects the connector class and the per-engine defaults. | `string` | `"mariadb"` | no |
+| <a name="input_db_name"></a> [db\_name](#input\_db\_name) | Oracle service name / SID, or PostgreSQL database name (database.dbname).<br/>Required for postgresql; ignored for mariadb. On an Oracle CDB source it<br/>is the container's service; see pdb\_name. | `string` | `""` | no |
+| <a name="input_db_port"></a> [db\_port](#input\_db\_port) | Port of the source database. Opened as egress on the created security<br/>group. The default is 3306 for every engine: set 5432 for postgresql. | `number` | `3306` | no |
+| <a name="input_engine"></a> [engine](#input\_engine) | Source engine: mariadb, oracle or postgresql. Selects the connector class and defaults. | `string` | `"mariadb"` | no |
 | <a name="input_identifier"></a> [identifier](#input\_identifier) | Unique connector identifier. Names all associated resources and seeds the deterministic Debezium server id. | `string` | n/a | yes |
 | <a name="input_in_transit_encryption"></a> [in\_transit\_encryption](#input\_in\_transit\_encryption) | Encryption in transit to the cluster: PLAINTEXT or TLS. Independent of client\_authentication, with no built-in assumption. | `string` | `"PLAINTEXT"` | no |
 | <a name="input_kafka_cluster_arn"></a> [kafka\_cluster\_arn](#input\_kafka\_cluster\_arn) | ARN of the target MSK cluster; scopes the kafka-cluster:* grants. Required<br/>only for IAM auth when the module creates the role. | `string` | `null` | no |
 | <a name="input_kafkaconnect_version"></a> [kafkaconnect\_version](#input\_kafkaconnect\_version) | Kafka Connect version for the connector. MSK Connect supports 2.7.1 and 3.7.x only. | `string` | `"3.7.x"` | no |
 | <a name="input_log_delivery"></a> [log\_delivery](#input\_log\_delivery) | Worker log destinations (cloudwatch\_logs, s3, firehose). Null (default)<br/>delivers no logs, which makes failures very hard to debug. See README. | <pre>object({<br/>    cloudwatch_logs = optional(object({<br/>      log_group = optional(string)<br/>    }))<br/>    s3 = optional(object({<br/>      bucket = string<br/>      prefix = optional(string)<br/>    }))<br/>    firehose = optional(object({<br/>      delivery_stream = string<br/>    }))<br/>  })</pre> | `null` | no |
-| <a name="input_log_mining_strategy"></a> [log\_mining\_strategy](#input\_log\_mining\_strategy) | Oracle log.mining.strategy, set in the defaults layer (overridable).<br/>Ignored for mariadb. See README for hybrid vs online\_catalog. | `string` | `"hybrid"` | no |
+| <a name="input_log_mining_strategy"></a> [log\_mining\_strategy](#input\_log\_mining\_strategy) | Oracle log.mining.strategy, set in the defaults layer (overridable).<br/>Ignored for other engines. See README for hybrid vs online\_catalog. | `string` | `"hybrid"` | no |
 | <a name="input_log_retention_in_days"></a> [log\_retention\_in\_days](#input\_log\_retention\_in\_days) | Retention for the created log group (used only with create\_log\_group). | `number` | `30` | no |
 | <a name="input_mcu_count"></a> [mcu\_count](#input\_mcu\_count) | MCUs per worker (1, 2, 4 or 8). worker\_count stays 1: Debezium runs a single task. | `number` | `1` | no |
 | <a name="input_offset_topic"></a> [offset\_topic](#input\_offset\_topic) | Kafka topic for source offsets, declared in the created worker<br/>configuration. Required unless worker\_configuration\_arn is set. | `string` | `null` | no |
-| <a name="input_pdb_name"></a> [pdb\_name](#input\_pdb\_name) | Oracle pluggable database (database.pdb.name) for a CDB source.<br/>Empty (default) omits the property. Ignored for mariadb. | `string` | `""` | no |
+| <a name="input_pdb_name"></a> [pdb\_name](#input\_pdb\_name) | Oracle pluggable database (database.pdb.name) for a CDB source.<br/>Empty (default) omits the property. Ignored for other engines. | `string` | `""` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region as a literal, used for the ssm config provider in the created worker configuration. | `string` | n/a | yes |
-| <a name="input_schema_history_topic"></a> [schema\_history\_topic](#input\_schema\_history\_topic) | Kafka topic where Debezium stores captured schema history. | `string` | n/a | yes |
+| <a name="input_schema_history_topic"></a> [schema\_history\_topic](#input\_schema\_history\_topic) | Kafka topic where Debezium stores captured schema history. Required for<br/>mariadb and oracle; ignored for postgresql. | `string` | `null` | no |
 | <a name="input_security_group_ids"></a> [security\_group\_ids](#input\_security\_group\_ids) | Existing security groups for the connector ENIs, added to the created one<br/>(if any). At least one SG overall. Changing the set replaces the connector. | `list(string)` | `[]` | no |
-| <a name="input_server_id"></a> [server\_id](#input\_server\_id) | Debezium database.server.id. Must be stable per connector and unique across connectors; the project derives it deterministically from identifier. | `string` | n/a | yes |
+| <a name="input_server_id"></a> [server\_id](#input\_server\_id) | Debezium database.server.id. Required for mariadb, ignored otherwise.<br/>Must be stable per connector and unique across connectors; the project<br/>derives it deterministically from identifier. | `string` | `null` | no |
 | <a name="input_service_execution_role_arn"></a> [service\_execution\_role\_arn](#input\_service\_execution\_role\_arn) | Existing service execution role for the connector. When set, the module<br/>creates no role or policies; apply required\_policy\_json to it. See README. | `string` | `null` | no |
 | <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | Subnet IDs the connector's ENIs are placed in. Must reach the database and the Kafka brokers. | `list(string)` | n/a | yes |
 | <a name="input_table_include_list"></a> [table\_include\_list](#input\_table\_include\_list) | Comma-separated table.include.list. Empty (default) omits the property and captures everything. | `string` | `""` | no |
@@ -719,5 +777,6 @@ No modules.
 | <a name="output_required_policy_json"></a> [required\_policy\_json](#output\_required\_policy\_json) | Policy the service execution role needs (apply it to an external role). Null when no grant is needed. |
 | <a name="output_security_group_id"></a> [security\_group\_id](#output\_security\_group\_id) | ID of the module-created connector security group; null when not created. |
 | <a name="output_service_execution_role_arn"></a> [service\_execution\_role\_arn](#output\_service\_execution\_role\_arn) | ARN of the connector's service execution role in effect (created or supplied). |
+| <a name="output_slot_name"></a> [slot\_name](#output\_slot\_name) | PostgreSQL replication slot name in effect (slot.name, after overrides). Null for other engines. |
 | <a name="output_worker_configuration_arn"></a> [worker\_configuration\_arn](#output\_worker\_configuration\_arn) | ARN of the module-created worker configuration; null when not created. |
 <!-- END_TF_DOCS -->

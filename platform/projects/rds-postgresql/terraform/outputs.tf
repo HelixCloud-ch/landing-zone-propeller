@@ -18,6 +18,11 @@ output "security_group_id" {
   value       = module.rds_postgresql.security_group_id
 }
 
+output "parameter_group_name" {
+  description = "Name of the DB parameter group attached to the instance."
+  value       = module.rds_postgresql.parameter_group_name
+}
+
 output "db_instance_identifier" {
   description = "RDS instance identifier (used by sleep/wake justfile recipes)."
   value       = var.identifier

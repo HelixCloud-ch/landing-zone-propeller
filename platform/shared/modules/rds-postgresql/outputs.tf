@@ -38,6 +38,11 @@ output "master_user_secret_arn" {
   value       = try(aws_db_instance.this.master_user_secret[0].secret_arn, null)
 }
 
+output "parameter_group_name" {
+  description = "Name of the attached DB parameter group (existing or module-created), or null for the engine default."
+  value       = local.parameter_group_name
+}
+
 output "security_group_id" {
   description = "ID of the security group used by the RDS instance (created or caller-provided)."
   value       = local.security_group_id

@@ -107,13 +107,13 @@ _cdc_uv := "env UV_PYTHON_PREFERENCE=only-managed UV_PYTHON_INSTALL_DIR=" + just
 test-cdc: (section "cdc: pytest")
     #!/usr/bin/env bash
     set -euo pipefail
-    for p in cdc-prepare-mariadb cdc-prepare-oracle cdc-topics; do
+    for p in cdc-prepare-mariadb cdc-prepare-oracle cdc-prepare-postgresql cdc-topics; do
       {{ _cdc_uv }} pytest -q -p no:cacheprovider "platform/projects/$p"
     done
 
 _cdc_compose := "docker compose -f platform/shared/python/cdc/tests/compose.yaml"
 
-# Start MariaDB, Oracle and Kafka for the CDC integration tests. Oracle takes
+# Start MariaDB, PostgreSQL, Oracle and Kafka for the CDC integration tests. Oracle takes
 # about a minute on the first start. They keep running until `just cdc-down`.
 cdc-up:
     {{ _cdc_compose }} up -d --wait
@@ -122,7 +122,7 @@ cdc-up:
 cdc-down:
     {{ _cdc_compose }} down -v
 
-# CDC scripts against real MariaDB, Oracle and Kafka (needs Docker). Starts the
+# CDC scripts against real MariaDB, PostgreSQL, Oracle and Kafka (needs Docker). Starts the
 # services, runs the tests, stops the services.
 test-cdc-integration: (section "cdc: integration") cdc-up
     #!/usr/bin/env bash

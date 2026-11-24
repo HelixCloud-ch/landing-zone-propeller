@@ -200,6 +200,20 @@ variable "performance_insights_enabled" {
   default = true
 }
 
+# ── Parameter Group ───────────────────────────────────────────────────────────
+
+variable "parameter_group_name" {
+  type        = string
+  description = "Existing DB parameter group to attach. Mutually exclusive with `parameters`."
+  default     = null
+}
+
+variable "parameters" {
+  type        = map(string)
+  description = "Parameter name to value. When non-empty, creates and attaches a parameter group (pending-reboot)."
+  default     = {}
+}
+
 # ── Tags ──────────────────────────────────────────────────────────────────────
 
 variable "tags" {

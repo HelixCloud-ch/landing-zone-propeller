@@ -16,6 +16,24 @@ services:
       interval: 2s
       retries: 30
 
+  postgresql:
+    # Logical WAL on, like RDS with rds.logical_replication=1. No TLS: tests use ssl_mode disable.
+    image: postgres:17-alpine
+    command: [postgres, -c, wal_level=logical]
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: adminpw
+      POSTGRES_DB: appdb
+    ports: ["35432:5432"]
+    volumes:
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      # The entrypoint starts a temporary server for the init scripts, then restarts.
+      # Checking the TCP port as the app user finds only the final server.
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U admin -d appdb]
+      interval: 2s
+      retries: 30
+
   oracle:
     # A CDB with the FREEPDB1 pluggable database. First start takes about a minute.
     image: gvenzl/oracle-free:23-slim-faststart

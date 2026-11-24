@@ -27,12 +27,19 @@ Inputs arrive as `PROPELLER_INPUT_*` variables.
 
 ## Recommended topics
 
-Copy one of the `*.json.example` files, remove `.example`, and rename the
-`schema-history.*` topic to the connector's `schema_history_topic`.
+Copy one of the `*.json.example` files and remove `.example`. For MariaDB and
+Oracle, rename the `schema-history.*` topic to the connector's
+`schema_history_topic`. The PostgreSQL file has no schema-history topic.
 
-- Schema history: 1 partition, `cleanup.policy=delete`, `retention.ms=-1`,
-  `retention.bytes=-1`. Debezium needs one global order of DDL, and a finite
-  retention breaks recovery.
+- Schema history (MariaDB and Oracle only): 1 partition,
+  `cleanup.policy=delete`, `retention.ms=-1`, `retention.bytes=-1`. Debezium
+  needs one global order of DDL, and a finite retention breaks recovery.
+- PostgreSQL: the connector has no schema history, so the example holds only
+  the Kafka Connect topics. If you enable the heartbeat
+  (`heartbeat.interval.ms`) and topic auto-creation is off, the topic
+  `__debezium-heartbeat.<topic.prefix>` must exist. Add it to your topic list.
+  The prefix `__debezium-heartbeat` comes from `topic.heartbeat.prefix`
+  ([Debezium PostgreSQL connector](https://debezium.io/documentation/reference/2.7/connectors/postgresql.html)).
 - Kafka Connect topics (`connect-offsets`, `connect-configs`,
   `connect-status`): `cleanup.policy=compact`, no finite retention. It is not
   verified if MSK Connect creates them with good settings. Creating them first
@@ -73,6 +80,7 @@ uv run --project platform/shared/python/cdc pytest platform/projects/cdc-topics
 
 ## References
 
+- [Debezium PostgreSQL connector (2.7)](https://debezium.io/documentation/reference/2.7/connectors/postgresql.html)
 - [Debezium schema history topic settings](https://debezium.io/blog/2018/03/16/note-on-database-history-topic-configuration/)
 - [Kafka Connect in distributed mode](https://kafka.apache.org/documentation/#connect_running)
 - [MSK IAM access control](https://docs.aws.amazon.com/msk/latest/developerguide/iam-access-control.html)
