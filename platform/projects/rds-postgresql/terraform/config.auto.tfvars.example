@@ -72,6 +72,13 @@ identifier = "my-pg-db"
 # ── Monitoring ────────────────────────────────────────────────────────────────
 # performance_insights_enabled = true
 
+# ── Parameter group ───────────────────────────────────────────────────────────
+# Static parameters need a reboot on an existing instance.
+# parameters = {
+#   "rds.logical_replication" = "1"
+# }
+# parameter_group_name = null  # Existing group; mutually exclusive with parameters
+
 # ── Instance-only tags ────────────────────────────────────────────────────────
 # Added to the DB instance only, not to other resources in the project.
 # db_instance_tags = { backup = "default" }

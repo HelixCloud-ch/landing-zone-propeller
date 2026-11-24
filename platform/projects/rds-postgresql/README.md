@@ -48,6 +48,26 @@ allowed_cidrs = ["10.0.0.0/8"]
 # skip_final_snapshot = true
 ```
 
+## Parameter group
+
+Set `parameters` to create a parameter group for the instance. For example, to
+allow logical replication (needed by CDC tools such as Debezium):
+
+```hcl
+parameters = {
+  "rds.logical_replication" = "1"
+}
+```
+
+A new instance gets the group at creation. On an existing instance, the group is
+attached at the next maintenance window (or at once with `apply_immediately`).
+A static parameter such as `rds.logical_replication` takes effect only after a
+manual reboot of the instance. Use
+`parameter_group_name` to attach an existing group instead. The two variables
+are mutually exclusive. Without them, the instance keeps the engine default
+group. See [logical replication on RDS for PostgreSQL](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL.Concepts.General.FeatureSupport.LogicalReplication.html)
+and [RDS parameter groups](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithParamGroups.html).
+
 ## Retrieving credentials
 
 ```bash
@@ -141,6 +161,8 @@ No resources.
 | <a name="input_maintenance_window"></a> [maintenance\_window](#input\_maintenance\_window) | n/a | `string` | `"sun:05:00-sun:06:00"` | no |
 | <a name="input_max_allocated_storage"></a> [max\_allocated\_storage](#input\_max\_allocated\_storage) | n/a | `number` | `40` | no |
 | <a name="input_multi_az"></a> [multi\_az](#input\_multi\_az) | n/a | `bool` | `false` | no |
+| <a name="input_parameter_group_name"></a> [parameter\_group\_name](#input\_parameter\_group\_name) | Existing DB parameter group to attach. Mutually exclusive with `parameters`. | `string` | `null` | no |
+| <a name="input_parameters"></a> [parameters](#input\_parameters) | Parameter name to value. When non-empty, creates and attaches a parameter group (pending-reboot). | `map(string)` | `{}` | no |
 | <a name="input_performance_insights_enabled"></a> [performance\_insights\_enabled](#input\_performance\_insights\_enabled) | n/a | `bool` | `true` | no |
 | <a name="input_port"></a> [port](#input\_port) | n/a | `number` | `5432` | no |
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | n/a | `map(string)` | `{}` | no |
@@ -163,6 +185,7 @@ No resources.
 | <a name="output_db_instance_identifier"></a> [db\_instance\_identifier](#output\_db\_instance\_identifier) | RDS instance identifier (used by sleep/wake justfile recipes). |
 | <a name="output_endpoint"></a> [endpoint](#output\_endpoint) | Connection endpoint (address:port). |
 | <a name="output_master_user_secret_arn"></a> [master\_user\_secret\_arn](#output\_master\_user\_secret\_arn) | ARN of the RDS-managed Secrets Manager secret (manage\_master\_user\_password mode only). |
+| <a name="output_parameter_group_name"></a> [parameter\_group\_name](#output\_parameter\_group\_name) | Name of the DB parameter group attached to the instance. |
 | <a name="output_port"></a> [port](#output\_port) | Database port. |
 | <a name="output_security_group_id"></a> [security\_group\_id](#output\_security\_group\_id) | Security group ID for the RDS instance. |
 <!-- END_TF_DOCS -->
