@@ -81,7 +81,10 @@ class FakeCursor:
         text = text_of(statement)
         db.executed.append((text, params))
         self.rows = None
-        if "current_setting" in text:
+        if "has_table_privilege" in text:
+            schemas, _user = params
+            self.rows = sorted(t for t in db.no_select if t[0] in schemas)
+        elif "current_setting" in text:
             value = db.settings.get(params[0])
             self.rows = [(value,)]
         elif "FROM pg_replication_slots WHERE slot_name" in text:
@@ -122,6 +125,8 @@ class FakeDB:
         self.publications: dict[str, dict] = overrides.pop("publications", {})
         self.tables: set[tuple[str, str]] = overrides.pop("tables", {("public", "orders"), ("public", "items")})
         self.keyless: set[tuple[str, str]] = overrides.pop("keyless", set())
+        # Tables on which the CDC role has no SELECT (a grant that did nothing).
+        self.no_select: set[tuple[str, str]] = overrides.pop("no_select", set())
         assert not overrides, overrides
         self.executed: list[tuple] = []
         self.closed = False
@@ -227,8 +232,40 @@ def test_bad_input_is_rejected(env, name, value, message):
 
 
 def test_publication_tables_are_parsed(env):
+    set_input(env, "schemas", '["public", "sales"]')
     set_input(env, "publication_tables", '["public.orders", "sales.items"]')
     assert prepare.read_inputs().publication_tables == (("public", "orders"), ("sales", "items"))
+
+
+def test_publication_table_in_a_listed_schema_is_accepted(env):
+    set_input(env, "publication_tables", '["public.orders"]')
+    assert prepare.read_inputs().publication_tables == (("public", "orders"),)
+
+
+def test_publication_table_in_an_unlisted_schema_is_an_input_error(env):
+    set_input(env, "publication_tables", '["public.orders", "sales.items", "hr.staff"]')
+    with pytest.raises(prepare.InputError, match=r"sales\.items, hr\.staff.*Add the schema to schemas"):
+        prepare.read_inputs()
+
+
+def test_main_exits_2_for_a_publication_table_in_an_unlisted_schema(env, capsys):
+    set_input(env, "publication_tables", '["sales.items"]')
+    assert prepare.main() == 2
+    err = capsys.readouterr().err
+    assert "sales.items" in err and "remove the entry" in err
+
+
+def test_unmanaged_publication_with_tables_still_reports_the_manage_error(env):
+    set_input(env, "manage_publication", "false")
+    set_input(env, "publication_tables", '["sales.items"]')
+    with pytest.raises(prepare.InputError, match="manage_publication=true"):
+        prepare.read_inputs()
+
+
+def test_empty_publication_tables_do_not_need_a_schema_check(env):
+    set_input(env, "schemas", '["sales"]')
+    set_input(env, "publication_tables", "[]")
+    assert prepare.read_inputs().publication_tables == ()
 
 
 def test_publication_tables_with_unmanaged_publication_is_an_error(env):
@@ -559,6 +596,79 @@ def test_prepare_user_is_idempotent_and_keeps_the_password(env):
     assert not any(s.startswith(("CREATE ROLE", "ALTER ROLE")) for s in statements)
     assert statements[0] == 'GRANT rds_replication TO "cdc_user"'
     assert not any("new-password" in text for text, _ in db.executed)
+
+
+# ── SELECT check ─────────────────────────────────────────────────────────────
+
+
+def test_select_check_passes_when_all_privileges_are_present(env, capsys):
+    set_input(env, "publication_tables", '["public.orders"]')
+    db = FakeDB()
+    prepare.verify_select_privilege(db, "cdc_user", prepare.read_inputs())
+    assert capsys.readouterr().err == ""
+    text, params = db.executed[-1]
+    assert "has_table_privilege" in text and params == (["public"], "cdc_user")
+
+
+def test_select_check_fails_for_a_listed_table_without_select(env):
+    set_input(env, "publication_tables", '["public.orders", "public.items"]')
+    db = FakeDB(no_select={("public", "orders")})
+    with pytest.raises(prepare.PrepareError, match=r"public\.orders") as info:
+        prepare.verify_select_privilege(db, "cdc_user", prepare.read_inputs())
+    assert "public.items" not in str(info.value)
+
+
+def test_select_check_only_warns_for_an_unlisted_table(env, capsys):
+    set_input(env, "publication_tables", '["public.orders"]')
+    db = FakeDB(no_select={("public", "items")})
+    prepare.verify_select_privilege(db, "cdc_user", prepare.read_inputs())
+    err = capsys.readouterr().err
+    assert "no SELECT on 1 table(s)" in err and "public.items" in err
+
+
+def test_select_check_only_warns_when_the_publication_is_not_managed(env, capsys):
+    set_input(env, "manage_publication", "false")
+    db = FakeDB(no_select={("public", "orders"), ("public", "items")})
+    prepare.verify_select_privilege(db, "cdc_user", prepare.read_inputs())
+    err = capsys.readouterr().err
+    assert "no SELECT on 2 table(s)" in err
+    assert "public.items, public.orders" in err
+
+
+def test_select_check_only_warns_for_all_tables_publication(env, capsys):
+    db = FakeDB(no_select={("public", "orders")})
+    prepare.verify_select_privilege(db, "cdc_user", prepare.read_inputs())
+    assert "public.orders" in capsys.readouterr().err
+
+
+def test_select_check_caps_the_warning_list(env, capsys):
+    tables = {("public", f"t{i:02d}") for i in range(25)}
+    db = FakeDB(tables=tables, no_select=tables)
+    prepare.verify_select_privilege(db, "cdc_user", prepare.read_inputs())
+    err = capsys.readouterr().err
+    assert "no SELECT on 25 table(s)" in err
+    assert "t09" in err and "t10" not in err and "and 15 more" in err
+
+
+def test_main_stops_before_the_publication_when_a_listed_table_has_no_select(env, capsys):
+    set_input(env, "admin_username", "master")
+    set_input(env, "publication_tables", '["public.orders"]')
+    ssm = FakeSSM({"/db/admin": SECRET})
+    admin_db = FakeDB(no_select={("public", "orders")})
+    code, calls = run_main(env, ssm, admin_db)
+    assert code == 1 and len(calls) == 1
+    assert not any("PUBLICATION" in s for s in admin_db.statements())
+    assert "public.orders" in capsys.readouterr().err
+
+
+def test_main_finishes_with_a_warning_for_an_unlisted_table_without_select(env, capsys):
+    set_input(env, "admin_username", "master")
+    ssm = FakeSSM({"/db/admin": SECRET})
+    admin_db = FakeDB(no_select={("public", "items")})
+    code, _ = run_main(env, ssm, admin_db)
+    assert code == 0
+    assert 'CREATE PUBLICATION "dbz_publication" FOR ALL TABLES' in admin_db.statements()
+    assert "public.items" in capsys.readouterr().err
 
 
 # ── main ─────────────────────────────────────────────────────────────────────

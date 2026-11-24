@@ -18,6 +18,7 @@ slot works on one database only.
    `USAGE` on the schemas and `SELECT` on their tables. The role has no
    superuser right and no `REPLICATION` attribute. On RDS, the
    `rds_replication` role gives the right to manage and read logical slots.
+   Then checks that the role can read the tables (see Grants).
 5. Creates or syncs the publication (see below).
 6. Logs in as the CDC user. If the login fails, the database password and the
    SSM parameter differ, and the run fails.
@@ -46,14 +47,34 @@ Inputs arrive as `PROPELLER_INPUT_*` variables.
 - `manage_publication`: `true` (default) or `false`. See Publication.
 - `publication_name`: default `dbz_publication`.
 - `publication_tables`: JSON list of `schema.table`. Empty (default) means all
-  tables. Needs `manage_publication=true`.
+  tables. Needs `manage_publication=true`. The schema of each entry must be in
+  `schemas`, or the run stops with exit code 2.
 - `slot_name`: default `debezium`. Used only for the slot report and the
   `destroy` message. The connector creates the slot.
 - `ssl_mode`: default `require`. See TLS.
 - `ssl_root_cert`: path of a CA bundle file. See TLS.
 
+## Grants
+
 The `schemas` grant covers the tables that exist at run time. Run `apply` again
-after you add a table.
+after you add a table. The CDC role gets no grant outside `schemas`. For this
+reason, a `publication_tables` entry in another schema is an input error.
+
+`GRANT SELECT ON ALL TABLES` gives only a warning for a table that the admin
+login does not own and cannot grant on, if the admin has some other privilege
+on it. The grant then does nothing and the statement passes. For this reason,
+after the grants, the run checks `has_table_privilege` for the CDC role on every
+table in `schemas`:
+
+- A table in `publication_tables` without `SELECT` stops the run with exit code
+  1, before the publication changes. The message names the tables. Grant
+  `SELECT` on them to the CDC role as the table owner, then run again.
+- Any other table without `SELECT` only gives a warning. It shows the first
+  ten names and the count. With `manage_publication=false`, all tables are in
+  this group.
+
+If the admin login has no privilege at all on a table, PostgreSQL stops the
+`GRANT` with a permission error, and the run fails with exit code 1.
 
 ## Admin credential
 
@@ -97,7 +118,8 @@ The project verifies these. It cannot set them.
 
 The run only reports these, and does not fail: slot and WAL sender use,
 `max_slot_wal_keep_size` of `-1` (no limit), `log_statement`, a server older
-than version 10.
+than version 10, and the tables in `schemas` that the CDC role cannot read
+(unless the table is in `publication_tables`: see Grants).
 
 ## Publication
 
@@ -136,6 +158,18 @@ equal to `publication_name`, and `slot.name` equal to `slot_name`. A managed
 publication needs `publication.autocreate.mode=disabled`.
 `table.include.list` stays on the connector. Keep it equal to
 `publication_tables`.
+
+The `msk-connect-debezium` project sets `plugin.name=pgoutput` and
+`publication.autocreate.mode=disabled` by default, and leaves `publication.name`
+to the Debezium default `dbz_publication`, which is the default
+`publication_name`. It derives `slot.name` from the connector `identifier`, not
+from `slot_name`. If you want the slot report of this project to look at the
+connector slot, give `slot_name` the name that the connector will use: the
+derived name (the `identifier` in lowercase, with `-` changed to `_`) or your
+`slot.name` override. This project runs before the connector, so the
+`slot_name` output of
+[`msk-connect-debezium`](../msk-connect-debezium/README.md#postgresql) does not
+exist yet.
 
 ## WAL retention and the replication slot
 

@@ -11,8 +11,10 @@ Idempotent. Every run:
    username and one for the password. An existing parameter is the source of
    truth and is never overwritten. A missing one is created: the username from
    `cdc_username`, the password generated.
-4. Creates the CDC role if it does not exist, grants the Debezium privileges,
-   and (if `manage_publication` is true) creates or syncs the publication.
+4. Creates the CDC role if it does not exist and grants the Debezium
+   privileges. Checks that the role can SELECT the tables in scope: a
+   published table without SELECT stops the run. Then, if `manage_publication`
+   is true, creates or syncs the publication.
 5. Logs in as the CDC user, to prove that the password in SSM is the database
    password.
 
@@ -170,6 +172,13 @@ def read_inputs() -> Inputs:
     schemas = tuple(_identifier("schema", s) for s in _env_list("schemas", '["public"]'))
     if not schemas:
         raise InputError(f"input {PREFIX}schemas must list at least one schema")
+    outside = [f"{s}.{t}" for s, t in publication_tables if s not in schemas]
+    if outside:
+        raise InputError(
+            f"publication_tables entries in a schema that is not in {PREFIX}schemas: "
+            f"{', '.join(outside)}. The CDC role could not read them. "
+            "Add the schema to schemas, or remove the entry."
+        )
 
     return Inputs(
         db_host=_env("db_host"),
@@ -297,6 +306,16 @@ NO_KEY_TABLES_LISTED = (
     _NO_KEY + "AND (n.nspname, c.relname) IN (SELECT * FROM unnest(%s::text[], %s::text[])) ORDER BY 1, 2"
 )
 ROLE_EXISTS = "SELECT 1 FROM pg_roles WHERE rolname = %s"
+# format('%%I.%%I') quotes the schema and the table name. The doubled percent
+# signs escape the driver placeholder syntax.
+TABLES_WITHOUT_SELECT = (
+    "SELECT p.schemaname, p.tablename FROM pg_tables p WHERE p.schemaname = ANY(%s::text[]) "
+    "AND NOT has_table_privilege(%s::text, format('%%I.%%I', p.schemaname, p.tablename), 'SELECT') "
+    "ORDER BY 1, 2"
+)
+
+# Longest list of table names in a warning line.
+WARN_NAME_LIMIT = 10
 
 
 def verify_preconditions(db, inputs: Inputs) -> None:
@@ -460,6 +479,34 @@ def prepare_user(db, username: str, password: str, inputs: Inputs) -> None:
         query(db, sql.SQL("GRANT SELECT ON ALL TABLES IN SCHEMA {} TO {}").format(sql.Identifier(schema), user))
 
 
+def verify_select_privilege(db, username: str, inputs: Inputs) -> None:
+    """Check that the CDC role can read the tables in scope.
+
+    GRANT SELECT ON ALL TABLES only warns for a table that the admin login
+    does not own and cannot grant on, so the grants can pass with no effect.
+    A published table without SELECT stops the run. Any other table in
+    `schemas` only gives a warning.
+    """
+    missing = [tuple(row) for row in query(db, TABLES_WITHOUT_SELECT, (list(inputs.schemas), username))]
+    listed = set(inputs.publication_tables)
+    blocked = [m for m in missing if m in listed]
+    if blocked:
+        raise PrepareError(
+            f"the CDC user {username!r} has no SELECT on the publication_tables: "
+            + ", ".join(f"{s}.{t}" for s, t in blocked)
+            + ". The admin login can not grant it, for example because another role owns the "
+            "table. Grant SELECT on these tables to the CDC user, then run again."
+        )
+    others = [f"{s}.{t}" for s, t in missing if (s, t) not in listed]
+    if others:
+        shown = ", ".join(others[:WARN_NAME_LIMIT])
+        more = f" and {len(others) - WARN_NAME_LIMIT} more" if len(others) > WARN_NAME_LIMIT else ""
+        warn(
+            f"the CDC user {username!r} has no SELECT on {len(others)} table(s) in schemas: "
+            f"{shown}{more}. Debezium cannot read them."
+        )
+
+
 def apply_publication(db, inputs: Inputs, plan: PublicationPlan) -> None:
     name = sql.Identifier(inputs.publication_name)
     tables = sql.SQL(", ").join(sql.Identifier(s, t) for s, t in plan.tables)
@@ -509,6 +556,7 @@ def main() -> int:
             plan = plan_publication(db, inputs)
             username, password = resolve_cdc_credential(ssm, inputs)
             prepare_user(db, username, password, inputs)
+            verify_select_privilege(db, username, inputs)
             apply_publication(db, inputs, plan)
         finally:
             db.close()
