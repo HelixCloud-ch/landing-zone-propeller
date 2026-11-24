@@ -9,9 +9,11 @@ identifier = "my-debezium"
 
 # ── Source database ────────────────────────────────────────────────────────────
 # db_host = "my-mariadb.abcdefghijkl.eu-central-2.rds.amazonaws.com"
-# db_port = 3306
-# db_name and pdb_name are Oracle-only (engine = "oracle"); ignored for MariaDB.
-# db_name  = "ORCLCDB"
+# db_port = 3306 # the default is 3306 for every engine: set 5432 for postgresql
+# db_name is the Oracle service name or the PostgreSQL database name (required
+# for postgresql); ignored for MariaDB. pdb_name is Oracle-only.
+# db_name  = "ORCLCDB"   # engine = "oracle"
+# db_name  = "appdb"     # engine = "postgresql"
 # pdb_name = "ORCLPDB1"
 
 # ── Kafka ──────────────────────────────────────────────────────────────────────
@@ -33,11 +35,11 @@ identifier = "my-debezium"
 
 # ── Worker configuration / topics ──────────────────────────────────────────────
 # offset_topic         = "my-debezium.offsets" # not needed with worker_configuration_arn
-# schema_history_topic = "my-debezium.schema-history"
+# schema_history_topic = "my-debezium.schema-history" # mariadb and oracle; omit for postgresql
 # topic_prefix         = "my-debezium"
-# server_id            = null   # null derives it deterministically from identifier
+# server_id            = null   # mariadb only; null derives it deterministically from identifier
 
-# ── CDC credentials (from cdc-prepare-mariadb / cdc-prepare-oracle) ────────────
+# ── CDC credentials (from cdc-prepare-mariadb / -oracle / -postgresql) ────────────
 # Optional. The two scalar SecureString parameter NAMES the prep project
 # creates; the project derives each ARN itself. Leave both unset to supply
 # database.user / database.password yourself in the connector configuration.
@@ -52,8 +54,8 @@ identifier = "my-debezium"
 # tables = ["appdb.customers", "appdb.orders"]
 
 # ── Engine ─────────────────────────────────────────────────────────────────────
-# engine = "mariadb"  # or "oracle" (unverified against real infrastructure, see the module README)
-# log_mining_strategy is Oracle-only; ignored for MariaDB.
+# engine = "mariadb"  # or "oracle" (unverified against real infrastructure, see the module README) or "postgresql"
+# log_mining_strategy is Oracle-only; ignored for other engines.
 # log_mining_strategy = "hybrid"
 
 # ── Bring your own resources ───────────────────────────────────────────────────
@@ -101,6 +103,15 @@ identifier = "my-debezium"
 #   "transforms.outbox.route.topic.replacement" = "<prefix>.v1.$${routedByValue}"
 # }
 # worker_config_overrides = {}
+#
+# PostgreSQL (engine = "postgresql"), see the README section PostgreSQL:
+# connector_config_overrides = {
+#   "heartbeat.interval.ms"       = "10000"    # off by default; enable for idle databases
+#   "publication.autocreate.mode" = "filtered" # when cdc-prepare-postgresql has manage_publication = false
+#   "publication.name"            = "dbz_publication"
+#   "slot.name"                   = "my_slot"  # default is derived from identifier
+#   "database.sslmode"            = "require"  # default; verify-ca and verify-full need a CA file on the worker
+# }
 
 # ── Extra network (module-created SG only) ─────────────────────────────────────
 # additional_egress_rules = {

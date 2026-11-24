@@ -12,6 +12,15 @@
 #   1.50 becomes "1.5", leading zeros are dropped (0123 becomes "123").
 # - A null value (~) removes the key, e.g. a module default.
 # - Kafka Connect placeholders are written as is: no $${} escaping in files.
+#
+# The keys below suit MariaDB and Oracle. For engine = "postgresql", drop
+# "include.schema.changes" (the connector has no schema history) and use
+# for example:
+#   heartbeat.interval.ms: 10000          # off by default
+#   publication.autocreate.mode: filtered # default is disabled
+#   publication.name: dbz_publication
+#   slot.name: my_slot                    # default is derived from identifier
+#   database.sslmode: require             # default
 
 snapshot.mode: recovery
 max.batch.size: 1024

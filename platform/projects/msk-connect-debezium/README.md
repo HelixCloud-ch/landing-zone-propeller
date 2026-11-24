@@ -96,7 +96,7 @@ parameters are optional: leave both out to supply `database.user` /
 ## Plugin selection
 
 `msk-connect-plugin` publishes its plugins as **maps**: `default_plugin_arns` /
-`default_plugin_revisions` keyed by flavour (`{ mariadb = ..., oracle = ... }`),
+`default_plugin_revisions` keyed by flavour (`{ mariadb = ..., oracle = ..., postgresql = ... }`),
 and `plugin_arns` / `plugin_revisions` keyed by `<flavour>-<version>`
 (`{ "mariadb-2.7.4.Final" = ... }`). The connector needs a single ARN, so one
 entry must be chosen — and the choice is made **here**, not in the pipeline,
@@ -152,6 +152,100 @@ put secrets there, even though the overrides themselves accept anything.
 `additional_policy` accepts either a JSON policy string (HCL tfvars) or the
 native object a `{...}` literal decodes to; the project encodes it to JSON for
 the module.
+
+## PostgreSQL
+
+`engine = "postgresql"` runs the Debezium PostgreSQL connector against RDS for
+PostgreSQL (Aurora is not covered). Prepare the database first with
+[`cdc-prepare-postgresql`](../cdc-prepare-postgresql/README.md). Give it and
+this project the same credential parameter names.
+
+```hcl
+engine  = "postgresql"
+db_port = 5432
+db_name = "<DATABASE>"
+tables  = ["public.orders"] # schema.table; keep equal to publication_tables
+```
+
+Leave `schema_history_topic` out: PostgreSQL has no schema history. The module
+renders no `schema.history.internal.*` keys, no `include.schema.changes` and no
+`database.server.id` for this engine. The plugin flavour must be named
+`postgresql` in `msk-connect-plugin`. In the pipeline, the step depends on
+`cdc-prepare-postgresql` instead of `cdc-prepare-mariadb`, and gets no
+`schema_history_topic` input.
+
+`db_port` keeps its default of 3306 for every engine. Set `5432` here: the
+default does not follow the engine.
+
+**Defaults.** The module sets `plugin.name=pgoutput`,
+`publication.autocreate.mode=disabled` and `database.sslmode=require` as
+defaults. Override any of them with `connector_config_overrides` or the config
+file.
+
+**Publication.** `cdc-prepare-postgresql` creates the publication
+`publication_name` (default `dbz_publication`) when `manage_publication` is
+`true` (the default). The connector must not create it, so the default
+`publication.autocreate.mode=disabled` fits: the connector stops with an error
+if the publication is missing. `publication.name` is not set here: the
+Debezium default `dbz_publication` equals the default `publication_name`. If
+you change `publication_name`, set `publication.name` to the same value.
+
+With `manage_publication=false`, the publication is not managed. Two options:
+
+- The DBA creates the publication. Keep `disabled`.
+- The connector creates it: override `publication.autocreate.mode` to
+  `filtered`. The connector then builds the publication from `tables`
+  (`table.include.list`) at start. If the publication exists, it sets the
+  table list of the publication to match on each start.
+  The CDC role needs `rds_replication`, `CREATE` on the database,
+  `SELECT` on the tables, and ownership of every captured table. For tables
+  that another role owns, Debezium suggests a shared group role as owner
+  ([Debezium](https://debezium.io/documentation/reference/2.7/connectors/postgresql.html),
+  "Setting privileges to enable Debezium to create PostgreSQL publications").
+  Do not use the Debezium default `all_tables`: it needs a superuser right.
+
+**Replication slot.** `slot.name` is derived from `identifier`: lowercase, and
+every character outside `[a-z0-9_]` becomes `_` (so `orders-cdc` gives
+`orders_cdc`). PostgreSQL slot names allow lowercase letters, digits and `_`,
+and at most 63 bytes. The derived name always fits, because `identifier` has at
+most 56 characters. It is a derived value, so you can change it: set
+`slot.name` in `connector_config_overrides` or in the config file. An override
+is not checked by the module. The `slot_name` output shows the value in effect.
+
+- `cdc-prepare-postgresql` has its own `slot_name` input (default `debezium`).
+  It uses it only to report the slot. It runs before the connector, so the
+  `slot_name` output does not exist yet. Give it the derived name, or your
+  `slot.name` override, if you want its report to look at the connector's slot.
+- The slot stays after the connector is removed. An orphaned slot keeps WAL
+  without a limit and can fill the instance storage. Drop it yourself; see
+  [WAL retention and the replication slot](../cdc-prepare-postgresql/README.md#wal-retention-and-the-replication-slot).
+- Treat `identifier` as immutable. Renaming the connector changes the derived
+  slot. A new slot with an old Kafka offset cannot return the changes since
+  that offset. The connector skips them and emits no error: this is silent
+  data loss (Debezium,
+  "Upgrading PostgreSQL"). To rename the connector and keep the data, set
+  `slot.name` to the old slot name. The connector then uses the same slot.
+
+**Heartbeat.** It is off by default (no `heartbeat.interval.ms`). Enable it
+for an idle or low-traffic database, or when a busy database on the same
+instance writes most of the WAL. Without it the connector rarely confirms its
+position, so the slot keeps WAL and the storage grows. An idle RDS instance
+shows the same effect. Set `heartbeat.interval.ms` (for example `10000`). The
+connector writes to the topic `__debezium-heartbeat.<topic_prefix>` (prefix
+from `topic.heartbeat.prefix`). When topic auto-creation is off, create that
+topic first; see [`cdc-topics`](../cdc-topics/README.md).
+
+**SSL.** The default `database.sslmode=require` encrypts the traffic and does
+not check the server certificate. `verify-ca` and `verify-full` need the CA
+file on the MSK Connect worker (`database.sslrootcert` is a path on the
+worker). This project does not provide the file.
+
+**Versions.** The default plugin (2.7.4.Final) is tested on PostgreSQL 12 to 16.
+RDS for PostgreSQL 17 and 18 need a 3.x plugin. A 3.x plugin is unverified on
+MSK Connect. See the
+[module README](../../shared/modules/msk-connect-debezium/README.md#debezium-versions).
+After the first deployment, use the
+[PostgreSQL checklist](../../../docs/cdc-deployment-verification.md#postgresql).
 
 ## Connector and worker configuration from a file
 
@@ -210,7 +304,8 @@ The [generated block](#requirements) below carries the full table; this section
 notes only the propeller-facing shape and the non-obvious values.
 
 - **`identifier`** — unique connector identifier; names the module resources and
-  seeds the derived `server_id`.
+  seeds the derived `server_id` (MariaDB) and the derived `slot.name`
+  (PostgreSQL). Treat it as immutable.
 - **`subnet_ids`** — where the connector ENIs live; must reach both the
   database and the brokers.
 - **`create_security_group`, `vpc_id`, `security_group_ids`** — the module
@@ -218,6 +313,7 @@ notes only the propeller-facing shape and the non-obvious values.
   required); `security_group_ids` adds existing groups, or replaces the
   created one with `create_security_group = false`.
 - **`db_host`, `db_port`** — source database the connector reads from.
+  `db_port` defaults to 3306 for every engine: set `5432` for PostgreSQL.
 - **`bootstrap_servers`, `broker_port`** — Kafka endpoint the connector writes
   to.
 - **`plugin_arns`, `plugin_revisions`, `default_plugin_arns`,
@@ -234,12 +330,14 @@ notes only the propeller-facing shape and the non-obvious values.
   (`PLAINTEXT` | `TLS`) — independent knobs matched to the target cluster.
 - **`offset_topic`, `schema_history_topic`, `topic_prefix`** — the connector's
   Kafka topics; `topic_prefix` is effectively immutable. `offset_topic` is not
-  needed with an external worker configuration.
+  needed with an external worker configuration. `schema_history_topic` is
+  required for MariaDB and Oracle; leave it out for PostgreSQL, which has no
+  schema history.
 - **`cdc_username_parameter`, `cdc_password_parameter`** — optional; leave both
   unset to supply the credentials through the connector configuration. When
   set, they are the *names* of the two
-  scalar `SecureString` parameters `cdc-prepare-mariadb` / `cdc-prepare-oracle`
-  create (one for the username, one for the password), e.g.
+  scalar `SecureString` parameters `cdc-prepare-mariadb` / `cdc-prepare-oracle` /
+  `cdc-prepare-postgresql` create (one for the username, one for the password), e.g.
   `/platform/myapp/cdc-username` and `/platform/myapp/cdc-password`. You pass the
   same names you gave the prep step. Two scalar parameters — not one JSON
   document — because the SSM Config Provider cannot extract a key out of JSON
@@ -287,17 +385,20 @@ notes only the propeller-facing shape and the non-obvious values.
 - **`create_alarm`, `alarm_actions`** — the not-running alarm, off by default;
   actions only with `create_alarm`.
 - **`engine`** — selects the connector class and per-engine defaults
-  (`mariadb` or `oracle`; **Oracle is unverified against real infrastructure** — see the
+  (`mariadb`, `oracle` or `postgresql`; **Oracle is unverified against real infrastructure** — see the
   [module README's Oracle section](../../shared/modules/msk-connect-debezium/README.md#oracle)).
-- **`db_name`, `pdb_name`** — Oracle-only; ignored for `engine = "mariadb"`.
-  `db_name` is the Oracle service name / SID; `pdb_name` names a pluggable
+  It is also the plugin flavour name, so `msk-connect-plugin` must register a
+  flavour with exactly this name (`postgresql`, not `postgres`).
+- **`db_name`, `pdb_name`** — `db_name` is the Oracle service name / SID, or the
+  PostgreSQL database name; it is required (not blank) for `postgresql` and
+  ignored for `mariadb`. `pdb_name` is Oracle-only: it names a pluggable
   database on a multitenant (CDB) source and is omitted entirely when empty.
-- **`log_mining_strategy`** — Oracle-only; ignored for `engine = "mariadb"`.
+- **`log_mining_strategy`** — Oracle-only; ignored for other engines.
   Defaults to `hybrid`; see the module README for the tradeoff against
   `online_catalog` and the deprecated `redo_log_catalog`.
 - **`log_retention_in_days`** — retention of the created log group, only with
   `create_log_group`.
-- **`server_id`** — optional. Leave `null` to derive it deterministically from
+- **`server_id`** — optional, MariaDB only (ignored by the other engines). Leave `null` to derive it deterministically from
   `identifier`: the project folds the top 32 bits of `sha256(identifier)` into
   the MariaDB `1..4294967295` range, so it is stable per connector and distinct
   across connectors.
@@ -313,6 +414,9 @@ notes only the propeller-facing shape and the non-obvious values.
 - **`required_policy_json`** — the policy the service execution role needs;
   apply it to an external role.
 - **`server_id`** — the `database.server.id` in effect (supplied or derived).
+  Used by MariaDB only.
+- **`slot_name`** — the PostgreSQL replication slot (`slot.name`) in effect,
+  after overrides. `null` for MariaDB and Oracle.
 
 ## Idempotency and destroy
 
@@ -353,13 +457,15 @@ starts:
   ([`platform/shared/modules/msk-connect-debezium`](../../shared/modules/msk-connect-debezium/README.md)),
   which this project only adapts propeller inputs onto.
 - **Registering the plugin** — that is `msk-connect-plugin`.
-- **Preparing the source database** — that is `cdc-prepare-mariadb`.
+- **Preparing the source database** — that is `cdc-prepare-mariadb`, `cdc-prepare-oracle` or
+  `cdc-prepare-postgresql`.
 - **Creating the Kafka topics** — that is `cdc-topics`.
 
 ## References
 
 - [Module README — `msk-connect-debezium`](../../shared/modules/msk-connect-debezium/README.md)
 - [`docs/pipeline-schema.md`](../../../docs/pipeline-schema.md)
+- [Debezium connector for PostgreSQL (2.7)](https://debezium.io/documentation/reference/2.7/connectors/postgresql.html)
 - [Terraform `aws_mskconnect_connector`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/mskconnect_connector)
 - [AWS — MSK Connect connectors](https://docs.aws.amazon.com/msk/latest/developerguide/msk-connect-connectors.html)
 - [Terraform — Checks](https://developer.hashicorp.com/terraform/language/checks)
@@ -413,28 +519,28 @@ starts:
 | <a name="input_create_log_group"></a> [create\_log\_group](#input\_create\_log\_group) | Create the connector log group; requires log\_delivery.cloudwatch\_logs = {}. | `bool` | `false` | no |
 | <a name="input_create_security_group"></a> [create\_security\_group](#input\_create\_security\_group) | Create the connector security group. Set false to use only security\_group\_ids. | `bool` | `true` | no |
 | <a name="input_db_host"></a> [db\_host](#input\_db\_host) | Hostname of the source database the connector reads from. | `string` | n/a | yes |
-| <a name="input_db_name"></a> [db\_name](#input\_db\_name) | Oracle service name / SID (database.dbname). Ignored for engine = "mariadb". | `string` | `""` | no |
-| <a name="input_db_port"></a> [db\_port](#input\_db\_port) | Port of the source database. Opened as connector egress. | `number` | `3306` | no |
+| <a name="input_db_name"></a> [db\_name](#input\_db\_name) | Oracle service name / SID, or PostgreSQL database name (database.dbname).<br/>Required for postgresql; ignored for mariadb. | `string` | `""` | no |
+| <a name="input_db_port"></a> [db\_port](#input\_db\_port) | Port of the source database. Opened as connector egress. The default is<br/>3306 for every engine: set 5432 for postgresql. | `number` | `3306` | no |
 | <a name="input_default_plugin_arns"></a> [default\_plugin\_arns](#input\_default\_plugin\_arns) | Custom plugin ARNs of the default version, keyed by flavour (msk-connect-plugin.default\_plugin\_arns). Used when plugin\_version is empty. | `map(string)` | `{}` | no |
 | <a name="input_default_plugin_revisions"></a> [default\_plugin\_revisions](#input\_default\_plugin\_revisions) | Custom plugin revisions of the default version, keyed by flavour (msk-connect-plugin.default\_plugin\_revisions). Used when plugin\_version is empty. | `map(number)` | `{}` | no |
-| <a name="input_engine"></a> [engine](#input\_engine) | Source engine (mariadb or oracle). | `string` | `"mariadb"` | no |
+| <a name="input_engine"></a> [engine](#input\_engine) | Source engine: mariadb, oracle or postgresql. Also the plugin flavour name. | `string` | `"mariadb"` | no |
 | <a name="input_identifier"></a> [identifier](#input\_identifier) | Unique connector identifier. Names all module resources and seeds the deterministic Debezium server id. | `string` | n/a | yes |
 | <a name="input_in_transit_encryption"></a> [in\_transit\_encryption](#input\_in\_transit\_encryption) | Encryption in transit to the cluster: PLAINTEXT or TLS. | `string` | `"PLAINTEXT"` | no |
 | <a name="input_kafka_cluster_arn"></a> [kafka\_cluster\_arn](#input\_kafka\_cluster\_arn) | ARN of the target MSK cluster. Required for IAM auth when the module creates the role. | `string` | `null` | no |
 | <a name="input_log_delivery"></a> [log\_delivery](#input\_log\_delivery) | Worker log destinations. Null (default) delivers no logs: failures are very<br/>hard to debug. Needs log-delivery permissions on the deploy role. See README. | <pre>object({<br/>    cloudwatch_logs = optional(object({<br/>      log_group = optional(string)<br/>    }))<br/>    s3 = optional(object({<br/>      bucket = string<br/>      prefix = optional(string)<br/>    }))<br/>    firehose = optional(object({<br/>      delivery_stream = string<br/>    }))<br/>  })</pre> | `null` | no |
-| <a name="input_log_mining_strategy"></a> [log\_mining\_strategy](#input\_log\_mining\_strategy) | Oracle LogMiner's log.mining.strategy. Ignored for engine = "mariadb". See the module README for the tradeoff between 'hybrid' (default), 'online\_catalog' and the deprecated 'redo\_log\_catalog'. | `string` | `"hybrid"` | no |
+| <a name="input_log_mining_strategy"></a> [log\_mining\_strategy](#input\_log\_mining\_strategy) | Oracle LogMiner's log.mining.strategy. Ignored for other engines. See the module README for the tradeoff between 'hybrid' (default), 'online\_catalog' and the deprecated 'redo\_log\_catalog'. | `string` | `"hybrid"` | no |
 | <a name="input_log_retention_in_days"></a> [log\_retention\_in\_days](#input\_log\_retention\_in\_days) | Retention for the created log group (only with create\_log\_group). | `number` | `30` | no |
 | <a name="input_mcu_count"></a> [mcu\_count](#input\_mcu\_count) | MCUs per connector worker: 1, 2, 4 or 8. | `number` | `1` | no |
 | <a name="input_offset_topic"></a> [offset\_topic](#input\_offset\_topic) | Kafka topic for source offsets. Required unless worker\_configuration\_arn is set. | `string` | `null` | no |
-| <a name="input_pdb_name"></a> [pdb\_name](#input\_pdb\_name) | Oracle pluggable database name (database.pdb.name), for a multitenant (CDB) source. Empty (default) omits the property. Ignored for engine = "mariadb". | `string` | `""` | no |
+| <a name="input_pdb_name"></a> [pdb\_name](#input\_pdb\_name) | Oracle pluggable database name (database.pdb.name), for a multitenant<br/>(CDB) source. Empty (default) omits the property. Ignored for other engines. | `string` | `""` | no |
 | <a name="input_plugin_arns"></a> [plugin\_arns](#input\_plugin\_arns) | Custom plugin ARNs keyed by "<flavour>-<version>" (msk-connect-plugin.plugin\_arns). Used when plugin\_version is set to pin a specific version. | `map(string)` | `{}` | no |
 | <a name="input_plugin_revisions"></a> [plugin\_revisions](#input\_plugin\_revisions) | Custom plugin revisions keyed by "<flavour>-<version>" (msk-connect-plugin.plugin\_revisions). Used with plugin\_version. | `map(number)` | `{}` | no |
 | <a name="input_plugin_version"></a> [plugin\_version](#input\_plugin\_version) | Pin a specific plugin version for this connector's engine. Empty (default)<br/>uses the flavour's default from default\_plugin\_arns; a non-empty value<br/>selects "<engine>-<version>" from plugin\_arns. Changing the resolved plugin<br/>forces connector replacement. See README for the default-vs-pinned selection. | `string` | `""` | no |
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | n/a | `map(string)` | `{}` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region. | `string` | n/a | yes |
-| <a name="input_schema_history_topic"></a> [schema\_history\_topic](#input\_schema\_history\_topic) | Kafka topic where Debezium stores captured schema history. | `string` | n/a | yes |
+| <a name="input_schema_history_topic"></a> [schema\_history\_topic](#input\_schema\_history\_topic) | Kafka topic where Debezium stores captured schema history. Required for<br/>mariadb and oracle; ignored for postgresql. | `string` | `null` | no |
 | <a name="input_security_group_ids"></a> [security\_group\_ids](#input\_security\_group\_ids) | Existing security groups for the connector ENIs, added to the created one (if any). | `list(string)` | `[]` | no |
-| <a name="input_server_id"></a> [server\_id](#input\_server\_id) | Debezium database.server.id. Must be stable per connector and unique<br/>across connectors. Leave null to derive it deterministically from<br/>identifier (see README for the derivation). | `string` | `null` | no |
+| <a name="input_server_id"></a> [server\_id](#input\_server\_id) | Debezium database.server.id (mariadb only). Must be stable per connector<br/>and unique across connectors. Leave null to derive it deterministically<br/>from identifier (see README for the derivation). | `string` | `null` | no |
 | <a name="input_service_execution_role_arn"></a> [service\_execution\_role\_arn](#input\_service\_execution\_role\_arn) | Existing service execution role. When set, no IAM is created; apply the<br/>required\_policy\_json output to it. See module README. | `string` | `null` | no |
 | <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | Subnet IDs for the connector ENIs. Must reach the database and the Kafka brokers (from VPC project output). | `list(string)` | n/a | yes |
 | <a name="input_tables"></a> [tables](#input\_tables) | Fully-qualified tables to capture, joined into table.include.list.<br/>Empty (default) captures everything. | `list(string)` | `[]` | no |
@@ -454,6 +560,7 @@ starts:
 | <a name="output_connector_name"></a> [connector\_name](#output\_connector\_name) | Name of the MSK Connect connector. |
 | <a name="output_required_policy_json"></a> [required\_policy\_json](#output\_required\_policy\_json) | Policy the service execution role needs; apply it to an external role. Null when no grant is needed. |
 | <a name="output_security_group_id"></a> [security\_group\_id](#output\_security\_group\_id) | ID of the module-created connector security group; null when not created. |
-| <a name="output_server_id"></a> [server\_id](#output\_server\_id) | Debezium database.server.id in effect (supplied or derived from identifier). |
+| <a name="output_server_id"></a> [server\_id](#output\_server\_id) | Debezium database.server.id in effect (supplied or derived from identifier). Used by mariadb only. |
 | <a name="output_service_execution_role_arn"></a> [service\_execution\_role\_arn](#output\_service\_execution\_role\_arn) | ARN of the connector's service execution role in effect (created or supplied). |
+| <a name="output_slot_name"></a> [slot\_name](#output\_slot\_name) | PostgreSQL replication slot name in effect (slot.name, after overrides). Null for other engines. |
 <!-- END_TF_DOCS -->
