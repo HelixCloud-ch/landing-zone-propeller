@@ -64,8 +64,83 @@ item here as part of the first deployment.
   changes to captured tables are rare enough to accept its limitation (it
   cannot track DDL against captured tables).
 
+## PostgreSQL
+
+[`cdc-prepare-postgresql`](../platform/projects/cdc-prepare-postgresql/README.md) is tested offline and against a
+stock PostgreSQL container. It has not run against an RDS instance. The container has no
+`rds_replication` role with real rights, so it cannot create a slot as the CDC
+user. Treat the slot items below as part of the first deployment.
+
+- **blocking — reboot after `rds.logical_replication`.** The parameter is
+  static. Confirm `SHOW wal_level` returns `logical` before the first
+  `cdc-prepare-postgresql` run. The project stops if it does not.
+- **blocking — connector reaches `RUNNING`.** Deploy
+  [`msk-connect-debezium`](../platform/projects/msk-connect-debezium/README.md#postgresql)
+  with `engine = "postgresql"`. Confirm the connector reaches `RUNNING`, takes
+  the snapshot, and streams changes. Use the worker logs if it does not (see
+  the log delivery section of the module README).
+- **blocking — streaming as the CDC user.** Confirm that the CDC role
+  (`rds_replication`, `SELECT`, no superuser right) is enough on RDS for the
+  snapshot and for the slot creation.
+- **blocking — slot is active with `pgoutput`.** After the first start, run
+  `SELECT slot_name, plugin, active FROM pg_replication_slots`. Confirm there is
+  one row for the connector with `plugin = pgoutput` and `active = true`. The
+  slot name is the name that the connector uses: derived from `identifier`
+  (lowercase, `-` becomes `_`), or your `slot.name` override. The `slot_name`
+  output of the connector project shows it after the deploy. Confirm that the
+  `slot_name` input of `cdc-prepare-postgresql` has the same value, if you
+  want its slot report to show this slot.
+- **Publication used.** With the default `publication.autocreate.mode=disabled`,
+  confirm the connector starts without a publication error, and that
+  `pg_publication_tables` lists the captured tables for the publication it
+  uses (`dbz_publication`, or the name you set in `publication.name`). If
+  `cdc-prepare-postgresql` runs with `manage_publication=false` and you
+  override the mode to `filtered`, confirm the CDC role can create and alter
+  the publication (`CREATE` on the database, ownership of the tables).
+- **Connector SSL mode.** The connector sets `database.sslmode=require`.
+  Confirm the session of the CDC user is encrypted: the `ssl` column of
+  `pg_stat_ssl` is `true` for its `pid`. For `verify-ca` or `verify-full`,
+  confirm that the CA file is on the MSK Connect worker. The projects do not
+  provide it.
+- **Debezium 3.x on MSK Connect.** The default plugin (2.7.4.Final) is tested
+  on PostgreSQL 12 to 16 only. RDS for PostgreSQL 17 and 18 need a 3.x
+  plugin. No 3.x plugin has run on MSK Connect (all are `enabled: false` in the
+  catalogue). Before you use one, deploy a test connector and repeat the items
+  above.
+- **blocking — WAL retention and slot cleanup.** An unread or orphaned
+  replication slot keeps WAL and can fill the instance storage.
+  `max_slot_wal_keep_size` is `-1` by default. Create alarms on
+  `ReplicationSlotDiskUsage`, `OldestReplicationSlotLag` and
+  `TransactionLogsDiskUsage`. After you remove a connector, check
+  `pg_replication_slots` for a slot that is not active, and drop it by hand.
+  Remove the connector offsets too, or a new slot with an old offset can skip
+  changes without any error.
+- **Slot over stop and start.** Stop and start the instance, and confirm the
+  slot stays. Confirm the connector resumes without a new snapshot.
+- **Publication ownership.** With `publication_tables` set, confirm the admin
+  login can add tables that another role owns. If it cannot, create the
+  publication as the table owner and set `manage_publication` to `false`.
+- **Replica identity.** The project stops when a table in scope has no primary
+  key and its replica identity is `default` or `nothing`. Check the tables the
+  message names. Add a key, or run `ALTER TABLE ... REPLICA IDENTITY FULL`.
+- **Low traffic database.** On an instance with a busy database next to the
+  captured one, confirm the slot position moves. If it does not, set
+  `heartbeat.interval.ms` on the connector (it is off by default). If topic
+  auto-creation is off, create the topic `__debezium-heartbeat.<topic_prefix>`
+  first.
+- **TLS of the preparation step.** The `ssl_mode` of `cdc-prepare-postgresql`
+  defaults to `require`. For `verify-full`, confirm the
+  runner has the RDS CA bundle and `db_host` is the endpoint name.
+- **Major version upgrade.** An upgrade from a version before 17 needs all
+  logical slots dropped, and a new slot cannot return the changes of the
+  downtime. Follow the procedures in the references before you upgrade.
+
 ## References
 
+- [Debezium connector for PostgreSQL (2.7)](https://debezium.io/documentation/reference/2.7/connectors/postgresql.html)
+- [Performing logical replication for Amazon RDS for PostgreSQL](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL.Concepts.General.FeatureSupport.LogicalReplication.html)
+- [Reestablishing logical replication after a major upgrade](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.PostgreSQL.CommonDBATasks.pglogical.recover-replication-after-upgrade.html)
+- [Amazon CloudWatch metrics for Amazon RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-metrics.html)
 - [Debezium connector for Oracle (2.7)](https://debezium.io/documentation/reference/2.7/connectors/oracle.html)
 - [Debezium connector for MariaDB (2.7)](https://debezium.io/documentation/reference/2.7/connectors/mariadb.html)
 - [Create a Debezium source connector (MSK Connect)](https://docs.aws.amazon.com/msk/latest/developerguide/msk-connect-debeziumsource-connector-example-steps.html)
