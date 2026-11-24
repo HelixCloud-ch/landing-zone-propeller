@@ -171,6 +171,7 @@ apply:
       case "$flavour" in
         mariadb) connector_artifact="debezium-connector-mariadb" ;;
         oracle)  connector_artifact="debezium-connector-oracle" ;;
+        postgresql) connector_artifact="debezium-connector-postgres" ;;
         *) echo "error: unknown flavour: $flavour" >&2; exit 1 ;;
       esac
 

@@ -3,13 +3,16 @@
 Builds the Debezium MSK Connect plugin artifacts and uploads them to a
 destination S3 bucket. This is a non-Terraform, `just`-driven build project.
 
-It produces the MariaDB and Oracle Debezium plugin artifacts: ZIP archives of
-the connector JARs and the [`msk-config-providers`](https://github.com/aws-samples/msk-config-providers)
+It produces the MariaDB, Oracle and PostgreSQL Debezium plugin artifacts: ZIP
+archives of the connector JARs and the [`msk-config-providers`](https://github.com/aws-samples/msk-config-providers)
 config-provider JARs, flattened into a single directory so Kafka Connect finds
 them. The Oracle flavour additionally carries the Oracle JDBC driver (bundled in
 the upstream connector tarball) together with the unmodified [Oracle Free Use
 Terms and Conditions](https://www.oracle.com/downloads/licenses/oracle-free-license.html)
-license text.
+license text. The PostgreSQL flavour (`postgresql`, Maven artifact
+`debezium-connector-postgres`) needs nothing extra: the upstream connector
+tarball already bundles the PostgreSQL JDBC driver, and that driver needs no
+license file.
 
 Every supported version of every requested flavour is built, each under its own
 version-qualified key. That is deliberate: an MSK Connect custom plugin
@@ -124,8 +127,7 @@ matters in practice.
 and Kafka Connect 2.x/3.x. Every 3.x series needs Java 17+ and Kafka Connect 3.1
 or later. Both floors fit inside MSK Connect's `3.7.x`, so on the *floor* alone
 AWS is not the limiting factor. Only `Final` releases are catalogued; a series
-marked *development* on debezium.io is not — as of this writing that excludes
-3.7.
+marked *development* on debezium.io is not.
 
 **2b. What the Debezium patch was actually built and tested against.** The
 series page's Kafka Connect line is a floor, not a ceiling, and each patch's own
@@ -156,12 +158,17 @@ Connect):
 | --- | --- | --- | --- | --- |
 | MariaDB | 11.4.3 | 11.4.x, 11.7.x | 10.11, 11.4, 11.8, 12.3 | **11.4** |
 | Oracle | 12c, 19c, 21c | 19c, 21c, 23ai, 26ai | 19c, 21c, 26ai | 19c, 21c (2.7) · **+26ai** (3.x) |
+| PostgreSQL | 12 to 16 | 14 to 18 | 14 to 18 | **14 to 16** (2.7) · **+17, 18** (3.x) |
 
 MariaDB 11.4 is the only line tested by every catalogued version *and* offered by
 RDS; 11.7 is not an RDS line, and 11.8 and 12.3 are ahead of Debezium's matrix.
 For Oracle, only the 3.x series reaches 26ai, which matters because 21c is an
 Innovation Release [ending July 2027](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_UpgradeDBInstance.Oracle.21c-end-of-support.html)
 while 19c and 26ai are the Long Term Support releases.
+
+For PostgreSQL, the default `2.7.4.Final` is tested on 12 to 16 only, so RDS
+PostgreSQL 17 and 18 need a 3.x plugin. No 3.x version is enabled, and none is
+verified on an MSK Connect `3.7.x` worker.
 
 RDS MariaDB 10.11 is fully supported by AWS (standard support to February 2028)
 but is tested by no Debezium series. The pressure to move to 11.4 comes entirely
