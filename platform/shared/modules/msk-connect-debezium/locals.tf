@@ -31,20 +31,39 @@ locals {
   worker_configuration_revision = local.create_worker_configuration ? aws_mskconnect_worker_configuration.this[0].latest_revision : var.worker_configuration_revision
 
   connector_class = {
-    mariadb = "io.debezium.connector.mariadb.MariaDbConnector"
-    oracle  = "io.debezium.connector.oracle.OracleConnector"
+    mariadb    = "io.debezium.connector.mariadb.MariaDbConnector"
+    oracle     = "io.debezium.connector.oracle.OracleConnector"
+    postgresql = "io.debezium.connector.postgresql.PostgresConnector"
   }
+
+  # PostgreSQL keeps no schema history, so it gets no schema.history.internal.* keys.
+  uses_schema_history = var.engine != "postgresql"
+
+  # PostgreSQL slot names allow only [a-z0-9_]. The identifier allows lowercase
+  # letters, digits and hyphens, so a hyphen is the only character to replace.
+  slot_name = replace(lower(var.identifier), "/[^a-z0-9_]/", "_")
 
   # Layer 1: opinionated defaults, per engine.
   common_connector_defaults = {
+    "snapshot.mode" = "initial"
+  }
+  schema_history_defaults = {
     "include.schema.changes"                                    = "false"
     "schema.history.internal.store.only.captured.tables.ddl"    = "true"
     "schema.history.internal.store.only.captured.databases.ddl" = "true"
-    "snapshot.mode"                                             = "initial"
   }
   connector_defaults = {
-    mariadb = local.common_connector_defaults
-    oracle  = merge(local.common_connector_defaults, { "log.mining.strategy" = var.log_mining_strategy })
+    mariadb = merge(local.common_connector_defaults, local.schema_history_defaults)
+    oracle = merge(
+      local.common_connector_defaults,
+      local.schema_history_defaults,
+      { "log.mining.strategy" = var.log_mining_strategy },
+    )
+    postgresql = merge(local.common_connector_defaults, {
+      "plugin.name"                 = "pgoutput"
+      "publication.autocreate.mode" = "disabled"
+      "database.sslmode"            = "require"
+    })
   }
 
   # Layer 2: values derived from typed inputs.
@@ -53,6 +72,10 @@ locals {
     oracle = {
       "database.dbname"   = var.db_name
       "database.pdb.name" = var.pdb_name == "" ? null : var.pdb_name
+    }
+    postgresql = {
+      "database.dbname" = var.db_name
+      "slot.name"       = local.slot_name
     }
   }
   # Debezium's schema-history producer/consumer are plain Kafka clients and do
@@ -67,24 +90,27 @@ locals {
     var.in_transit_encryption == "TLS" ? tomap({ "security.protocol" = "SSL" }) : tomap({})
   )
   schema_history_auth = merge([
-    for role in ["producer", "consumer"] : {
+    for role in(local.uses_schema_history ? ["producer", "consumer"] : []) : {
       for k, v in local.schema_history_client_auth : "schema.history.internal.${role}.${k}" => v
     }
   ]...)
+  schema_history_connection = local.uses_schema_history ? tomap({
+    "schema.history.internal.kafka.bootstrap.servers" = var.bootstrap_servers
+    "schema.history.internal.kafka.topic"             = var.schema_history_topic
+  }) : tomap({})
   connector_derived = merge(
     {
-      "connector.class"                                 = local.connector_class[var.engine]
-      "tasks.max"                                       = "1"
-      "database.hostname"                               = var.db_host
-      "database.port"                                   = tostring(var.db_port)
-      "database.user"                                   = local.cdc_credentials_enabled ? "$${ssm::${var.cdc_username_parameter}}" : null
-      "database.password"                               = local.cdc_credentials_enabled ? "$${ssm::${var.cdc_password_parameter}}" : null
-      "topic.prefix"                                    = var.topic_prefix
-      "schema.history.internal.kafka.bootstrap.servers" = var.bootstrap_servers
-      "schema.history.internal.kafka.topic"             = var.schema_history_topic
-      "config.action.reload"                            = "none"
-      "table.include.list"                              = var.table_include_list == "" ? null : var.table_include_list
+      "connector.class"      = local.connector_class[var.engine]
+      "tasks.max"            = "1"
+      "database.hostname"    = var.db_host
+      "database.port"        = tostring(var.db_port)
+      "database.user"        = local.cdc_credentials_enabled ? "$${ssm::${var.cdc_username_parameter}}" : null
+      "database.password"    = local.cdc_credentials_enabled ? "$${ssm::${var.cdc_password_parameter}}" : null
+      "topic.prefix"         = var.topic_prefix
+      "config.action.reload" = "none"
+      "table.include.list"   = var.table_include_list == "" ? null : var.table_include_list
     },
+    local.schema_history_connection,
     local.engine_derived[var.engine],
     local.schema_history_auth,
   )
