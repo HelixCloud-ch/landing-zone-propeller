@@ -1,9 +1,20 @@
 locals {
-  # OU paths (workload-parameters.ou_ids keys) resolved to IDs, plus raw IDs;
-  # the per-policy copy vault falls back to the pipeline-wired one.
+  # Names normalized like workload-account-registry, so target_accounts uses
+  # the same names as pipeline targets.
+  account_ids = merge(
+    { for n, id in var.workload_account_ids : lower(replace(n, " ", "-")) => id },
+    { for n, id in var.landing_zone_account_ids : lower(replace(n, " ", "-")) => id },
+  )
+
+  # OU paths and account names resolved to IDs, plus raw IDs; the per-policy
+  # copy vault falls back to the pipeline-wired one.
   policies = {
     for name, p in var.policies : name => merge(p, {
-      target_ids     = distinct(concat([for path in p.target_ou_paths : var.ou_ids[path]], p.target_ids))
+      target_ids = distinct(concat(
+        [for path in p.target_ou_paths : var.ou_ids[path]],
+        [for n in p.target_accounts : local.account_ids[n]],
+        p.target_ids,
+      ))
       regions        = length(p.regions) > 0 ? p.regions : [var.region]
       copy_vault_arn = p.copy_to_vault ? coalesce(p.copy_vault_arn, var.copy_vault_arn) : null
     })

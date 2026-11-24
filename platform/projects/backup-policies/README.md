@@ -9,7 +9,8 @@ pipeline-wired `copy_vault_arn`.
 
 ## How a backup flows
 
-1. Each policy reaches every account under its target OUs.
+1. Each policy reaches every account under its target OUs, plus its target
+   accounts.
 2. Resources tagged `backup=default` (`selection_tag_key` /
    `selection_tag_values`) are backed up on `schedule_expression` into the
    local vault `source_vault_name`, running as `iam_role_name`.
@@ -31,12 +32,12 @@ restore time matters.
 ## Policies
 
 Every field of a `policies` entry is optional except the targets
-(`target_ou_paths` and/or `target_ids`):
+(`target_ou_paths`, `target_accounts` and/or `target_ids`):
 
 | Field | Default | Notes |
 |-------|---------|-------|
 | `description` | propeller default | |
-| `target_ou_paths` / `target_ids` | `[]` | At least one target; OU paths must be keys of `ou_ids` |
+| `target_ou_paths` / `target_accounts` / `target_ids` | `[]` | At least one target. OU paths must be keys of `ou_ids`; account names (pipeline target names) must be in `workload_account_ids` or `landing_zone_account_ids` |
 | `regions` | `[region]` | |
 | `schedule_expression` | `cron(0 2 ? * * *)` | |
 | `start_window_minutes` / `completion_window_minutes` | AWS default | |
@@ -50,6 +51,11 @@ Every field of a `policies` entry is optional except the targets
 Use one entry per tier with distinct `selection_tag_values`, so each resource
 is picked up by exactly one plan. Policies attached to the same OU merge by
 plan name, so keep the keys unique.
+
+An account under a targeted OU also receives the OU policy. Organizations has
+no exclusions, so an account-specific policy (`target_accounts`) that uses
+other vault or role names must not share a tag value with an OU policy that
+reaches the same account, or the OU plan starts jobs that fail there.
 
 ## Backup platform
 
@@ -87,6 +93,8 @@ stages:
         inputs:
           - name: "@landing-zone/workload-parameters.ou_ids"
             var: ou_ids
+          - name: "@landing-zone/workload-parameters.account_ids"
+            var: workload_account_ids   # only for target_accounts
           - name: backup-central-vault.vault_arn
             var: copy_vault_arn
 ```
@@ -172,11 +180,13 @@ No resources.
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | Pipeline-wide tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_copy_vault_arn"></a> [copy\_vault\_arn](#input\_copy\_vault\_arn) | Default destination vault ARN (e.g. the central backup-vault's vault\_arn). Null disables copies. | `string` | `null` | no |
+| <a name="input_landing_zone_account_ids"></a> [landing\_zone\_account\_ids](#input\_landing\_zone\_account\_ids) | Account name to ID, from @landing-zone/accounts.account\_ids. Resolves target\_accounts. | `map(string)` | `{}` | no |
 | <a name="input_ou_ids"></a> [ou\_ids](#input\_ou\_ids) | Map of OU path to OU ID, from @landing-zone/workload-parameters.ou\_ids. Resolves target\_ou\_paths. | `map(string)` | `{}` | no |
-| <a name="input_policies"></a> [policies](#input\_policies) | Organizations backup policies to create, keyed by policy name (also the plan<br/>name). Every field is optional except the targets; see README for the field<br/>reference and the defaults' contract with backup-vault. | <pre>map(object({<br/>    description               = optional(string, "AWS Backup policy managed by propeller.")<br/>    target_ou_paths           = optional(list(string), [])<br/>    target_ids                = optional(list(string), [])<br/>    regions                   = optional(list(string), [])<br/>    schedule_expression       = optional(string, "cron(0 2 ? * * *)")<br/>    start_window_minutes      = optional(number)<br/>    completion_window_minutes = optional(number)<br/>    source_vault_name         = optional(string, "propeller-backup")<br/>    source_retention_days     = optional(number, 1)<br/>    iam_role_name             = optional(string, "propeller-backup-role")<br/>    copy_to_vault             = optional(bool, true)<br/>    copy_vault_arn            = optional(string)<br/>    copy_retention_days       = optional(number, 30)<br/>    selection_tag_key         = optional(string, "backup")<br/>    selection_tag_values      = optional(list(string), ["default"])<br/>  }))</pre> | n/a | yes |
+| <a name="input_policies"></a> [policies](#input\_policies) | Organizations backup policies to create, keyed by policy name (also the plan<br/>name). Every field is optional except the targets; see README for the field<br/>reference and the defaults' contract with backup-vault. | <pre>map(object({<br/>    description               = optional(string, "AWS Backup policy managed by propeller.")<br/>    target_ou_paths           = optional(list(string), [])<br/>    target_ids                = optional(list(string), [])<br/>    target_accounts           = optional(list(string), [])<br/>    regions                   = optional(list(string), [])<br/>    schedule_expression       = optional(string, "cron(0 2 ? * * *)")<br/>    start_window_minutes      = optional(number)<br/>    completion_window_minutes = optional(number)<br/>    source_vault_name         = optional(string, "propeller-backup")<br/>    source_retention_days     = optional(number, 1)<br/>    iam_role_name             = optional(string, "propeller-backup-role")<br/>    copy_to_vault             = optional(bool, true)<br/>    copy_vault_arn            = optional(string)<br/>    copy_retention_days       = optional(number, 30)<br/>    selection_tag_key         = optional(string, "backup")<br/>    selection_tag_values      = optional(list(string), ["default"])<br/>  }))</pre> | n/a | yes |
 | <a name="input_propeller_tags"></a> [propeller\_tags](#input\_propeller\_tags) | Framework-managed tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS region for the management account provider. Also the plan region of policies without regions. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Per-project tags applied to all resources via provider default\_tags. | `map(string)` | `{}` | no |
+| <a name="input_workload_account_ids"></a> [workload\_account\_ids](#input\_workload\_account\_ids) | Account name to ID, from @landing-zone/workload-parameters.account\_ids. Resolves target\_accounts. | `map(string)` | `{}` | no |
 
 ## Outputs
 
