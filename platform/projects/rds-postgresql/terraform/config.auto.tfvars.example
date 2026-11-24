@@ -71,3 +71,7 @@ identifier = "my-pg-db"
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
 # performance_insights_enabled = true
+
+# ── Instance-only tags ────────────────────────────────────────────────────────
+# Added to the DB instance only, not to other resources in the project.
+# db_instance_tags = { backup = "default" }

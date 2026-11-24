@@ -99,6 +99,15 @@ aws docdb describe-db-engine-versions \
 - Global clusters — future extension
 - Read preference/connection string tuning — application-level concern
 
+
+## Cluster-only tags
+
+`tags` flows through provider `default_tags` and lands on every resource in the
+project. `db_cluster_tags` is applied to the `aws_docdb_cluster` only, not to the
+cluster instances. AWS Backup protects DocumentDB at the cluster level, so use it
+for selectors such as an AWS Backup tag that must not match the other resources.
+On a key clash the cluster value wins over `default_tags`.
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -135,6 +144,7 @@ No resources.
 | <a name="input_cluster_parameters"></a> [cluster\_parameters](#input\_cluster\_parameters) | DocumentDB cluster parameter group parameters (e.g. {tls = "enabled"}). | `map(string)` | `{}` | no |
 | <a name="input_consumer_tags"></a> [consumer\_tags](#input\_consumer\_tags) | n/a | `map(string)` | `{}` | no |
 | <a name="input_credential"></a> [credential](#input\_credential) | Credential strategy. Set one of secret\_name/secret\_arn/parameter\_name/<br/>parameter\_arn to use the ephemeral-credential module. Leave all null to<br/>use DocDB-managed master password (manage\_master\_user\_password=true with<br/>kms\_key\_id for encryption). | <pre>object({<br/>    # Identity — set exactly one, or leave all null for DocDB-managed mode<br/>    secret_name    = optional(string)<br/>    secret_arn     = optional(string)<br/>    parameter_name = optional(string)<br/>    parameter_arn  = optional(string)<br/><br/>    # Password generation<br/>    password = optional(object({<br/>      length                     = optional(number, 28)<br/>      exclude_characters         = optional(string, "/@\"\\\n")<br/>      exclude_lowercase          = optional(bool, false)<br/>      exclude_numbers            = optional(bool, false)<br/>      exclude_punctuation        = optional(bool, false)<br/>      exclude_uppercase          = optional(bool, false)<br/>      include_space              = optional(bool, false)<br/>      require_each_included_type = optional(bool, true)<br/>    }), {})<br/><br/>    # Rotation & encryption<br/>    password_version = optional(number, 1)<br/>    kms_key_id       = optional(string)<br/>    description      = optional(string)<br/>  })</pre> | `{}` | no |
+| <a name="input_db_cluster_tags"></a> [db\_cluster\_tags](#input\_db\_cluster\_tags) | Tags applied to the DB cluster only, on top of provider default\_tags. | `map(string)` | `{}` | no |
 | <a name="input_deletion_protection"></a> [deletion\_protection](#input\_deletion\_protection) | n/a | `bool` | `true` | no |
 | <a name="input_enable_performance_insights"></a> [enable\_performance\_insights](#input\_enable\_performance\_insights) | n/a | `bool` | `true` | no |
 | <a name="input_enabled_cloudwatch_logs_exports"></a> [enabled\_cloudwatch\_logs\_exports](#input\_enabled\_cloudwatch\_logs\_exports) | n/a | `list(string)` | <pre>[<br/>  "audit"<br/>]</pre> | no |
@@ -153,8 +163,7 @@ No resources.
 | <a name="input_snapshot_identifier"></a> [snapshot\_identifier](#input\_snapshot\_identifier) | n/a | `string` | `""` | no |
 | <a name="input_storage_encrypted"></a> [storage\_encrypted](#input\_storage\_encrypted) | n/a | `bool` | `true` | no |
 | <a name="input_storage_type"></a> [storage\_type](#input\_storage\_type) | n/a | `string` | `"standard"` | no |
-| <a name="input_subnet_ids_json"></a> [subnet\_ids\_json](#input\_subnet\_ids\_json) | JSON string of subnet tier map (from VPC project output). Decoded to extract the selected tier. | `string` | n/a | yes |
-| <a name="input_subnet_tier"></a> [subnet\_tier](#input\_subnet\_tier) | Key in the subnet map to use for the DB subnet group. | `string` | `"data"` | no |
+| <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | Subnet IDs for the DB subnet group (from VPC project output). | `list(string)` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | n/a | `map(string)` | `{}` | no |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | VPC ID (from VPC project output). | `string` | n/a | yes |
 

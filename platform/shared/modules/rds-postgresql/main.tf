@@ -107,6 +107,8 @@ resource "aws_db_instance" "this" {
   # Parameter group
   parameter_group_name = var.parameter_group_name
 
+  tags = var.db_instance_tags
+
   lifecycle {
     ignore_changes = [
       allocated_storage,

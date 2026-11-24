@@ -75,4 +75,7 @@ module "aurora_postgresql" {
 
   # Monitoring
   performance_insights_enabled = var.performance_insights_enabled
+
+  # Tags
+  db_cluster_tags = var.db_cluster_tags
 }

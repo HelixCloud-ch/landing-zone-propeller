@@ -206,6 +206,12 @@ variable "tags" {
   default = {}
 }
 
+variable "db_instance_tags" {
+  type        = map(string)
+  description = "Tags applied to the DB instance only, on top of provider default_tags."
+  default     = {}
+}
+
 variable "consumer_tags" {
   type    = map(string)
   default = {}

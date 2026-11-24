@@ -108,6 +108,13 @@ additional_options = [
 ```
 
 
+## Instance-only tags
+
+`tags` flows through provider `default_tags` and lands on every resource,
+including the S3 integration bucket. `db_instance_tags` is applied to the
+`aws_db_instance` only. Use it for selectors such as an AWS Backup tag that must
+not match the bucket. On a key clash the instance value wins over `default_tags`.
+
 ## Engine versions
 
 The supported major version for `oracle-se2` is **19**. Oracle 21 is only
