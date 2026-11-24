@@ -1,9 +1,9 @@
 # CDC integration tests
 
 These tests run the real CDC scripts (`cdc-prepare-mariadb`,
-`cdc-prepare-oracle`, `cdc-topics`) against real MariaDB, Oracle and Kafka in
-Docker. They find what the unit tests cannot: SQL that the database rejects,
-real grants, and real broker behaviour.
+`cdc-prepare-postgresql`, `cdc-prepare-oracle`, `cdc-topics`) against real
+MariaDB, PostgreSQL, Oracle and Kafka in Docker. They find what the unit tests cannot: SQL that the database
+rejects, real grants, and real broker behaviour.
 
 SSM is faked in memory. The tests need Docker, but no AWS access.
 
@@ -29,11 +29,15 @@ on the machine is not used: a Python 3.14 pre-release crashes when it loads
 
 ## Services
 
-`compose.yaml` starts three services on localhost. Each has a healthcheck, so
-`just cdc-up` returns when all three are ready.
+`compose.yaml` starts four services on localhost. Each has a healthcheck, so
+`just cdc-up` returns when all four are ready.
 
 - MariaDB 11.4 on port 33306. Binary log on, `ROW`, `FULL`.
   `mariadb-init.sql` adds a stand-in for `mysql.rds_set_configuration`.
+- PostgreSQL 17 on port 35432, database `appdb`, `wal_level=logical`, no TLS.
+  The `admin` superuser plays the RDS master user. `postgres-init.sql` adds
+  an empty `rds_replication` role (a stand-in: a stock PostgreSQL has none)
+  and two sample tables with a primary key.
 - Oracle Free 23 on port 31521, a CDB with the `FREEPDB1` pluggable database.
   `oracle-init.sh` makes it look like RDS for Oracle: ARCHIVELOG and
   supplemental logging on, an `ADMIN` user in the PDB (like the RDS master
@@ -47,6 +51,15 @@ on the machine is not used: a Python 3.14 pre-release crashes when it loads
 - `test_mariadb`: creates the CDC user and checks its grants with
   `SHOW GRANTS`. Then it changes the password parameter and checks that the
   login check fails, without printing the password.
+- `test_postgresql`: creates the CDC role with a password that holds a quote
+  and a backslash, and checks the login right, the `rds_replication`
+  membership, and the `USAGE` and `SELECT` grants. It checks the publication
+  in `pg_publication_tables`: created from a table list, unchanged on a second
+  run, synced when the list grows. A table with no primary key makes an
+  all-tables publication fail and creates nothing. With
+  `manage_publication=false` no publication is created. Then it changes the
+  password parameter and checks that the login check fails, without printing
+  the password. It uses `ssl_mode` `disable`.
 - `test_oracle`: the same for Oracle, on the PDB. It checks the system
   privileges and the SYS object grants in `DBA_SYS_PRIVS` and
   `DBA_TAB_PRIVS`.
@@ -61,6 +74,9 @@ services that already ran other tests.
 
 - MSK IAM authentication (`SASL_SSL`).
 - The real RDS procedures (`rdsadmin`, `mysql.rds_set_configuration`).
+- PostgreSQL replication slots as the CDC user: the stand-in
+  `rds_replication` role gives no replication right. The real role, TLS
+  modes, and the slot report on RDS.
 - RDS for Oracle CDB grants.
 
 Test these in AWS.
